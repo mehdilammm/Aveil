@@ -1,11 +1,3 @@
--- Move WooCommerce credentials to Supabase Vault. store_credentials keeps only Vault references.
--- The table is empty (no credentials were ever saved), so the old columns can be dropped.
-alter table public.store_credentials
-  drop column consumer_key_enc,
-  drop column consumer_secret_enc,
-  add column consumer_key_secret_id uuid not null,
-  add column consumer_secret_secret_id uuid not null;
-
 -- Saves (or replaces) the credentials of one store. Server only (service role).
 create or replace function public.save_store_credentials(
   p_store_id uuid,
