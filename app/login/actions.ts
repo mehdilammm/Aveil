@@ -1,0 +1,34 @@
+"use server";
+
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+
+export type AuthState = { error?: string; notice?: string };
+
+function readForm(form: FormData) {
+  return { email: String(form.get("email") ?? "").trim(), password: String(form.get("password") ?? "") };
+}
+
+export async function logIn(_: AuthState, form: FormData): Promise<AuthState> {
+  const { email, password } = readForm(form);
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) return { error: error.message };
+  redirect("/stores");
+}
+
+export async function signUp(_: AuthState, form: FormData): Promise<AuthState> {
+  const { email, password } = readForm(form);
+  if (password.length < 8) return { error: "Use a password of at least 8 characters." };
+  const origin = (await headers()).get("origin") ?? "";
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: `${origin}/auth/confirm` },
+  });
+  if (error) return { error: error.message };
+  if (data.session) redirect("/stores");
+  return { notice: "Check your email to confirm your account, then log in." };
+}
