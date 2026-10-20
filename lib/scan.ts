@@ -1,0 +1,135 @@
+import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { decrypt } from "./crypto";
+import { findingState } from "./history";
+import { checkProduct, type Finding, type Severity } from "./rules";
+import { fetchPublishedProducts, fetchPublishedVariations, WooError } from "./woo";
+
+type Store = { id: string; owner_id: string; url: string };
+
+const STALE_RUNNING_MS = 10 * 60_000;
+const VARIATION_CONCURRENCY = 4;
+
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i]);
+      }
+    }),
+  );
+  return out;
+}
+
+// Keys of the previous complete scan, and of every earlier complete scan.
+async function earlierKeys(admin: SupabaseClient, storeId: string, scanId: string) {
+  const { data: scans, error } = await admin
+    .from("scans")
+    .select("id")
+    .eq("store_id", storeId)
+    .eq("status", "complete")
+    .neq("id", scanId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+
+  const previous = new Set<string>();
+  const ever = new Set<string>();
+  if (!scans.length) return { previous, ever };
+
+  const ids = scans.map((s) => s.id);
+  for (let from = 0; ; from += 1000) {
+    const { data, error: fErr } = await admin.from("findings").select("scan_id, finding_key").in("scan_id", ids).range(from, from + 999);
+    if (fErr) throw fErr;
+    for (const f of data) {
+      ever.add(f.finding_key);
+      if (f.scan_id === ids[0]) previous.add(f.finding_key);
+    }
+    if (data.length < 1000) break;
+  }
+  return { previous, ever };
+}
+
+// Runs one scan for a store the caller has already verified belongs to the user.
+export async function runScan(admin: SupabaseClient, store: Store): Promise<{ scanId: string; error?: string }> {
+  const { data: running } = await admin
+    .from("scans")
+    .select("id, started_at")
+    .eq("store_id", store.id)
+    .in("status", ["queued", "running"])
+    .gte("created_at", new Date(Date.now() - STALE_RUNNING_MS).toISOString())
+    .limit(1);
+  if (running?.length) return { scanId: running[0].id, error: "A scan is already running for this store." };
+
+  const { data: scan, error: scanErr } = await admin
+    .from("scans")
+    .insert({ store_id: store.id, owner_id: store.owner_id, status: "running", started_at: new Date().toISOString() })
+    .select("id")
+    .single();
+  if (scanErr) throw scanErr;
+
+  try {
+    const { data: cred, error: credErr } = await admin
+      .from("store_credentials")
+      .select("consumer_key_enc, consumer_secret_enc")
+      .eq("store_id", store.id)
+      .eq("owner_id", store.owner_id)
+      .single();
+    if (credErr || !cred) throw new WooError("No API key saved for this store.");
+    const creds = {
+      consumerKey: decrypt(cred.consumer_key_enc, store.id),
+      consumerSecret: decrypt(cred.consumer_secret_enc, store.id),
+    };
+
+    const products = await fetchPublishedProducts(store.url, creds);
+    await admin.from("stores").update({ connection_status: "connected" }).eq("id", store.id);
+
+    const findings: Finding[] = (
+      await mapLimit(products.items, VARIATION_CONCURRENCY, async (p) =>
+        checkProduct(p, p.type === "variable" ? await fetchPublishedVariations(store.url, p.id, creds) : []),
+      )
+    ).flat();
+
+    const { previous, ever } = await earlierKeys(admin, store.id, scan.id);
+    const rows = findings.map((f) => ({
+      ...f,
+      scan_id: scan.id,
+      store_id: store.id,
+      owner_id: store.owner_id,
+      state: findingState(f.finding_key, previous, ever),
+    }));
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await admin.from("findings").insert(rows.slice(i, i + 500));
+      if (error) throw error;
+    }
+
+    const severity_counts: Record<Severity, number> = { high: 0, medium: 0, low: 0 };
+    for (const f of findings) severity_counts[f.severity]++;
+
+    await admin
+      .from("scans")
+      .update({
+        status: "complete",
+        finished_at: new Date().toISOString(),
+        published_products: products.total,
+        scanned_products: products.items.length,
+        findings_count: findings.length,
+        severity_counts,
+        error: products.truncated ? `Only the first ${products.items.length} of ${products.total} products were scanned.` : null,
+      })
+      .eq("id", scan.id);
+    return { scanId: scan.id };
+  } catch (err) {
+    const message = err instanceof WooError ? err.message : "The scan failed. Please try again.";
+    if (!(err instanceof WooError)) console.error("scan failed", scan.id, err);
+    if (err instanceof WooError && (err.status === 401 || err.status === 403)) {
+      await admin.from("stores").update({ connection_status: "error" }).eq("id", store.id);
+    }
+    // Drop partial findings so a failed scan never counts in history.
+    await admin.from("findings").delete().eq("scan_id", scan.id);
+    await admin.from("scans").update({ status: "failed", finished_at: new Date().toISOString(), error: message }).eq("id", scan.id);
+    return { scanId: scan.id, error: message };
+  }
+}
