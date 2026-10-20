@@ -15,6 +15,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const { data: store } = await supabase.from("stores").select("id, owner_id, url").eq("id", id).maybeSingle();
   if (!store || store.owner_id !== user.id) return NextResponse.json({ error: "Store not found." }, { status: 404 });
 
-  const result = await runScan(createAdminClient(), store);
-  return NextResponse.json(result, { status: result.error ? 409 : 200 });
+  try {
+    const result = await runScan(createAdminClient(), store);
+    return NextResponse.json(result, { status: result.error ? 409 : 200 });
+  } catch (err) {
+    console.error("scan route failed", err instanceof Error ? err.message : "unknown error");
+    return NextResponse.json({ error: "The scan could not start because of a server problem. Please try again later." }, { status: 500 });
+  }
 }

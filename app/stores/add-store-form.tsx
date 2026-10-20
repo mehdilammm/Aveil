@@ -23,7 +23,7 @@ export function AddStoreForm() {
         Consumer secret
         <input name="consumer_secret" type="password" placeholder="cs_…" required />
       </label>
-      <p className="muted">The key and secret are encrypted on our server and never shown again.</p>
+      <p className="muted">The key and secret are stored encrypted in Supabase Vault and never shown again.</p>
       {state.error && <p className="error">{state.error}</p>}
       <div>
         <button disabled={pending}>{pending ? "Saving…" : "Add store"}</button>

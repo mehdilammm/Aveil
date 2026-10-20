@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { encrypt } from "@/lib/crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { normalizeStoreUrl } from "@/lib/url";
@@ -10,6 +9,8 @@ export type AddStoreState = { error?: string };
 
 const KEY_RE = /^ck_[A-Za-z0-9]{20,64}$/;
 const SECRET_RE = /^cs_[A-Za-z0-9]{20,64}$/;
+
+const SAVE_FAILED = "We could not save your API key securely, so the store was not added. Please try again in a few minutes.";
 
 export async function addStore(_: AddStoreState, form: FormData): Promise<AddStoreState> {
   const { supabase, user } = await getUser();
@@ -27,19 +28,31 @@ export async function addStore(_: AddStoreState, form: FormData): Promise<AddSto
 
   // Insert as the user so RLS checks ownership.
   const { data: store, error } = await supabase.from("stores").insert({ name, url: parsed.url, owner_id: user.id }).select("id").single();
-  if (error || !store) return { error: "Could not save the store." };
+  if (error || !store) {
+    console.error("add store: insert failed", error?.code, error?.message);
+    return { error: "Could not save the store. Please try again." };
+  }
 
-  const admin = createAdminClient();
-  const { error: credErr } = await admin.from("store_credentials").insert({
-    store_id: store.id,
-    owner_id: user.id,
-    consumer_key_enc: encrypt(consumerKey, store.id),
-    consumer_secret_enc: encrypt(consumerSecret, store.id),
-    key_hint: `ck_…${consumerKey.slice(-4)}`,
-  });
-  if (credErr) {
-    await supabase.from("stores").delete().eq("id", store.id);
-    return { error: "Could not save the API key." };
+  // Credentials go to Supabase Vault through a service-role-only function.
+  let saved = false;
+  try {
+    const { error: credErr } = await createAdminClient().rpc("save_store_credentials", {
+      p_store_id: store.id,
+      p_owner_id: user.id,
+      p_consumer_key: consumerKey,
+      p_consumer_secret: consumerSecret,
+      p_key_hint: `ck_…${consumerKey.slice(-4)}`,
+    });
+    if (credErr) console.error("add store: saving credentials failed", credErr.code, credErr.message);
+    saved = !credErr;
+  } catch (err) {
+    console.error("add store: saving credentials failed", err instanceof Error ? err.message : "unknown error");
+  }
+
+  if (!saved) {
+    const { error: rollbackErr } = await supabase.from("stores").delete().eq("id", store.id);
+    if (rollbackErr) console.error("add store: rollback failed", store.id, rollbackErr.code);
+    return { error: SAVE_FAILED };
   }
   redirect(`/stores/${store.id}`);
 }

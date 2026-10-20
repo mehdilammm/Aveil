@@ -1,6 +1,5 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { decrypt } from "./crypto";
 import { findingState } from "./history";
 import { checkProduct, type Finding, type Severity } from "./rules";
 import { fetchPublishedProducts, fetchPublishedVariations, WooError } from "./woo";
@@ -71,24 +70,19 @@ export async function runScan(admin: SupabaseClient, store: Store): Promise<{ sc
   if (scanErr) throw scanErr;
 
   try {
-    const { data: cred, error: credErr } = await admin
-      .from("store_credentials")
-      .select("consumer_key_enc, consumer_secret_enc")
-      .eq("store_id", store.id)
-      .eq("owner_id", store.owner_id)
-      .single();
-    if (credErr || !cred) throw new WooError("No API key saved for this store.");
-    const creds = {
-      consumerKey: decrypt(cred.consumer_key_enc, store.id),
-      consumerSecret: decrypt(cred.consumer_secret_enc, store.id),
-    };
+    const { data: creds, error: credErr } = await admin
+      .rpc("get_store_credentials", { p_store_id: store.id, p_owner_id: store.owner_id })
+      .maybeSingle<{ consumer_key: string; consumer_secret: string }>();
+    if (credErr) throw credErr;
+    if (!creds) throw new WooError("No API key is saved for this store. Add the store again with its API key.");
 
-    const products = await fetchPublishedProducts(store.url, creds);
+    const wooCreds = { consumerKey: creds.consumer_key, consumerSecret: creds.consumer_secret };
+    const products = await fetchPublishedProducts(store.url, wooCreds);
     await admin.from("stores").update({ connection_status: "connected" }).eq("id", store.id);
 
     const findings: Finding[] = (
       await mapLimit(products.items, VARIATION_CONCURRENCY, async (p) =>
-        checkProduct(p, p.type === "variable" ? await fetchPublishedVariations(store.url, p.id, creds) : []),
+        checkProduct(p, p.type === "variable" ? await fetchPublishedVariations(store.url, p.id, wooCreds) : []),
       )
     ).flat();
 
