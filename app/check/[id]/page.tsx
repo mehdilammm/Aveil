@@ -62,7 +62,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         <div className="page-head">
           <h1>{r.host}</h1>
           <p className="sub">
-            Checked {formatDate(r.checkedAt)} · {r.requests} requests to the store
+            Checked {formatDate(r.checkedAt)} · Requests used: {r.requests} of {r.requestLimit ?? 10}
             {" · "}Platform: {r.platformName ?? (r.platform?.woocommerce ? "WooCommerce" : r.platform?.wordpress ? "WordPress" : "unknown")}
           </p>
           <ShareLink path={`/check/${row.id}`} />
@@ -178,6 +178,26 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           note="This question names your domain, so the answer always mentions it. It shows what the model says about the store, not whether it recommends it."
           namesLabel="Similar stores named"
         />
+
+        {r.requestLog && r.requestLog.length > 0 && (
+          <>
+            <h2>Requests</h2>
+            <div className="card table-wrap">
+              <p className="muted small">Requests used: {r.requests} of {r.requestLimit ?? 10}. Steps run in order of importance; redirect hops count as requests.</p>
+              <table>
+                <thead><tr><th>Step</th><th>Result</th></tr></thead>
+                <tbody>
+                  {r.requestLog.map((e, i) => (
+                    <tr key={i}>
+                      <td>{e.step}</td>
+                      <td className={e.outcome.startsWith("not checked") ? "muted" : undefined}>{e.outcome}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
 
         <div className="cta">
           <p>This public check sees only what any visitor sees.</p>

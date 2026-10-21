@@ -104,3 +104,9 @@ AgentScopeBot and how to block it.
 - CTA: WooCommerce → full scan sign-up; Shopify → waitlist with optional email (`shopify_waitlist`, server only, nothing sent).
 - Gemini: each question reserves 2 requests (question + extraction) in the daily budget, so an asked question always gets its
   extraction; the extraction reply gets 2048 output tokens and a cut-off reply keeps its complete entries.
+
+Request order in the public check (the 10-request limit drops the last ones first): robots.txt → home page → Shopify
+/products.json or a product sitemap → product page 1 → GPTBot → ClaudeBot → PerplexityBot → OAI-SearchBot → llms.txt →
+product page 2. A same-site redirect on the first request (example.com → www.example.com) is learned and later requests
+go straight to the final host. Anything not requested is "not checked: request limit" (unavailable), never a finding,
+and the report lists every step with its result.

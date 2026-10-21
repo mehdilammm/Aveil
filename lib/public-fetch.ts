@@ -2,7 +2,7 @@ import "server-only";
 import { lookup } from "node:dns";
 import { isIP } from "node:net";
 import { Agent, fetch as undiciFetch } from "undici";
-import { CHECK_HEADER, LIMITS } from "./public-scan";
+import { applyCanonical, CHECK_HEADER, learnCanonical, LIMITS, NOT_CHECKED, type RequestLogEntry } from "./public-scan";
 import { assertPublicAddresses, isPrivateAddress } from "./url";
 import { shopifyFromHeaders, vendorFromHeaders, type PageFetch } from "./woo";
 
@@ -39,13 +39,30 @@ function hostAllowed(u: URL): string | null {
 // 10 s timeout, 2 MB per answer, https only, every redirect re-checked (max 3).
 export class PublicFetcher {
   requests = 0;
+  log: RequestLogEntry[] = [];
   private last = 0;
+  private canonical: { from: string; to: string } | null = null;
+
+  constructor(private readonly gapMs: number = LIMITS.gapMs) {}
 
   get remaining() {
     return LIMITS.httpRequests - this.requests;
   }
 
-  async get(target: string, userAgent: string): Promise<PageFetch> {
+  // The host to build later URLs with, after a same-site redirect (example.com → www.example.com).
+  url(path: string, origin: string): string {
+    return applyCanonical(`${origin}${path}`, this.canonical);
+  }
+
+  // step: what this request is for, shown in the report's request list.
+  async get(target: string, userAgent: string, step: string): Promise<PageFetch> {
+    const result = await this.fetchOne(applyCanonical(target, this.canonical), userAgent);
+    if (result.ok && !this.canonical) this.canonical = learnCanonical(target, result.finalUrl);
+    this.log.push({ step, outcome: result.ok ? `HTTP ${result.status}${result.redirectedTo ? `, redirect to ${result.redirectedTo}` : ""}` : result.error });
+    return result;
+  }
+
+  private async fetchOne(target: string, userAgent: string): Promise<PageFetch> {
     let current: URL;
     try {
       current = new URL(target);
@@ -55,8 +72,8 @@ export class PublicFetcher {
     for (let hop = 0; hop <= LIMITS.redirects; hop++) {
       const problem = hostAllowed(current);
       if (problem) return { ok: false, error: problem };
-      if (this.requests >= LIMITS.httpRequests) return { ok: false, error: "request budget for this check is used up" };
-      const wait = this.last + LIMITS.gapMs - Date.now();
+      if (this.requests >= LIMITS.httpRequests) return { ok: false, error: NOT_CHECKED, skipped: true };
+      const wait = this.last + this.gapMs - Date.now();
       if (this.last && wait > 0) await sleep(wait);
       this.requests++;
       this.last = Date.now();

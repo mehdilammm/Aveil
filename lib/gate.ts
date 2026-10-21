@@ -17,7 +17,7 @@ const TITLE_TEXT_RE = /<title[^>]*>([\s\S]*?)<\/title>/i;
 
 // Short, factual description of what a page returned, for evidence.
 export function describePage(f: PageFetch): string {
-  if (!f.ok) return `no answer (${f.error})`;
+  if (!f.ok) return f.skipped ? f.error : `no answer (${f.error})`;
   if (f.redirectedTo) return `HTTP ${f.status}, redirect to ${f.redirectedTo}`;
   const title = TITLE_TEXT_RE.exec(f.body)?.[1].replace(/\s+/g, " ").trim().slice(0, 80) ?? "";
   return [

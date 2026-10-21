@@ -28,7 +28,8 @@ export const LIMITS = {
 } as const;
 
 export const ROBOTS_BOTS = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "PerplexityBot", "Google-Extended"] as const;
-export const ACCESS_BOTS: BotName[] = ["GPTBot", "OAI-SearchBot", "ClaudeBot", "PerplexityBot"];
+// Order matters: when the request limit is reached, the last ones are the ones not checked.
+export const ACCESS_BOTS: BotName[] = ["GPTBot", "ClaudeBot", "PerplexityBot", "OAI-SearchBot"];
 export const GEMINI_LABEL = "Gemini API answer, not the Gemini app";
 
 // What blocking each bot costs a store. Google-Extended only controls use by Google's AI models, not Search.
@@ -42,6 +43,36 @@ const ROBOTS_SEVERITY: Record<(typeof ROBOTS_BOTS)[number], Severity> = {
 };
 
 // ---------- visitors, cache, limits ----------
+
+export const NOT_CHECKED = "not checked: request limit";
+
+// A same-site redirect on the first request (example.com → www.example.com) gives the host to use for every later
+// request, so redirects do not eat the request budget again and again.
+export function learnCanonical(requested: string, final: string): { from: string; to: string } | null {
+  try {
+    const a = new URL(requested);
+    const b = new URL(final);
+    if (a.host === b.host || b.protocol !== "https:") return null;
+    const strip = (h: string) => h.replace(/^www\./, "");
+    return strip(a.hostname) === strip(b.hostname) ? { from: a.host, to: b.host } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function applyCanonical(url: string, canonical: { from: string; to: string } | null): string {
+  if (!canonical) return url;
+  try {
+    const u = new URL(url);
+    if (u.host !== canonical.from) return url;
+    u.host = canonical.to;
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+export type RequestLogEntry = { step: string; outcome: string };
 
 // HMAC of the IP with a server secret and the UTC day: enough for an hourly rate limit, not reversible,
 // and not linkable across days. The full IP is never stored.
@@ -297,6 +328,8 @@ export type PublicReport = {
   host: string;
   checkedAt: string;
   requests: number;
+  requestLimit?: number;
+  requestLog?: RequestLogEntry[];
   platform: Platform | null;
   platformName?: ReturnType<typeof platformName>;
   shopifyList?: { status: "ok"; checked: number; note: string } | { status: "unavailable"; reason: string } | null;
@@ -318,6 +351,7 @@ export type PublicScanInput = {
   host: string;
   checkedAt: string;
   requests: number;
+  requestLog?: RequestLogEntry[];
   robots: PageFetch | null;
   llms: PageFetch | null;
   home: PageFetch | null;
@@ -436,6 +470,9 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     if (result.status === "ok") {
       shopifyList = { status: "ok", checked: result.checked, note: SHOPIFY_LIST_NOTE };
       findings.push(...result.findings.map((x) => ({ ...x, area: "product_data" })));
+    } else if (sp && !sp.ok && sp.skipped) {
+      shopifyList = { status: "unavailable", reason: NOT_CHECKED };
+      findings.push(f("product_data", "shopify:not_checked", { title: `Shopify product list ${NOT_CHECKED}`, severity: "low", basis: "unavailable", evidence: `/products.json: ${NOT_CHECKED}.`, guidance: "Nothing to fix. It was not read this time." }));
     } else {
       shopifyList = { status: "unavailable", reason: result.reason };
       findings.push(f("product_data", "shopify:list_unavailable", { title: "Shopify product list not available (not a problem)", severity: "low", basis: "unavailable", evidence: `/products.json: ${result.reason}. Many stores turn it off; product data was checked on product pages only.`, guidance: "Nothing to do. The product pages below were still checked." }));
@@ -444,9 +481,14 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
 
   // Bot access: one request per bot on the home page, compared with our normal request.
   let accessTested = false;
+  const notChecked = Object.entries(input.bots).filter(([, r]) => r && !r.ok && r.skipped).map(([bot]) => bot);
+  const checkedBots = Object.fromEntries(Object.entries(input.bots).filter(([bot]) => !notChecked.includes(bot)));
+  if (notChecked.length) {
+    findings.push(f("access", "access:not_checked", { title: `Bot access ${NOT_CHECKED}`, severity: "low", basis: "unavailable", evidence: `${notChecked.join(", ")}: ${NOT_CHECKED} for this free check.`, guidance: "Nothing to fix. These bots were not tested this time." }));
+  }
   if (home && !agentScopeBlocked && !protection) {
-    const page: PageResult = { label: "home page", url: input.url, browser: home, bots: input.bots, gate: gate?.reason };
-    accessTested = !gate && Object.keys(input.bots).length > 0;
+    const page: PageResult = { label: "home page", url: input.url, browser: home, bots: checkedBots, gate: gate?.reason };
+    accessTested = !gate && Object.keys(checkedBots).length > 0;
     findings.push(...checkAccess(input.url, [page], { baseline: "our normal request (AgentScopeBot)", retried: false }).map((x) => ({ ...x, area: "access" })));
   }
 
@@ -504,6 +546,8 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     host: input.host,
     checkedAt: input.checkedAt,
     requests: input.requests,
+    requestLimit: LIMITS.httpRequests,
+    requestLog: input.requestLog ?? [],
     platform,
     platformName: platformName(platform),
     shopifyList,

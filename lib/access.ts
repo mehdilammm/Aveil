@@ -66,6 +66,8 @@ function compare(page: PageResult, bot: PageFetch, base: string, retried: boolea
   const b = page.browser;
   if (!b.ok || baselineProblem(b, page.gate)) return null; // no baseline
   const browserChallenged = b.challengeHeader || CHALLENGE_RE.test(b.body);
+  // Never a finding for a request that was not made (request limit): that is "not checked", not a problem.
+  if (!bot.ok && bot.skipped) return null;
   if (!bot.ok) return { severity: "medium", text: `${page.label}: no answer (${bot.error}), ${base} got ${b.status}` };
   if (bot.status === 429) return { severity: "medium", rateLimited: true, text: `${page.label}: HTTP 429 (rate-limited)${retried ? " even after one retry" : ""}, ${base} got ${b.status}` };
   if (BLOCK_STATUS.has(bot.status)) return { severity: "high", text: `${page.label}: HTTP ${bot.status}, ${base} got ${b.status}` };

@@ -76,12 +76,18 @@ async function geminiParts(admin: SupabaseClient, origin: string, host: string, 
 }
 
 // Runs one public check: at most 10 HTTP requests to the store, plus up to 2 Gemini requests.
-export async function runPublicScan(admin: SupabaseClient, origin: string, host: string): Promise<{ report: PublicReport; usage: Usage; requests: number }> {
-  const fetcher = new PublicFetcher();
+export async function runPublicScan(
+  admin: SupabaseClient,
+  origin: string,
+  host: string,
+  fetcher: PublicFetcher = new PublicFetcher(),
+): Promise<{ report: PublicReport; usage: Usage; requests: number }> {
   const usage: Usage = { geminiRequests: 0, input: 0, output: 0 };
 
-  const robotsFetch = await fetcher.get(`${origin}/robots.txt`, PUBLIC_UA);
-  const llms = await fetcher.get(`${origin}/llms.txt`, PUBLIC_UA);
+  // Order by importance, so the request limit only ever drops the least useful checks:
+  // robots.txt (read first so a block on AgentScopeBot is obeyed before any page is loaded) → home page →
+  // product list or sitemap → product page 1 → GPTBot → ClaudeBot → PerplexityBot → OAI-SearchBot → llms.txt → product page 2.
+  const robotsFetch = await fetcher.get(`${origin}/robots.txt`, PUBLIC_UA, "robots.txt");
   const { robots } = robotsFrom(robotsFetch);
 
   const input: PublicScanInput = {
@@ -90,7 +96,7 @@ export async function runPublicScan(admin: SupabaseClient, origin: string, host:
     checkedAt: new Date().toISOString(),
     requests: 0,
     robots: robotsFetch,
-    llms,
+    llms: null,
     home: null,
     bots: {},
     products: [],
@@ -99,28 +105,29 @@ export async function runPublicScan(admin: SupabaseClient, origin: string, host:
   };
 
   if (agentScopeAllowed(robots, "/")) {
-    const home = await fetcher.get(`${origin}/`, PUBLIC_UA);
+    const home = await fetcher.get(`${origin}/`, PUBLIC_UA, "home page");
     input.home = home;
     // Skip bots and product pages when the home page is a placeholder or a bot-protection page: they would only see it too.
     if (home.ok && trustedHomeHtml(home) !== null) {
-      for (const bot of ACCESS_BOTS) input.bots[bot] = await fetcher.get(`${origin}/`, UA[bot]);
-
+      const site = new URL(home.finalUrl).origin;
       let urls: string[] = [];
       if (detectShopify(home.body, home.shopifyHeader)) {
-        // Shopify: the public product list (1 request, first 10 products, no pagination), then product pages.
-        input.shopifyProducts = agentScopeAllowed(robots, "/products.json") ? await fetcher.get(`${origin}/products.json?limit=${SHOPIFY_PRODUCTS_LIMIT}`, PUBLIC_UA) : null;
+        // Shopify: the public product list (1 request, first 10 products, no pagination).
+        input.shopifyProducts = agentScopeAllowed(robots, "/products.json")
+          ? await fetcher.get(`${site}/products.json?limit=${SHOPIFY_PRODUCTS_LIMIT}`, PUBLIC_UA, "Shopify product list (/products.json)")
+          : null;
         urls = shopifyProductLinks(home.body, home.finalUrl);
         if (urls.length) input.productSource = "home page links";
         else {
           const sp = input.shopifyProducts;
-          const list = sp?.ok && sp.status === 200 ? checkShopifyProducts(sp.body, origin) : null;
+          const list = sp?.ok && sp.status === 200 ? checkShopifyProducts(sp.body, site) : null;
           if (list?.status === "ok" && list.handles.length) {
-            urls = list.handles.slice(0, 2).map((h) => `${origin}/products/${h}`);
+            urls = list.handles.slice(0, 2).map((h) => `${site}/products/${h}`);
             input.productSource = "products.json";
-          } else if (fetcher.remaining >= 3) {
-            const index = await fetcher.get(`${origin}/sitemap.xml`, PUBLIC_UA);
+          } else {
+            const index = await fetcher.get(`${site}/sitemap.xml`, PUBLIC_UA, "sitemap index");
             const productsMap = index.ok && index.status === 200 ? shopifyProductSitemap(index.body, home.finalUrl) : null;
-            const sitemap = productsMap ? await fetcher.get(productsMap, PUBLIC_UA) : null;
+            const sitemap = productsMap ? await fetcher.get(productsMap, PUBLIC_UA, "product sitemap") : null;
             urls = sitemap?.ok && sitemap.status === 200 ? sitemapProductUrls(sitemap.body, home.finalUrl, 2, "shopify") : [];
             if (urls.length) input.productSource = "sitemap";
           }
@@ -128,20 +135,25 @@ export async function runPublicScan(admin: SupabaseClient, origin: string, host:
       } else {
         urls = productLinks(home.body, home.finalUrl);
         if (urls.length) input.productSource = "home page links";
-        else if (fetcher.remaining >= 2) {
-          const sitemap = await fetcher.get(productSitemapUrl(robots?.sitemaps ?? [], origin), PUBLIC_UA);
+        else {
+          const sitemap = await fetcher.get(productSitemapUrl(robots?.sitemaps ?? [], site), PUBLIC_UA, "product sitemap");
           urls = sitemap.ok && sitemap.status === 200 ? sitemapProductUrls(sitemap.body, home.finalUrl) : [];
           if (urls.length) input.productSource = "sitemap";
         }
       }
-      for (const url of urls.filter((u) => agentScopeAllowed(robots, new URL(u).pathname))) {
-        if (fetcher.remaining < 1) break;
-        input.products.push({ url, fetch: await fetcher.get(url, PUBLIC_UA) });
-      }
+      const productUrls = urls.filter((u) => agentScopeAllowed(robots, new URL(u).pathname)).slice(0, 2);
+
+      if (productUrls[0]) input.products.push({ url: productUrls[0], fetch: await fetcher.get(productUrls[0], PUBLIC_UA, "product page 1") });
+      for (const bot of ACCESS_BOTS) input.bots[bot] = await fetcher.get(`${site}/`, UA[bot], `home page as ${bot}`);
+      if (agentScopeAllowed(robots, "/llms.txt")) input.llms = await fetcher.get(`${site}/llms.txt`, PUBLIC_UA, "llms.txt");
+      if (productUrls[1]) input.products.push({ url: productUrls[1], fetch: await fetcher.get(productUrls[1], PUBLIC_UA, "product page 2") });
+    } else if (agentScopeAllowed(robots, "/llms.txt")) {
+      input.llms = await fetcher.get(`${origin}/llms.txt`, PUBLIC_UA, "llms.txt");
     }
   }
 
   input.gemini = await geminiParts(admin, origin, host, trustedHomeHtml(input.home), usage);
   input.requests = fetcher.requests;
+  input.requestLog = fetcher.log;
   return { report: buildPublicReport(input), usage, requests: fetcher.requests };
 }

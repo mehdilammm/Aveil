@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  agentScopeAllowed, buildPublicReport, knowledgeQuestion, topicFromHome, visibilityQuestion, geminiAllowedForDomain, hashIp, isFresh, parseAmount, priceConsistency, productLinks,
+  agentScopeAllowed, applyCanonical, buildPublicReport, knowledgeQuestion, learnCanonical, topicFromHome, visibilityQuestion, geminiAllowedForDomain, hashIp, isFresh, parseAmount, priceConsistency, productLinks,
   productSitemapUrl, robotsVerdicts, sitemapProductUrls, visiblePrice, withinRateLimit, type PublicScanInput,
 } from "./public-scan";
 import { isAllowed, parseRobots } from "./robots";
@@ -243,5 +243,39 @@ describe("Gemini questions", () => {
     });
     expect(buildPublicReport(input(false)).findings.map((x) => x.finding_key)).toContain("gemini:not_named");
     expect(buildPublicReport(input(true)).findings.map((x) => x.finding_key)).not.toContain("gemini:not_named");
+  });
+});
+
+describe("checks not made because of the request limit", () => {
+  const skipped: PageFetch = { ok: false, error: "not checked: request limit", skipped: true };
+  const home = page(200, homeHtml);
+
+  it("are UNAVAILABLE 'not checked', never a MEDIUM or HIGH finding (badeloft.com case)", () => {
+    const r = buildPublicReport({
+      url: "https://shop.test/", host: "shop.test", checkedAt: "2026-10-21T10:00:00Z", requests: 10,
+      robots: page(200, "User-agent: *\nDisallow: /wp-admin/\nSitemap: https://shop.test/s.xml"),
+      llms: skipped,
+      home,
+      bots: { GPTBot: page(200, homeHtml), ClaudeBot: skipped, PerplexityBot: skipped, "OAI-SearchBot": skipped },
+      products: [{ url: "https://shop.test/product/a/", fetch: skipped }],
+      productSource: "home page links",
+      gemini: { visibility: { status: "unavailable", reason: "x", prompt: "q" }, knowledge: { status: "unavailable", reason: "x", prompt: "k" } },
+    });
+    const access = r.findings.filter((f) => f.area === "access");
+    expect(access.map((f) => `${f.finding_key}/${f.severity}/${f.basis}`)).toEqual(["access:not_checked/low/unavailable"]);
+    expect(access[0].evidence).toBe("ClaudeBot, PerplexityBot, OAI-SearchBot: not checked: request limit for this free check.");
+    expect(r.findings.some((f) => (f.severity === "medium" || f.severity === "high") && /request limit/.test(f.evidence))).toBe(false);
+    expect(r.llmsTxt).toBe("unavailable");
+    expect(r.findings.find((f) => f.finding_key === "schema:unavailable:product1")?.evidence).toBe("https://shop.test/product/a/: not checked: request limit.");
+  });
+
+  it("learns the canonical host from a same-site redirect only", () => {
+    expect(learnCanonical("https://badeloft.com/robots.txt", "https://www.badeloft.com/robots.txt")).toEqual({ from: "badeloft.com", to: "www.badeloft.com" });
+    expect(learnCanonical("https://www.shop.test/", "https://shop.test/")).toEqual({ from: "www.shop.test", to: "shop.test" });
+    expect(learnCanonical("https://shop.test/", "https://other.test/")).toBeNull();
+    expect(learnCanonical("https://shop.test/", "https://shop.test/en/")).toBeNull();
+    const c = { from: "badeloft.com", to: "www.badeloft.com" };
+    expect(applyCanonical("https://badeloft.com/products.json?limit=10", c)).toBe("https://www.badeloft.com/products.json?limit=10");
+    expect(applyCanonical("https://cdn.test/x", c)).toBe("https://cdn.test/x");
   });
 });

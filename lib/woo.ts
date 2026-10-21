@@ -155,7 +155,7 @@ export async function fetchSiteName(baseUrl: string): Promise<Source<string>> {
 
 export type PageFetch =
   | { ok: true; status: number; finalUrl: string; redirectedTo: string | null; bytes: number; body: string; challengeHeader: boolean; retryAfter?: string | null; vendorHint?: string | null; shopifyHeader?: boolean }
-  | { ok: false; error: string };
+  | { ok: false; error: string; skipped?: boolean }
 
 const PAGE_TIMEOUT_MS = 12_000;
 const MAX_BODY_BYTES = 1_500_000;
