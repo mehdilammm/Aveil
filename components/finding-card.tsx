@@ -1,3 +1,4 @@
+import { areaOf, AREAS } from "@/lib/categories";
 import { editorUrl, type FindingRow } from "@/lib/data";
 import { BasisBadge, SeverityBadge, StateBadge } from "./badges";
 
@@ -9,6 +10,7 @@ export function FindingCard({ finding, storeUrl }: { finding: FindingRow; storeU
         <SeverityBadge severity={finding.severity} />
         <BasisBadge basis={finding.basis} />
         <StateBadge state={finding.state} />
+        <span className="badge area-tag">{AREAS.find((a) => a.key === areaOf(finding))?.label}</span>
       </div>
       <h3>{finding.title}</h3>
       <p className="evidence">{finding.evidence}</p>

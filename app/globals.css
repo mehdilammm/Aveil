@@ -98,3 +98,9 @@ td.num, th.num { text-align: right; }
 
 .auth { max-width: 440px; margin: 0 auto; padding: 48px 16px; }
 .auth .brand { color: var(--forest); font-weight: 700; font-size: 20px; }
+.areas { display: grid; gap: 12px; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .areas { grid-template-columns: 1fr 1fr; } }
+.area { margin-bottom: 0; }
+.area-total { font-size: 24px; font-weight: 700; color: var(--forest); }
+.small { font-size: 13px; }
+.badge.area-tag { background: var(--ivory); color: var(--forest); border: 1px solid var(--border); }

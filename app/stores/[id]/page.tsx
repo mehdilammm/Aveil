@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatDate } from "@/components/badges";
 import { FindingCard } from "@/components/finding-card";
+import { ACCESS_NOTE } from "@/lib/access";
+import { areaOf, AREAS } from "@/lib/categories";
 import { findingsForScan, getStore, listScans, sortForFixing } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "./run-scan-button";
@@ -16,8 +18,17 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
   const last = scans[0];
   const lastComplete = scans.find((s) => s.status === "complete");
   const findings = lastComplete ? sortForFixing(await findingsForScan(supabase, lastComplete.id)) : [];
-  const counts = { high: 0, medium: 0, low: 0 };
-  for (const f of findings) counts[f.severity]++;
+  const areas = AREAS.map((a) => {
+    const inArea = findings.filter((f) => areaOf(f) === a.key);
+    return {
+      ...a,
+      total: inArea.length,
+      high: inArea.filter((f) => f.severity === "high").length,
+      medium: inArea.filter((f) => f.severity === "medium").length,
+      low: inArea.filter((f) => f.severity === "low").length,
+      unavailable: inArea.filter((f) => f.basis === "unavailable").length,
+    };
+  });
 
   return (
     <>
@@ -51,10 +62,25 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
 
           {lastComplete && (
             <>
-              <div className="grid">
-                <div className="stat high"><div className="label">Critical</div><div className="value">{counts.high}</div></div>
-                <div className="stat medium"><div className="label">Warnings</div><div className="value">{counts.medium}</div></div>
-                <div className="stat low"><div className="label">Low</div><div className="value">{counts.low}</div></div>
+              <h2>Agent Readiness</h2>
+              <p className="muted">Open findings per area from the last scan. Counts only, no score.</p>
+              <div className="areas">
+                {areas.map((a) => (
+                  <div key={a.key} className="card area">
+                    <div className="row" style={{ justifyContent: "space-between" }}>
+                      <strong>{a.label}</strong>
+                      <span className="area-total">{a.total}</span>
+                    </div>
+                    <p className="muted small">{a.description}</p>
+                    <div className="row small">
+                      <span className="badge sev-high">{a.high} critical</span>
+                      <span className="badge sev-medium">{a.medium} warning</span>
+                      <span className="badge sev-low">{a.low} low</span>
+                    </div>
+                    {a.unavailable > 0 && <p className="muted small">{a.unavailable} could not be checked (unavailable).</p>}
+                    {a.key === "access" && <p className="muted small">{ACCESS_NOTE}</p>}
+                  </div>
+                ))}
               </div>
 
               <h2>Top 5 to fix</h2>
