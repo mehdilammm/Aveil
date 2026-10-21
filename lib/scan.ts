@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findingState } from "./history";
+import { runAccessCheck, sampleProductPages } from "./agent-checks";
 import { connectionAfterScan } from "./connection";
 import { checkFeedProduct, checkFeedStore } from "./feed";
 import { checkStorePages } from "./pages";
@@ -98,6 +99,10 @@ export async function runScan(admin: SupabaseClient, store: Store): Promise<{ sc
     ]);
     findings.push(...checkStorePages({ storeUrl: store.url, settings, pages }));
     findings.push(...checkFeedStore({ storeUrl: store.url, siteName, settings }));
+
+    const samples = sampleProductPages(store.url, products.items);
+    const access = await runAccessCheck(store.url, samples.map((s) => s.url));
+    findings.push(...access.findings);
 
     const { previous, ever } = await earlierKeys(admin, store.id, scan.id);
     const rows = findings.map((f) => ({

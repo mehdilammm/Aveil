@@ -1,0 +1,101 @@
+// Agent access check: loads the same pages as a normal browser and as known AI bots (by User-Agent only)
+// and compares the answers. Real bots can be treated differently (for example by IP verification),
+// so every finding here is heuristic.
+import type { Finding } from "./rules";
+import type { PageFetch } from "./woo";
+
+export const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
+
+export const AI_BOTS = [
+  { name: "GPTBot", ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.1; +https://openai.com/gptbot)" },
+  { name: "OAI-SearchBot", ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)" },
+  { name: "ChatGPT-User", ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot" },
+  { name: "ClaudeBot", ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)" },
+  { name: "PerplexityBot", ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)" },
+] as const;
+
+export type BotName = (typeof AI_BOTS)[number]["name"];
+
+export const ACCESS_NOTE =
+  "This test only changes the User-Agent. Real AI bots can be treated differently, for example when a firewall verifies their IP addresses.";
+
+// Which bots load which page. 10 requests in total: home page with every bot, two product pages with the shopping agents.
+export function accessPlan(homeUrl: string, productUrls: string[]): { label: string; url: string; bots: BotName[] }[] {
+  const plan: { label: string; url: string; bots: BotName[] }[] = [
+    { label: "home page", url: homeUrl, bots: AI_BOTS.map((b) => b.name) },
+  ];
+  const productBots: BotName[] = ["ChatGPT-User", "OAI-SearchBot"];
+  productUrls.slice(0, 2).forEach((url, i) => plan.push({ label: `product page ${i + 1}`, url, bots: [productBots[i]] }));
+  return plan;
+}
+
+export const requestCount = (plan: ReturnType<typeof accessPlan>) => plan.reduce((n, p) => n + 1 + p.bots.length, 0);
+
+const CHALLENGE_RE = /cf-chl|challenge-platform|cf_chl_opt|just a moment\.\.\.|attention required|px-captcha|_incapsula_resource|sgcaptcha|captcha-delivery|verify you are human|access denied/i;
+const BLOCK_STATUS = new Set([401, 403, 406, 429, 451, 503]);
+
+export type PageResult = { label: string; url: string; browser: PageFetch; bots: Partial<Record<BotName, PageFetch>> };
+
+type Issue = { severity: "high" | "medium"; text: string };
+
+function compare(page: PageResult, bot: PageFetch): Issue | null {
+  const b = page.browser;
+  if (!b.ok || b.status < 200 || b.status >= 300 || b.redirectedTo) return null; // no baseline
+  const browserChallenged = b.challengeHeader || CHALLENGE_RE.test(b.body);
+  if (!bot.ok) return { severity: "medium", text: `${page.label}: no answer (${bot.error}), the browser got ${b.status}` };
+  if (BLOCK_STATUS.has(bot.status)) return { severity: "high", text: `${page.label}: HTTP ${bot.status}, the browser got ${b.status}` };
+  if (bot.challengeHeader || (!browserChallenged && CHALLENGE_RE.test(bot.body))) {
+    return { severity: "high", text: `${page.label}: challenge or captcha page (HTTP ${bot.status}), the browser got the real page` };
+  }
+  if (bot.redirectedTo) return { severity: "medium", text: `${page.label}: redirected to ${bot.redirectedTo}, the browser was not` };
+  if (bot.status >= 400) return { severity: "high", text: `${page.label}: HTTP ${bot.status}, the browser got ${b.status}` };
+  if (b.bytes > 5000 && bot.bytes < b.bytes * 0.3) {
+    return { severity: "medium", text: `${page.label}: page is ${Math.round(bot.bytes / 1024)} KB, the browser got ${Math.round(b.bytes / 1024)} KB` };
+  }
+  return null;
+}
+
+export function checkAccess(storeUrl: string, pages: PageResult[]): Finding[] {
+  const findings: Finding[] = [];
+
+  const brokenBaseline = pages.filter((p) => !p.browser.ok || p.browser.status < 200 || p.browser.status >= 300 || p.browser.redirectedTo);
+  for (const p of brokenBaseline) {
+    const why = !p.browser.ok ? p.browser.error : p.browser.redirectedTo ? `redirected to ${p.browser.redirectedTo}` : `HTTP ${p.browser.status}`;
+    findings.push({
+      finding_key: `access:baseline:${p.label}`,
+      type: "access_check_unavailable",
+      product_id: null,
+      title: `Could not test AI access on the ${p.label}`,
+      severity: "low",
+      basis: "unavailable",
+      evidence: `A normal browser request to ${p.url} failed: ${why}. Without a working baseline the bots cannot be compared.`,
+      guidance: "Check that the page loads for visitors. The next scan will try again.",
+      fix_url: p.url,
+    });
+  }
+
+  for (const bot of AI_BOTS) {
+    const issues = pages.flatMap((p) => {
+      const result = p.bots[bot.name];
+      const issue = result ? compare(p, result) : null;
+      return issue ? [issue] : [];
+    });
+    if (!issues.length) continue;
+    const blocked = issues.some((i) => i.severity === "high");
+    findings.push({
+      finding_key: `access:${bot.name}`,
+      type: blocked ? "access_blocked" : "access_degraded",
+      product_id: null,
+      title: blocked ? `AI agents are blocked: ${bot.name}` : `${bot.name} gets a different page`,
+      severity: blocked ? "high" : "medium",
+      basis: "heuristic",
+      evidence: `${issues.map((i) => i.text).join("; ")}. ${ACCESS_NOTE}`,
+      guidance: blocked
+        ? `Allow ${bot.name} in your firewall, security plugin or CDN bot settings (for example Cloudflare → Security → Bots, Wordfence, or your host's bot protection). Then rescan.`
+        : `Check your caching, security or CDN rules for ${bot.name}, then rescan.`,
+      fix_url: storeUrl,
+    });
+  }
+  return findings;
+}

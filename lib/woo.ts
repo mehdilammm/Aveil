@@ -152,3 +152,68 @@ export async function fetchSiteName(baseUrl: string): Promise<Source<string>> {
     return { ok: false, reason: `The site title could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
   }
 }
+
+export type PageFetch =
+  | { ok: true; status: number; finalUrl: string; redirectedTo: string | null; bytes: number; body: string; challengeHeader: boolean }
+  | { ok: false; error: string };
+
+const PAGE_TIMEOUT_MS = 12_000;
+const MAX_BODY_BYTES = 1_500_000;
+
+async function readCapped(res: Response): Promise<{ text: string; bytes: number }> {
+  if (!res.body) return { text: "", bytes: 0 };
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  while (bytes < MAX_BODY_BYTES) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    bytes += value.byteLength;
+  }
+  await reader.cancel().catch(() => {});
+  return { text: new TextDecoder().decode(Buffer.concat(chunks).subarray(0, MAX_BODY_BYTES)), bytes };
+}
+
+// Fetches a public page with a given User-Agent, like a visitor would. No credentials are sent.
+// Follows same-host redirects; a redirect to another host is reported, not followed.
+export async function fetchPublicPage(target: string, userAgent: string): Promise<PageFetch> {
+  try {
+    let current = new URL(target);
+    const startHost = current.host;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      if (current.protocol !== "https:") return { ok: false, error: "redirected to a non-https address" };
+      await assertPublicHost(current);
+      const res = await fetch(current, {
+        headers: { "User-Agent": userAgent, Accept: "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "en" },
+        redirect: "manual",
+        signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
+        cache: "no-store",
+      });
+      const location = res.headers.get("location");
+      if (res.status >= 300 && res.status < 400 && location) {
+        await res.body?.cancel().catch(() => {});
+        const next = new URL(location, current);
+        if (next.host !== startHost) {
+          return { ok: true, status: res.status, finalUrl: current.toString(), redirectedTo: next.toString(), bytes: 0, body: "", challengeHeader: false };
+        }
+        current = next;
+        continue;
+      }
+      const { text, bytes } = await readCapped(res);
+      return {
+        ok: true,
+        status: res.status,
+        finalUrl: current.toString(),
+        redirectedTo: null,
+        bytes,
+        body: text,
+        challengeHeader: (res.headers.get("cf-mitigated") ?? "").toLowerCase() === "challenge",
+      };
+    }
+    return { ok: false, error: "too many redirects" };
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") return { ok: false, error: "no response within 12 seconds" };
+    return { ok: false, error: err instanceof WooError ? err.message : "request failed" };
+  }
+}
