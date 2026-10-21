@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { addStore, type AddStoreState } from "./actions";
+import { addStore, type AddStoreState } from "@/app/stores/actions";
 
 export function AddStoreForm() {
   const [state, action, pending] = useActionState<AddStoreState, FormData>(addStore, {});

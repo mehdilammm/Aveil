@@ -1,61 +1,75 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatDate } from "@/components/severity";
+import { formatDate } from "@/components/badges";
+import { FindingCard } from "@/components/finding-card";
+import { findingsForScan, getStore, listScans, sortForFixing } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
-import { DeleteStoreForm } from "../delete-store-form";
 import { RunScanButton } from "./run-scan-button";
 
-export default async function StorePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function OverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase } = await getUser();
-  const { data: store } = await supabase.from("stores").select("id, name, url, connection_status").eq("id", id).maybeSingle();
+  const store = await getStore(supabase, id);
   if (!store) notFound();
 
-  const { data: scans } = await supabase
-    .from("scans")
-    .select("id, status, started_at, finished_at, published_products, scanned_products, findings_count, severity_counts, error")
-    .eq("store_id", id)
-    .order("created_at", { ascending: false })
-    .limit(50);
+  const scans = await listScans(supabase, id, 20);
+  const last = scans[0];
+  const lastComplete = scans.find((s) => s.status === "complete");
+  const findings = lastComplete ? sortForFixing(await findingsForScan(supabase, lastComplete.id)) : [];
+  const counts = { high: 0, medium: 0, low: 0 };
+  for (const f of findings) counts[f.severity]++;
 
   return (
     <>
-      <p><Link href="/stores">← Stores</Link></p>
-      <h1>{store.name}</h1>
-      <p className="muted">{store.url} · connection: {store.connection_status}</p>
-      <RunScanButton storeId={store.id} />
+      <div className="page-head">
+        <h1>{store.name}</h1>
+        <p className="sub">
+          {store.url} · <span className={`status-${store.connection_status}`}>{store.connection_status}</span>
+        </p>
+        {store.connection_status === "error" && store.connection_error && <p className="error">{store.connection_error}</p>}
+      </div>
 
-      <h2>Scan history</h2>
-      {scans?.length ? (
-        <div className="table-wrap card">
-          <table>
-            <thead>
-              <tr><th>Started</th><th>Status</th><th>Products</th><th>High</th><th>Medium</th><th>Low</th><th></th></tr>
-            </thead>
-            <tbody>
-              {scans.map((s) => {
-                const c = (s.severity_counts ?? {}) as Record<string, number>;
-                return (
-                  <tr key={s.id}>
-                    <td>{formatDate(s.started_at)}</td>
-                    <td>{s.status}{s.error && <div className={s.status === "failed" ? "error" : "muted"}>{s.error}</div>}</td>
-                    <td>{s.scanned_products ?? "—"}{s.published_products != null && s.published_products !== s.scanned_products ? ` / ${s.published_products}` : ""}</td>
-                    <td className="sev-high">{c.high ?? "—"}</td>
-                    <td className="sev-medium">{c.medium ?? "—"}</td>
-                    <td className="sev-low">{c.low ?? "—"}</td>
-                    <td>{s.status === "complete" && <Link href={`/stores/${store.id}/scans/${s.id}`}>Findings</Link>}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {!last ? (
+        <div className="card empty">
+          <strong>No scan yet</strong>
+          <p>Run the first scan to see how ready this store is for AI shopping agents.</p>
+          <RunScanButton storeId={store.id} label="Run first scan" />
         </div>
       ) : (
-        <p className="muted">No scans yet. Run the first scan.</p>
-      )}
+        <>
+          <div className="card">
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <div>
+                <div className="muted">Last scan</div>
+                <strong>{formatDate(last.finished_at ?? last.started_at)}</strong> · {last.status}
+                {last.status === "failed" && last.error && <p className="error">{last.error}</p>}
+                {lastComplete && <div className="muted">{lastComplete.scanned_products ?? 0} products scanned</div>}
+              </div>
+              <RunScanButton storeId={store.id} label="Rescan" />
+            </div>
+          </div>
 
-      <h2>Delete store</h2>
-      <DeleteStoreForm storeId={store.id} storeName={store.name} />
+          {lastComplete && (
+            <>
+              <div className="grid">
+                <div className="stat high"><div className="label">Critical</div><div className="value">{counts.high}</div></div>
+                <div className="stat medium"><div className="label">Warnings</div><div className="value">{counts.medium}</div></div>
+                <div className="stat low"><div className="label">Low</div><div className="value">{counts.low}</div></div>
+              </div>
+
+              <h2>Top 5 to fix</h2>
+              {findings.length === 0 ? (
+                <p className="notice">Nothing to fix. Every check passed.</p>
+              ) : (
+                <>
+                  {findings.slice(0, 5).map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} />)}
+                  {findings.length > 5 && <p><Link href={`/stores/${store.id}/fix`}>See all {findings.length} in Fix Center →</Link></p>}
+                </>
+              )}
+            </>
+          )}
+        </>
+      )}
     </>
   );
 }

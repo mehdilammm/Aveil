@@ -7,11 +7,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   if (user) redirect("/stores");
   const { error } = await searchParams;
   return (
-    <>
+    <main className="auth">
+      <p className="brand">AgentScope</p>
       <h1>Log in or sign up</h1>
       <p className="muted">Check whether your WooCommerce store is ready for AI shopping agents.</p>
       {error && <p className="error">{error}</p>}
       <AuthForm />
-    </>
+    </main>
   );
 }

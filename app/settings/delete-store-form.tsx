@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { deleteStore, type DeleteStoreState } from "./actions";
+import { deleteStore, type DeleteStoreState } from "@/app/stores/actions";
 
 export function DeleteStoreForm({ storeId, storeName }: { storeId: string; storeName: string }) {
   const [state, action, pending] = useActionState<DeleteStoreState, FormData>(deleteStore, {});
