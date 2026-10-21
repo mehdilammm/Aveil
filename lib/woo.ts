@@ -138,3 +138,17 @@ export async function fetchPublicPages(baseUrl: string): Promise<Source<PublicPa
     return { ok: false, reason: `Published pages could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
   }
 }
+
+// Site title from the public WordPress API index. No credentials are sent.
+export async function fetchSiteName(baseUrl: string): Promise<Source<string>> {
+  try {
+    const url = new URL(`${baseUrl}/wp-json/`);
+    url.searchParams.set("_fields", "name");
+    const res = await safeFetch(url, { Accept: "application/json" });
+    if (!res.ok) return { ok: false, reason: `The public WordPress API answered HTTP ${res.status}, so the site title could not be read.` };
+    const body = (await res.json()) as { name?: unknown };
+    return typeof body.name === "string" ? { ok: true, data: body.name } : { ok: false, reason: "The public WordPress API did not return a site title." };
+  } catch (err) {
+    return { ok: false, reason: `The site title could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
+  }
+}

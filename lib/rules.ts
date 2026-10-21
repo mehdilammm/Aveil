@@ -15,6 +15,14 @@ export type WooProduct = {
   virtual: boolean;
   weight: string | null;
   variations?: number[];
+  // Used by the feed and page checks. Optional because older WooCommerce versions omit some of them.
+  permalink?: string | null;
+  short_description?: string | null;
+  stock_status?: string | null;
+  sku?: string | null;
+  global_unique_id?: string | null;
+  brands?: { id: number; name: string }[] | null;
+  attributes?: { name: string; options?: string[] }[] | null;
 };
 
 export type WooVariation = {

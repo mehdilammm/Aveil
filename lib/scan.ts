@@ -2,9 +2,10 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findingState } from "./history";
 import { connectionAfterScan } from "./connection";
+import { checkFeedProduct, checkFeedStore } from "./feed";
 import { checkStorePages } from "./pages";
 import { checkProduct, type Finding, type Severity } from "./rules";
-import { fetchPublicPages, fetchPublishedProducts, fetchPublishedVariations, fetchSettings, WooError } from "./woo";
+import { fetchPublicPages, fetchPublishedProducts, fetchPublishedVariations, fetchSettings, fetchSiteName, WooError } from "./woo";
 
 type Store = { id: string; owner_id: string; url: string };
 
@@ -83,12 +84,20 @@ export async function runScan(admin: SupabaseClient, store: Store): Promise<{ sc
 
     const findings: Finding[] = (
       await mapLimit(products.items, VARIATION_CONCURRENCY, async (p) =>
-        checkProduct(p, p.type === "variable" ? await fetchPublishedVariations(store.url, p.id, wooCreds) : []),
+        [
+          ...checkProduct(p, p.type === "variable" ? await fetchPublishedVariations(store.url, p.id, wooCreds) : []),
+          ...checkFeedProduct(p),
+        ],
       )
     ).flat();
 
-    const [settings, pages] = await Promise.all([fetchSettings(store.url, ["products", "advanced"], wooCreds), fetchPublicPages(store.url)]);
+    const [settings, pages, siteName] = await Promise.all([
+      fetchSettings(store.url, ["general", "products", "advanced"], wooCreds),
+      fetchPublicPages(store.url),
+      fetchSiteName(store.url),
+    ]);
     findings.push(...checkStorePages({ storeUrl: store.url, settings, pages }));
+    findings.push(...checkFeedStore({ storeUrl: store.url, siteName, settings }));
 
     const { previous, ever } = await earlierKeys(admin, store.id, scan.id);
     const rows = findings.map((f) => ({
