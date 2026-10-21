@@ -46,12 +46,14 @@ export function retryAfterMs(header: string | null | undefined, now = Date.now()
   return Number.isFinite(ms) ? Math.min(10_000, Math.max(1000, ms)) : fallback;
 }
 
-export type PageResult = { label: string; url: string; browser: PageFetch; bots: Partial<Record<BotName, PageFetch>> };
+// gate: set when the page is closed to visitors (Coming soon / maintenance); the bots are then not compared.
+export type PageResult = { label: string; url: string; browser: PageFetch; bots: Partial<Record<BotName, PageFetch>>; gate?: string };
 
 type Issue = { severity: "high" | "medium"; text: string; rateLimited?: boolean };
 
 // Why the browser request cannot serve as a baseline, or null when it can.
-function baselineProblem(b: PageFetch): string | null {
+function baselineProblem(b: PageFetch, gateReason?: string): string | null {
+  if (gateReason) return gateReason;
   if (!b.ok) return b.error;
   if (b.redirectedTo) return `redirected to ${b.redirectedTo}`;
   const gate = pageGate(b);
@@ -62,7 +64,7 @@ function baselineProblem(b: PageFetch): string | null {
 
 function compare(page: PageResult, bot: PageFetch): Issue | null {
   const b = page.browser;
-  if (!b.ok || baselineProblem(b)) return null; // no baseline
+  if (!b.ok || baselineProblem(b, page.gate)) return null; // no baseline
   const browserChallenged = b.challengeHeader || CHALLENGE_RE.test(b.body);
   if (!bot.ok) return { severity: "medium", text: `${page.label}: no answer (${bot.error}), the browser got ${b.status}` };
   if (bot.status === 429) return { severity: "medium", rateLimited: true, text: `${page.label}: HTTP 429 (rate-limited) even after one retry, the browser got ${b.status}` };
@@ -82,7 +84,7 @@ export function checkAccess(storeUrl: string, pages: PageResult[]): Finding[] {
   const findings: Finding[] = [];
 
   for (const p of pages) {
-    const why = baselineProblem(p.browser);
+    const why = baselineProblem(p.browser, p.gate);
     if (!why) continue;
     findings.push({
       finding_key: `access:baseline:${p.label}`,

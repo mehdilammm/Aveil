@@ -107,7 +107,7 @@ export async function runScan(
     findings.push(...checkFeedStore({ storeUrl: store.url, siteName, settings }));
 
     const samples = sampleProductPages(store.url, products.items);
-    const access = await runAccessCheck(store.url, samples.map((s) => s.url));
+    const access = await runAccessCheck(store.url, samples.map((s) => s.url), comingSoon);
     findings.push(...access.findings);
     findings.push(...checkStoreGate(store.url, comingSoon, access.gated));
     const currency = settings.ok && /^[A-Z]{3}$/.test(settings.data.woocommerce_currency ?? "") ? settings.data.woocommerce_currency : null;

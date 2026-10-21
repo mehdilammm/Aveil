@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { checkStoreGate, pageGate } from "./gate";
-import { checkStructuredData } from "./structured-data";
+import type { PageResult } from "./access";
+import { checkStoreGate, pageGate, resolveGate } from "./gate";
+import { checkStructuredData, schemaPagesFrom } from "./structured-data";
 import type { PageFetch } from "./woo";
 
 const page = (status: number, body: string): PageFetch => ({ ok: true, status, finalUrl: "https://shop.test/", redirectedTo: null, bytes: body.length, body, challengeHeader: false });
@@ -53,5 +54,54 @@ describe("structured data on a closed store", () => {
     expect(f.type).toBe("schema_unavailable");
     expect(f.basis).toBe("unavailable");
     expect(f.evidence).toContain("Coming soon");
+  });
+});
+
+// matha.site product pages: classic theme, so WooCommerce's meta tag is missing; the Coming soon block is there.
+const CLASSIC_THEME_PRODUCT = `<!doctype html><html><head><title>TEST Healthy - Mint Tea Box – Matha</title></head>
+<body class="product-template-default single single-product"><header>Matha</header>
+<div class="wp-block-woocommerce-coming-soon woocommerce-coming-soon-store-only"><h1>Great things are on the horizon</h1></div></body></html>`;
+// Same page with no marker at all (for example a theme that drops the block class).
+const NO_MARKER_PRODUCT = `<!doctype html><html><head><title>Matha</title></head><body class="single-product"><p>Something is coming.</p></body></html>`;
+
+describe("Coming soon on matha.site product pages (store pages only)", () => {
+  const setting = { ok: true as const, data: { comingSoon: true, storePagesOnly: true } };
+  const product = { id: 130, name: "Tea", type: "simple", price: "75", regular_price: "75", sale_price: "", description: "", images: [], virtual: false, weight: "1" };
+
+  it("finds the Coming soon block without the meta and says what the page had", () => {
+    const g = pageGate(page(200, CLASSIC_THEME_PRODUCT));
+    expect(g?.kind).toBe("coming_soon");
+    expect(g?.reason).toContain('title "TEST Healthy - Mint Tea Box – Matha"');
+    expect(g?.reason).toContain("coming-soon meta: no");
+    expect(g?.reason).toContain("coming-soon block: yes");
+  });
+
+  it("uses the setting when the page has no marker, but not for the home page", () => {
+    const g = resolveGate(page(200, NO_MARKER_PRODUCT), setting, "product");
+    expect(g?.reason).toContain("store pages only");
+    expect(g?.reason).toContain("HTTP 200");
+    expect(g?.reason).toContain("coming-soon meta: no");
+    expect(resolveGate(page(200, NO_MARKER_PRODUCT), setting, "home")).toBeNull();
+    expect(resolveGate(page(200, NO_MARKER_PRODUCT), { ok: true, data: { comingSoon: true, storePagesOnly: false } }, "home")).not.toBeNull();
+    expect(resolveGate(page(200, NO_MARKER_PRODUCT), { ok: true, data: { comingSoon: false, storePagesOnly: true } }, "product")).toBeNull();
+  });
+
+  it("turns JSON-LD into UNAVAILABLE for schema_product_missing:130 and :131", () => {
+    for (const html of [CLASSIC_THEME_PRODUCT, NO_MARKER_PRODUCT]) {
+      const browser = page(200, html);
+      const gate = resolveGate(browser, setting, "product");
+      const accessPages: PageResult[] = [130, 131].map((id) => ({ label: `product page ${id}`, url: `https://matha.site/p/${id}/`, browser, bots: {}, gate: gate?.reason }));
+      const samples = [130, 131].map((id) => ({ url: `https://matha.site/p/${id}/`, product: { ...product, id } }));
+      const f = checkStructuredData(schemaPagesFrom(samples, accessPages), "MAD");
+      expect(f.map((x) => `${x.finding_key}/${x.basis}`)).toEqual(["schema_unavailable:130/unavailable", "schema_unavailable:131/unavailable"]);
+      expect(f[0].evidence).toContain("Coming soon");
+      expect(f[0].evidence).toContain("HTTP 200");
+    }
+  });
+
+  it("records what the page had when a live page has no Product data", () => {
+    const [f] = checkStructuredData(schemaPagesFrom([{ url: "https://matha.site/p/1/", product }], [{ label: "product page 1", url: "https://matha.site/p/1/", browser: page(200, "<title>Tea</title>"), bots: {} }]), "MAD");
+    expect(f.type).toBe("schema_product_missing");
+    expect(f.evidence).toContain('Page: HTTP 200, title "Tea", coming-soon meta: no, coming-soon block: no');
   });
 });

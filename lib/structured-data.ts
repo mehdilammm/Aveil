@@ -1,4 +1,6 @@
 // JSON-LD Product checks on product pages, compared with the WooCommerce API data.
+import type { PageResult } from "./access";
+import { describePage, pageGate } from "./gate";
 import type { Finding, WooProduct } from "./rules";
 
 type Json = unknown;
@@ -75,7 +77,8 @@ function schemaAvailability(v: string | null): string | null {
   return v ? v.replace(/^https?:\/\/schema\.org\//i, "") : null;
 }
 
-export type SchemaPage = { product: WooProduct; url: string; html: string | null; fetchError?: string };
+// seen: short description of the response (status, title, markers), added to the evidence.
+export type SchemaPage = { product: WooProduct; url: string; html: string | null; fetchError?: string; seen?: string };
 
 export function checkStructuredData(pages: SchemaPage[], storeCurrency: string | null): Finding[] {
   const findings: Finding[] = [];
@@ -88,7 +91,7 @@ export function checkStructuredData(pages: SchemaPage[], storeCurrency: string |
         title: "Could not check structured data",
         severity: "low",
         basis: "unavailable",
-        evidence: `The product page ${page.url} could not be loaded: ${page.fetchError ?? "unknown error"}.`,
+        evidence: `The product page ${page.url} could not be checked: ${page.fetchError ?? "unknown error"}.`,
         guidance: "Check that the product page loads for visitors. The next scan will try again.",
         fix_url: page.url,
       }));
@@ -102,9 +105,9 @@ export function checkStructuredData(pages: SchemaPage[], storeCurrency: string |
         title: "No Product structured data",
         severity: "medium",
         basis: "observed",
-        evidence: invalidBlocks
+        evidence: `${invalidBlocks
           ? `${page.url} has ${invalidBlocks} JSON-LD block(s) that are not valid JSON, and no Product.`
-          : `${page.url} has no JSON-LD Product.`,
+          : `${page.url} has no JSON-LD Product.`}${page.seen ? ` Page: ${page.seen}.` : ""}`,
         guidance: "WooCommerce adds Product structured data by default. Check that a theme, SEO or cache plugin does not remove or break it.",
         fix_url: page.url,
       }));
@@ -167,4 +170,28 @@ export function checkStructuredData(pages: SchemaPage[], storeCurrency: string |
     }
   }
   return findings;
+}
+
+// Product pages for the JSON-LD check, from the pages the access check loaded as a browser.
+// A page closed to visitors (gate from the setting or the page) has no usable HTML.
+export function schemaPagesFrom(samples: { url: string; product: WooProduct }[], accessPages: PageResult[]): SchemaPage[] {
+  return samples.map((s) => {
+    const page = accessPages.find((p) => p.url === s.url);
+    const loaded = page?.browser;
+    const gate = page?.gate ? { reason: page.gate } : loaded ? pageGate(loaded) : null;
+    const usable = loaded?.ok && loaded.status >= 200 && loaded.status < 300 && !loaded.redirectedTo && !gate;
+    let fetchError: string | undefined;
+    if (!loaded) fetchError = "not loaded";
+    else if (!loaded.ok) fetchError = loaded.error;
+    else if (gate) fetchError = gate.reason;
+    else if (loaded.redirectedTo) fetchError = `redirected to ${loaded.redirectedTo}`;
+    else if (!usable) fetchError = `HTTP ${loaded.status}`;
+    return {
+      product: s.product,
+      url: s.url,
+      html: usable && loaded.ok ? loaded.body : null,
+      seen: loaded ? describePage(loaded) : undefined,
+      fetchError,
+    };
+  });
 }

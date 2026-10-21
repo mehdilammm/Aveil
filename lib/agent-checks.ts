@@ -1,10 +1,10 @@
 import "server-only";
 import { accessPlan, AI_BOTS, BROWSER_UA, checkAccess, retryAfterMs, type PageResult } from "./access";
-import { pageGate, type Gate } from "./gate";
+import { resolveGate, type ComingSoonSetting, type Gate } from "./gate";
 import type { Source } from "./pages";
 import { checkLlmsTxt, checkRobots, type RobotsFetch } from "./robots";
 import type { Finding, WooProduct } from "./rules";
-import { checkStructuredData } from "./structured-data";
+import { checkStructuredData, schemaPagesFrom } from "./structured-data";
 import { fetchPublicPage, type PageFetch } from "./woo";
 
 const UA = Object.fromEntries(AI_BOTS.map((b) => [b.name, b.ua])) as Record<(typeof AI_BOTS)[number]["name"], string>;
@@ -52,15 +52,20 @@ function politeFetcher() {
 export async function runAccessCheck(
   storeUrl: string,
   productUrls: string[],
+  comingSoon: Source<ComingSoonSetting>,
 ): Promise<{ findings: Finding[]; pages: PageResult[]; gated: { label: string; gate: Gate }[] }> {
   const get = politeFetcher();
   const pages: PageResult[] = [];
   const gated: { label: string; gate: Gate }[] = [];
   for (const item of accessPlan(`${storeUrl}/`, productUrls)) {
     const result: PageResult = { label: item.label, url: item.url, browser: await get(item.url, BROWSER_UA), bots: {} };
-    const gate = pageGate(result.browser);
-    if (gate) gated.push({ label: item.label, gate });
-    else for (const bot of item.bots) result.bots[bot] = await get(item.url, UA[bot]);
+    const gate = resolveGate(result.browser, comingSoon, item.label === "home page" ? "home" : "product");
+    if (gate) {
+      gated.push({ label: item.label, gate });
+      result.gate = gate.reason;
+    } else {
+      for (const bot of item.bots) result.bots[bot] = await get(item.url, UA[bot]);
+    }
     pages.push(result);
   }
   return { findings: checkAccess(storeUrl, pages), pages, gated };
@@ -86,25 +91,7 @@ export async function runStructuredChecks(
   const llms = await fetchText(`${storeUrl}/llms.txt`);
   const productPath = samples[0] ? new URL(samples[0].url).pathname : null;
 
-  const schemaPages = samples.map((s) => {
-    const loaded = accessPages.find((p) => p.url === s.url)?.browser;
-    const gate = loaded ? pageGate(loaded) : null;
-    const usable = loaded?.ok && loaded.status >= 200 && loaded.status < 300 && !loaded.redirectedTo && !gate;
-    return {
-      product: s.product,
-      url: s.url,
-      html: usable && loaded.ok ? loaded.body : null,
-      fetchError: !loaded
-        ? "not loaded"
-        : !loaded.ok
-          ? loaded.error
-          : gate
-            ? gate.reason
-            : loaded.redirectedTo
-              ? `redirected to ${loaded.redirectedTo}`
-              : `HTTP ${loaded.status}`,
-    };
-  });
+  const schemaPages = schemaPagesFrom(samples, accessPages);
 
   return [...checkRobots(storeUrl, robots, productPath), ...checkStructuredData(schemaPages, storeCurrency), ...checkLlmsTxt(storeUrl, llms)];
 }
