@@ -292,14 +292,25 @@ export function priceConsistency(schemaPrice: string | null, visible: number | n
 // ---------- report ----------
 
 export type GeminiPart =
-  | { status: "ok"; model: string; prompt: string; answer: string; mentioned: boolean; competitors: string[]; method: "model" | "heuristic" | "failed"; extractionError?: string }
-  | { status: "unavailable"; reason: string; prompt: string };
+  | {
+      status: "ok";
+      engine?: "gemini" | "mistral";
+      model: string;
+      prompt: string;
+      answer: string;
+      mentioned: boolean;
+      competitors: string[];
+      method: "model" | "heuristic" | "failed";
+      extractionError?: string;
+      extractor?: "gemini" | "mistral" | null;
+    }
+  | { status: "unavailable"; reason: string; prompt: string; engine?: "gemini" | "mistral" };
 
 // Two Gemini questions per domain:
 // visibility: a general question about what the store sells, without its name. "Mentioned" there is the real signal.
 // knowledge: "Does Gemini know this store?", asked by domain. Its answer names the store by construction, so it is
 // shown for information and never counted as visibility.
-export type GeminiParts = { visibility: GeminiPart; knowledge: GeminiPart };
+export type GeminiParts = { visibility: GeminiPart; knowledge: GeminiPart; visibilityMistral?: GeminiPart };
 
 export const GEMINI_DISCLAIMER = "This is what the AI model says. Facts like prices, warranties or history were not verified by AgentScope.";
 
@@ -581,6 +592,16 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     }
   });
 
+  const mis = input.gemini.visibilityMistral;
+  if (mis?.status === "ok" && !mis.mentioned) {
+    findings.push(f("ai_visibility", "mistral:not_named", {
+      title: "Mistral did not name this store for its category",
+      severity: "low",
+      basis: "observed",
+      evidence: `Asked "${mis.prompt}", the Mistral API answer did not name ${input.host}${mis.competitors.length ? `; it named ${mis.competitors.slice(0, 5).join(", ")}` : ""}. One answer, without web search.`,
+      guidance: "Same as for Gemini: readable product pages, complete product data, and being listed where your category is reviewed.",
+    }));
+  }
   const vis = input.gemini.visibility;
   if (vis.status === "unavailable") {
     findings.push(f("ai_visibility", "gemini:unavailable", { title: "Gemini visibility check not run", severity: "low", basis: "unavailable", evidence: vis.reason, guidance: "Try again tomorrow." }));

@@ -279,3 +279,20 @@ describe("checks not made because of the request limit", () => {
     expect(applyCanonical("https://cdn.test/x", c)).toBe("https://cdn.test/x");
   });
 });
+
+describe("Mistral in the public check", () => {
+  it("reports 'not named' for Mistral's answer to the general question", () => {
+    const base = {
+      url: "https://shop.test/", host: "shop.test", checkedAt: "2026-10-21T10:00:00Z", requests: 3,
+      robots: null, llms: null, home: null, bots: {}, products: [], productSource: "none" as const,
+    };
+    const ok = (mentioned: boolean, engine: "gemini" | "mistral") => ({ status: "ok" as const, engine, model: "m", prompt: "Which online stores would you recommend for tea?", answer: "a", mentioned, competitors: ["Etsy"], method: "model" as const });
+    const r = buildPublicReport({ ...base, gemini: { visibility: ok(true, "gemini"), knowledge: ok(true, "gemini"), visibilityMistral: ok(false, "mistral") } });
+    const keys = r.findings.map((f) => f.finding_key);
+    expect(keys).toContain("mistral:not_named");
+    expect(keys).not.toContain("gemini:not_named");
+    const unavailable = buildPublicReport({ ...base, gemini: { visibility: ok(true, "gemini"), knowledge: ok(true, "gemini"), visibilityMistral: { status: "unavailable", reason: "Mistral API error 429 (free plan rate limit or quota reached)", prompt: "q", engine: "mistral" } } });
+    expect(unavailable.findings.map((f) => f.finding_key)).not.toContain("mistral:not_named");
+    expect(unavailable.gemini.visibilityMistral).toMatchObject({ status: "unavailable" });
+  });
+});

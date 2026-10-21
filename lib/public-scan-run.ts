@@ -1,7 +1,9 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AI_BOTS } from "./access";
+import { emptyUsage, extractNames } from "./engines";
 import { askGemini, GEMINI_MODEL, geminiConfigured } from "./gemini";
+import { askMistral, MISTRAL_MODEL, mistralConfigured } from "./mistral";
 import { PublicFetcher } from "./public-fetch";
 import { checkShopifyProducts, detectShopify, SHOPIFY_PRODUCTS_LIMIT, shopifyProductLinks, shopifyProductSitemap } from "./shopify";
 import {
@@ -12,7 +14,7 @@ import { brandTerms, combineAnalysis, EXTRACTION_MAX_TOKENS, EXTRACTION_SCHEMA, 
 
 const UA = Object.fromEntries(AI_BOTS.map((b) => [b.name, b.ua])) as Record<string, string>;
 
-type Usage = { geminiRequests: number; input: number; output: number };
+type Usage = { geminiRequests: number; input: number; output: number; mistral: { requests: number; input: number; output: number } };
 
 const LIMIT_REASON = "Daily limit reached for free Gemini checks. Try again tomorrow.";
 
@@ -49,6 +51,51 @@ async function ask(admin: SupabaseClient, usage: Usage, prompt: string, terms: R
   return { status: "ok", model: GEMINI_MODEL, prompt, answer: r.text, mentioned: a.mentioned, competitors: a.competitors, method: a.method, ...(problem ? { extractionError: problem } : {}) };
 }
 
+const MISTRAL_LIMIT_REASON = "Daily limit reached for free Mistral checks. Try again tomorrow.";
+
+// The general question to Mistral: 2 requests reserved in the app-wide daily Mistral budget (question + extraction).
+// Mistral extracts names from its own answer (json_schema); if that fails, Gemini does (recorded as extractor).
+async function askMistralPart(admin: SupabaseClient, usage: Usage, prompt: string, terms: ReturnType<typeof brandTerms>, label: string): Promise<GeminiPart> {
+  if (!mistralConfigured()) return { status: "unavailable", reason: "The Mistral check is not set up on this server.", prompt, engine: "mistral" };
+  const { data: reserved } = await admin.rpc("public_mistral_reserve_n", { p_limit: LIMITS.geminiPerDay, p_n: 2 });
+  if (!reserved) return { status: "unavailable", reason: MISTRAL_LIMIT_REASON, prompt, engine: "mistral" };
+
+  const r = await askMistral(prompt);
+  usage.mistral.requests += r.requests;
+  if (r.ok) {
+    usage.mistral.input += r.inputTokens;
+    usage.mistral.output += r.outputTokens;
+  }
+  if (!r.ok || !r.text) {
+    if (r.requests > 2) await admin.rpc("public_mistral_record", { p_n: r.requests - 2 });
+    return { status: "unavailable", reason: r.ok ? "Mistral gave an empty answer." : r.error, prompt, engine: "mistral" };
+  }
+  const x = emptyUsage();
+  const extracted = await extractNames("mistral", r.text, terms, label, x);
+  usage.mistral.requests += x.mistral.requests;
+  usage.mistral.input += x.mistral.input;
+  usage.mistral.output += x.mistral.output;
+  usage.geminiRequests += x.gemini.requests;
+  usage.input += x.gemini.input;
+  usage.output += x.gemini.output;
+  const extra = r.requests + x.mistral.requests - 2;
+  if (extra > 0) await admin.rpc("public_mistral_record", { p_n: extra });
+  if (x.gemini.requests) await admin.rpc("public_gemini_record", { p_n: x.gemini.requests });
+  const a = extracted.analysis;
+  return {
+    status: "ok",
+    engine: "mistral",
+    model: MISTRAL_MODEL,
+    prompt,
+    answer: r.text,
+    mentioned: a.mentioned,
+    competitors: a.competitors,
+    method: a.method,
+    extractor: extracted.extractor,
+    ...(extracted.problem && a.method === "failed" ? { extractionError: extracted.problem } : {}),
+  };
+}
+
 // Two questions per domain (each followed by a small extraction request): a general one about what the store sells,
 // without its name, and "Does Gemini know this store?" by domain. Once per domain per 24 h.
 async function geminiParts(admin: SupabaseClient, origin: string, host: string, homeHtml: string | null, usage: Usage): Promise<GeminiParts> {
@@ -72,7 +119,17 @@ async function geminiParts(admin: SupabaseClient, origin: string, host: string, 
         prompt: "",
       };
   const knowledge = await ask(admin, usage, knowPrompt, terms, host);
-  return { visibility, knowledge };
+
+  // Mistral gets the general question only (the visibility signal), once per domain per 24 h.
+  let visibilityMistral: GeminiPart;
+  if (!topic) visibilityMistral = { status: "unavailable", reason: visibility.status === "unavailable" ? visibility.reason : "not asked", prompt: "", engine: "mistral" };
+  else {
+    const { data: recentMistral } = await admin.from("public_reports").select("created_at").eq("host", host).gt("mistral_requests", 0).order("created_at", { ascending: false }).limit(1);
+    visibilityMistral = geminiAllowedForDomain(recentMistral?.[0]?.created_at ?? null, new Date())
+      ? await askMistralPart(admin, usage, visPrompt, terms, host)
+      : { status: "unavailable", reason: "Mistral was already asked about this domain in the last 24 hours.", prompt: visPrompt, engine: "mistral" };
+  }
+  return { visibility, knowledge, visibilityMistral };
 }
 
 // Runs one public check: at most 10 HTTP requests to the store, plus up to 2 Gemini requests.
@@ -82,7 +139,7 @@ export async function runPublicScan(
   host: string,
   fetcher: PublicFetcher = new PublicFetcher(),
 ): Promise<{ report: PublicReport; usage: Usage; requests: number }> {
-  const usage: Usage = { geminiRequests: 0, input: 0, output: 0 };
+  const usage: Usage = { geminiRequests: 0, input: 0, output: 0, mistral: { requests: 0, input: 0, output: 0 } };
 
   // Order by importance, so the request limit only ever drops the least useful checks:
   // robots.txt (read first so a block on AgentScopeBot is obeyed before any page is loaded) → home page →

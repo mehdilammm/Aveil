@@ -65,6 +65,6 @@ export async function GET() {
   }
 
   const ok = Object.values(env).every((c) => c.ok) && serviceRole.ok;
-  const optional = { CRON_SECRET: envCheck("CRON_SECRET", (v) => v.length >= 16), GEMINI_API_KEY: envCheck("GEMINI_API_KEY") };
+  const optional = { CRON_SECRET: envCheck("CRON_SECRET", (v) => v.length >= 16), GEMINI_API_KEY: envCheck("GEMINI_API_KEY"), MISTRAL_API_KEY: envCheck("MISTRAL_API_KEY") };
   return NextResponse.json({ ok, env, serviceRole, optional }, { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } });
 }

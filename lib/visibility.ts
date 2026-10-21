@@ -3,6 +3,14 @@
 // (with a type per name) or, as a fallback, from the answer's list items; both are filtered.
 
 export const MAX_PROMPTS = 15;
+
+export type EngineId = "gemini" | "mistral";
+export const ENGINES: EngineId[] = ["gemini", "mistral"];
+export const ENGINE_NAME: Record<EngineId, string> = { gemini: "Gemini", mistral: "Mistral" };
+export const ENGINE_LABEL: Record<EngineId, string> = {
+  gemini: "Gemini API answer, not the Gemini app",
+  mistral: "Mistral API answer, not the Le Chat app",
+};
 export const RUN_INTERVAL_DAYS = 7;
 
 // host: the registrable domain (sa.made-in-china.com → made-in-china.com), so the parent brand counts as the store.
@@ -359,4 +367,46 @@ export function nextRunAt(lastRunAt: string | null): Date | null {
 export function canRun(lastRunAt: string | null, now: Date): boolean {
   const next = nextRunAt(lastRunAt);
   return !next || now >= next;
+}
+
+// The same extraction schema in standard JSON Schema, for APIs that take it (Mistral response_format json_schema).
+export const EXTRACTION_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    brands: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          type: { type: "string", enum: [...NAME_TYPES] },
+          url_if_present: { type: ["string", "null"] },
+        },
+        required: ["name", "type", "url_if_present"],
+        additionalProperties: false,
+      },
+    },
+    store_mentioned: { type: "boolean" },
+    rank_if_listed: { type: ["integer", "null"] },
+  },
+  required: ["brands", "store_mentioned", "rank_if_listed"],
+  additionalProperties: false,
+} as const;
+
+// Reads a Mistral chat completion (OpenAI-style): choices[0].message.content as text or text chunks, usage tokens.
+export function parseMistralResponse(body: unknown): EngineAnswer {
+  const b = (body ?? {}) as {
+    choices?: { message?: { content?: string | { type?: string; text?: string }[] | null }; finish_reason?: string }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  };
+  const choice = b.choices?.[0];
+  const content = choice?.message?.content;
+  const text = typeof content === "string" ? content : Array.isArray(content) ? content.filter((c) => c?.type === "text" && typeof c.text === "string").map((c) => c.text).join("") : "";
+  return {
+    text: text.trim(),
+    finishReason: choice?.finish_reason ?? null,
+    inputTokens: b.usage?.prompt_tokens ?? 0,
+    outputTokens: b.usage?.completion_tokens ?? 0,
+    blocked: null,
+  };
 }

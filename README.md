@@ -1,4 +1,4 @@
-# AgentScope (v0.6)
+# AgentScope (v0.7)
 
 Checks whether WooCommerce stores are ready for AI shopping agents.
 Loop: evidence → specific fix → rescan → history.
@@ -116,3 +116,15 @@ several scripts, AggregateOffer (lowPrice) and ImageObject; products inside Item
 cannot be read is "could not parse" (unavailable), not "incomplete". The price shown is read only from the main product
 area (installment / "per month" amounts, cart, banners and recommendations ignored), else og:price:amount; unknown
 otherwise. On Shopify, the JSON-LD price is compared with the /products.json price of the same handle when available.
+
+## v0.7: Mistral as a second engine
+
+- `lib/mistral.ts`: chat completions, default `mistral-medium-latest` (override `MISTRAL_MODEL`), one request at a time,
+  one retry on 429/5xx. Docs: https://docs.mistral.ai/api, structured output:
+  https://docs.mistral.ai/capabilities/structured_output/custom
+- AI Visibility asks every question to Gemini and Mistral (two lanes in parallel, each sequential). Mistral extracts names
+  from its own answer with `response_format: json_schema`; if that fails, Gemini does. `visibility_results.engine`,
+  `model`, `extractor` and `requests` record who answered, who extracted and the requests used. A refused key or an
+  exhausted free plan stops the Mistral lane; Gemini continues and Mistral rows say why.
+- Public check: the general question also goes to Mistral (once per domain per 24 h, 50 per day app-wide, separate
+  `public_mistral_usage` budget). Labelled "Mistral API answer, not the Le Chat app".

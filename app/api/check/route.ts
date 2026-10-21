@@ -55,6 +55,9 @@ export async function POST(request: Request) {
         gemini_requests: usage.geminiRequests,
         gemini_input_tokens: usage.input,
         gemini_output_tokens: usage.output,
+        mistral_requests: usage.mistral.requests,
+        mistral_input_tokens: usage.mistral.input,
+        mistral_output_tokens: usage.mistral.output,
       })
       .eq("id", row.id);
   } catch (err) {

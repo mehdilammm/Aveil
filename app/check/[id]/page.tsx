@@ -5,6 +5,7 @@ import { BasisBadge, formatDate, SeverityBadge } from "@/components/badges";
 import { PublicHeader } from "@/components/public-header";
 import { ACCESS_NOTE, GEMINI_DISCLAIMER, GEMINI_LABEL, type GeminiPart, type GeminiParts, type PublicReport } from "@/lib/public-scan";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ENGINE_LABEL } from "@/lib/visibility";
 import { ShareLink } from "./share-link";
 import { WaitlistForm } from "./waitlist-form";
 
@@ -172,7 +173,23 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           <p className="muted small">Found from: {r.productSource}.</p>
         </div>
 
-        <h2>AI visibility (Gemini)</h2>
+        <h2>AI visibility</h2>
+        {gemini.visibilityMistral && (
+          <div className="card table-wrap">
+            <table>
+              <thead><tr><th>Engine</th><th>Your store named?</th><th>Stores named instead</th></tr></thead>
+              <tbody>
+                {([["Gemini", gemini.visibility], ["Mistral", gemini.visibilityMistral]] as const).map(([name, part]) => (
+                  <tr key={name}>
+                    <td>{name}</td>
+                    <td>{part.status === "ok" ? (part.mentioned ? <span className="badge state-resolved">Named</span> : <span className="badge sev-medium">Not named</span>) : <span className="muted">unavailable</span>}</td>
+                    <td style={{ whiteSpace: "normal" }}>{part.status === "ok" ? (part.method === "failed" ? <span className="muted">could not extract</span> : part.competitors.join(", ") || "—") : <span className="muted small">{part.reason}</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         <GeminiBlock
           part={gemini.visibility}
           empty="No general question was asked."
@@ -181,6 +198,17 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           }
           namesLabel="Stores recommended instead"
         />
+
+        {gemini.visibilityMistral && (
+          <GeminiBlock
+            part={gemini.visibilityMistral}
+            empty="No general question was asked."
+            verdict={(p) =>
+              p.mentioned ? <span className="badge state-resolved">Your store is named in the answer</span> : <span className="badge sev-medium">Your store is not named in the answer</span>
+            }
+            namesLabel="Stores recommended instead"
+          />
+        )}
 
         <h2>Does Gemini know this store?</h2>
         <GeminiBlock
@@ -237,7 +265,7 @@ type OkPart = Extract<GeminiPart, { status: "ok" }>;
 function GeminiBlock({ part, empty, note, verdict, namesLabel }: { part: GeminiPart; empty: string; note?: string; verdict?: (p: OkPart) => React.ReactNode; namesLabel: string }) {
   return (
     <div className="card">
-      <span className="badge basis-observed">{GEMINI_LABEL}</span>
+      <span className="badge basis-observed">{part.engine === "mistral" ? ENGINE_LABEL.mistral : GEMINI_LABEL}</span>
       {part.prompt ? <p className="small"><strong>Question:</strong> {part.prompt}</p> : <p className="muted small">{part.status === "unavailable" ? part.reason : empty}</p>}
       {part.status === "ok" ? (
         <>
@@ -249,7 +277,7 @@ function GeminiBlock({ part, empty, note, verdict, namesLabel }: { part: GeminiP
             part.competitors.length > 0 && <p className="small"><strong>{namesLabel}:</strong> {part.competitors.join(", ")}</p>
           )}
           <details>
-            <summary className="muted small">What Gemini said ({part.model}, no web search)</summary>
+            <summary className="muted small">What {part.engine === "mistral" ? "Mistral" : "Gemini"} said ({part.model}, no web search){part.extractor ? ` · names read by ${part.extractor === "mistral" ? "Mistral" : "Gemini"}` : ""}</summary>
             <blockquote style={{ borderLeft: "3px solid var(--border)", margin: "8px 0", paddingLeft: 12 }}>
               <pre style={{ whiteSpace: "pre-wrap", font: "inherit", fontSize: 14, margin: 0 }}>{part.answer}</pre>
             </blockquote>
