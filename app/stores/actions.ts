@@ -1,8 +1,11 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
+import { hashToken } from "@/lib/traffic";
 import { normalizeStoreUrl } from "@/lib/url";
 
 export type AddStoreState = { error?: string };
@@ -76,4 +79,43 @@ export async function deleteStore(_: DeleteStoreState, form: FormData): Promise<
     return { error: "Could not delete the store. Please try again." };
   }
   redirect("/stores");
+}
+
+export type TrafficTokenState = { error?: string; token?: string };
+
+// Creates (or replaces) the traffic plugin token. The token is shown once and kept encrypted in Vault.
+export async function createTrafficToken(_: TrafficTokenState, form: FormData): Promise<TrafficTokenState> {
+  const { supabase, user } = await getUser();
+  if (!user) redirect("/login");
+  const storeId = String(form.get("store_id") ?? "");
+  const { data: store } = await supabase.from("stores").select("id").eq("id", storeId).maybeSingle();
+  if (!store) return { error: "Store not found." };
+
+  const token = `agsc_${randomBytes(32).toString("base64url")}`;
+  try {
+    const { error } = await createAdminClient().rpc("save_traffic_connector", {
+      p_store_id: store.id,
+      p_owner_id: user.id,
+      p_token: token,
+      p_token_hash: hashToken(token),
+      p_hint: `agsc_…${token.slice(-4)}`,
+    });
+    if (error) throw new Error(error.code ?? "rpc error");
+  } catch (err) {
+    console.error("create traffic token failed", err instanceof Error ? err.message : "unknown");
+    return { error: "Could not create the token. Please try again." };
+  }
+  revalidatePath("/settings");
+  return { token };
+}
+
+export async function disconnectTraffic(form: FormData): Promise<void> {
+  const { supabase, user } = await getUser();
+  if (!user) redirect("/login");
+  const storeId = String(form.get("store_id") ?? "");
+  const { data: store } = await supabase.from("stores").select("id").eq("id", storeId).maybeSingle();
+  if (!store) return;
+  // Traffic data already received stays; only the connection (and its Vault secret) is removed.
+  await createAdminClient().from("traffic_connectors").delete().eq("store_id", store.id).eq("owner_id", user.id);
+  revalidatePath("/settings");
 }
