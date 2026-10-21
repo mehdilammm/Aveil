@@ -54,7 +54,7 @@ p { margin: 8px 0; }
 .page-head { margin-bottom: 16px; }
 .page-head .sub { color: var(--muted); }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
 .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
 .stat .label { color: var(--muted); font-size: 13px; }
 .stat .value { font-size: 26px; font-weight: 700; }
