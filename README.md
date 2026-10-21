@@ -1,4 +1,4 @@
-# AgentScope (v0.3)
+# AgentScope (v0.4)
 
 Checks whether WooCommerce stores are ready for AI shopping agents.
 Loop: evidence → specific fix → rescan → history.
@@ -61,3 +61,14 @@ Migrations live in `supabase/migrations`.
 | Amazon SES | none after the first year | about $0.10 per 1,000 emails, more setup |
 
 All need a verified sending domain (DNS records).
+
+## v0.4: AI Visibility (Gemini API)
+
+- Up to 15 questions per store (`visibility_prompts`, owner-managed with RLS). "Suggest 5 questions" builds them from the
+  store's biggest product categories and country; nothing is saved until the user ticks them.
+- A run sends each question once to the Gemini API (`lib/gemini.ts`, default `gemini-3.5-flash-lite`, override with
+  `GEMINI_MODEL`), one at a time, 25 s timeout, one retry on 429/5xx. Google Search grounding is off: it is not in the
+  free tier for this model and is billed per search on paid tiers.
+- One run per store every 7 days (failed runs do not count). Requests and tokens are stored on `visibility_runs`.
+- Each answer is stored in full (`visibility_results`) with: mentioned or not, rank in the answer's list, other names
+  and domains found in the text (heuristic), and links. Labelled "Gemini API answer, not the Gemini app".

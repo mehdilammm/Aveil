@@ -236,3 +236,9 @@ export async function fetchComingSoon(baseUrl: string, creds: WooCredentials): P
     return { ok: false, reason: `The site visibility setting could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
   }
 }
+
+// Biggest product categories by product count, for question suggestions.
+export async function fetchTopCategories(baseUrl: string, creds: WooCredentials): Promise<string[]> {
+  const { items } = await getPage<{ name: string; count: number }>(baseUrl, "/products/categories", { per_page: "20", orderby: "count", order: "desc", hide_empty: "true" }, creds);
+  return items.filter((c) => c.count > 0).map((c) => c.name.replace(/&amp;/g, "&"));
+}
