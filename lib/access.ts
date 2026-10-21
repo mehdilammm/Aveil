@@ -33,7 +33,8 @@ export function accessPlan(homeUrl: string, productUrls: string[]): { label: str
 
 export const requestCount = (plan: ReturnType<typeof accessPlan>) => plan.reduce((n, p) => n + 1 + p.bots.length, 0);
 
-const CHALLENGE_RE = /cf-chl|challenge-platform|cf_chl_opt|just a moment\.\.\.|attention required|px-captcha|_incapsula_resource|sgcaptcha|captcha-delivery|verify you are human|access denied/i;
+// Challenge page markers. Not "challenge-platform" or cf-ray: Cloudflare adds those to normal pages too.
+const CHALLENGE_RE = /cf-chl-bypass|cf_chl_opt|__cf_chl_|<title>\s*just a moment|attention required!? \| cloudflare|px-captcha|_incapsula_resource|sgcaptcha|captcha-delivery|verify you are human|<title>\s*access denied/i;
 // Only these mean "blocked". 429 is rate limiting (often from our own requests in a row), not a block.
 const BLOCK_STATUS = new Set([401, 403]);
 

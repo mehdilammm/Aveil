@@ -90,3 +90,53 @@ describe("public check of a store behind Cloudflare (atlanticpatio.com)", () => 
     expect(analyzeAnswer(answer, terms).competitors).toEqual(["Refreshing the page", "Disabling VPNs", "Switching networks"]);
   });
 });
+
+describe("normal stores behind Cloudflare are not 'blocked' (offermanwoodshop.com case)", () => {
+  // A normal 200 page with Cloudflare's /cdn-cgi/challenge-platform beacon script; written for this test.
+  const normal = readFileSync(join(__dirname, "fixtures/cloudflare-normal-store.html"), "utf8");
+  const ok = page(200, normal, { vendorHint: "Cloudflare" });
+
+  it("a large 200 page with a normal title, cf-ray and the challenge-platform script is not protection", () => {
+    expect(normal).toContain("/cdn-cgi/challenge-platform/scripts/jsd/main.js");
+    expect(ok.ok && ok.bytes).toBeGreaterThan(100 * 1024);
+    expect(detectProtection(ok)).toBeNull();
+  });
+
+  it("the public report checks the store normally and only notes 'served via Cloudflare'", () => {
+    const r = buildPublicReport({
+      url: "https://offermanwoodshop.com/",
+      host: "offermanwoodshop.com",
+      checkedAt: "2026-10-21T21:00:00Z",
+      requests: 6,
+      robots: page(200, "User-agent: *\nDisallow: /cart\nSitemap: https://offermanwoodshop.com/sitemap.xml", { vendorHint: "Cloudflare" }),
+      llms: page(404, "<html><title>404 Not Found</title></html>", { vendorHint: "Cloudflare" }),
+      home: ok,
+      bots: { GPTBot: ok, ClaudeBot: ok, PerplexityBot: ok, "OAI-SearchBot": ok },
+      products: [],
+      productSource: "none",
+      gemini: { visibility: { status: "unavailable", reason: "x", prompt: "q" }, knowledge: { status: "unavailable", reason: "x", prompt: "k" } },
+    });
+    expect(r.protection).toBeNull();
+    expect(r.servedVia).toBe("Cloudflare");
+    expect(r.platformName).toBe("Shopify");
+    expect(r.accessTested).toBe(true);
+    expect(r.findings.map((f) => f.finding_key).filter((k) => k.startsWith("protection:") || k.startsWith("access:"))).toEqual([]);
+    expect(trustedHomeHtml(ok)).not.toBeNull();
+    expect(topicFromHome(normal, ["offermanwoodshop"])).toBe("cutting boards, furniture");
+  });
+
+  it("real challenge and block pages are still caught", () => {
+    // atlanticpatio.com: 403 Cloudflare block page.
+    expect(detectProtection(page(403, cloudflare))?.vendor).toBe("Cloudflare");
+    // Cloudflare JS challenge served with 200 or 503.
+    const jsChallenge = `<!DOCTYPE html><html><head><title>Just a moment...</title></head><body><div id="challenge-error-text">Enable JavaScript and cookies to continue</div><script>window._cf_chl_opt={cvId:'3'}</script></body></html>`;
+    expect(detectProtection(page(200, jsChallenge))?.vendor).toBe("Cloudflare");
+    expect(detectProtection(page(503, jsChallenge))?.vendor).toBe("Cloudflare");
+    // Challenge header alone.
+    expect(detectProtection(page(200, "<html><body>x</body></html>", { challengeHeader: true }))?.vendor).toBe("Cloudflare");
+    // A big 403 is still a block for us.
+    expect(detectProtection(page(403, normal))).not.toBeNull();
+    // A 503 maintenance page is the store's own placeholder, not protection.
+    expect(detectProtection(page(503, "<html><title>Maintenance</title>Briefly unavailable for scheduled maintenance. Check back in a minute.</html>"))).toBeNull();
+  });
+});

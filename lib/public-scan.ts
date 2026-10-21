@@ -3,7 +3,7 @@
 import { createHmac } from "node:crypto";
 import { ACCESS_NOTE, checkAccess, type BotName, type PageResult } from "./access";
 import { describePage, pageGate, type Gate } from "./gate";
-import { detectProtection, ERROR_TITLE_RE, type Protection } from "./protection";
+import { detectProtection, ERROR_TITLE_RE, servedVia, type Protection } from "./protection";
 import { checkShopifyProducts, detectShopify, handleOf, SHOPIFY_LIST_NOTE, shopifyPricesByHandle, shopifyProductUrl } from "./shopify";
 import type { Source } from "./pages";
 import { isAllowed, parseRobots, type Robots } from "./robots";
@@ -389,6 +389,7 @@ export type PublicReport = {
   shopifyList?: { status: "ok"; checked: number; note: string } | { status: "unavailable"; reason: string } | null;
   gate: Gate | null;
   protection?: Protection | null;
+  servedVia?: string | null; // CDN or firewall in front of a normal page (information only)
   agentScopeBlocked: boolean;
   robots: { status: string; detail: string; verdicts: RobotsVerdict[]; sitemaps: string[] };
   llmsTxt: "present" | "missing" | "unavailable";
@@ -628,6 +629,7 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     shopifyList,
     gate,
     protection,
+    servedVia: servedVia(home),
     agentScopeBlocked,
     robots: { status: robotsStatus, detail: robotsDetail, verdicts, sitemaps: robots?.sitemaps ?? [] },
     llmsTxt,

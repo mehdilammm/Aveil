@@ -64,6 +64,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           <h1>{r.host}</h1>
           <p className="sub">
             Checked {formatDate(r.checkedAt)} · Requests used: {r.requests} of {r.requestLimit ?? 10}
+            {r.servedVia && <> · served via {r.servedVia}</>}
             {" · "}Platform: {r.platformName ?? (r.platform?.woocommerce ? "WooCommerce" : r.platform?.wordpress ? "WordPress" : "unknown")}
           </p>
           <ShareLink path={`/check/${row.id}`} />
