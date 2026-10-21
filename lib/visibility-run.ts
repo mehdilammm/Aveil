@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { askGemini, GEMINI_MODEL, geminiConfigured } from "./gemini";
-import { analyzeAnswer, brandTerms, canRun, MAX_PROMPTS, nextRunAt } from "./visibility";
+import { brandTerms, canRun, combineAnalysis, EXTRACTION_SCHEMA, extractionPrompt, MAX_PROMPTS, nextRunAt, parseExtraction } from "./visibility";
 
 type Store = { id: string; owner_id: string; name: string; url: string };
 
@@ -66,9 +66,15 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
         error: !r.ok ? r.error : r.blocked ? `Blocked by Gemini: ${r.blocked}` : "Empty answer",
       });
     } else {
-      totals.input += r.inputTokens;
-      totals.output += r.outputTokens;
-      const a = analyzeAnswer(r.text, terms);
+      // Second, small request: the model lists the shops named in its answer as JSON. Falls back to the text heuristic.
+      await sleep(GAP_MS);
+      const x = await askGemini(extractionPrompt(r.text, store.name, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: 512 });
+      totals.requests += x.requests;
+      const xIn = x.ok ? x.inputTokens : 0;
+      const xOut = x.ok ? x.outputTokens : 0;
+      totals.input += r.inputTokens + xIn;
+      totals.output += r.outputTokens + xOut;
+      const a = combineAnalysis(r.text, terms, x.ok ? parseExtraction(x.text) : null);
       await admin.from("visibility_results").insert({
         ...row,
         answer: r.text,
@@ -78,8 +84,9 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
         competitors: a.competitors,
         urls: a.urls,
         finish_reason: r.finishReason,
-        input_tokens: r.inputTokens,
-        output_tokens: r.outputTokens,
+        input_tokens: r.inputTokens + xIn,
+        output_tokens: r.outputTokens + xOut,
+        extraction: a.method,
       });
     }
     await admin.from("visibility_runs").update({ requests_count: totals.requests, input_tokens: totals.input, output_tokens: totals.output }).eq("id", run.id);

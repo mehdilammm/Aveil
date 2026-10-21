@@ -1,0 +1,15 @@
+{
+  "_note": "Example structured-output reply for the answer in gemini-handmade-morocco.md, written by hand (not a recorded API reply) to test the filtering. It includes the kind of noise the filter must remove.",
+  "brands": [
+    { "name": "Chabi Chic", "url_if_present": null },
+    { "name": "Anou (The Anou Cooperative)", "url_if_present": null },
+    { "name": "MTAAR", "url_if_present": null },
+    { "name": "Lalla and Mint", "url_if_present": null },
+    { "name": "Etsy", "url_if_present": null },
+    { "name": "Instagram", "url_if_present": null },
+    { "name": "Tip:", "url_if_present": null },
+    { "name": "Matha", "url_if_present": "matha.site" }
+  ],
+  "store_mentioned": false,
+  "rank_if_listed": null
+}

@@ -17,8 +17,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type AskResult = ({ ok: true } & EngineAnswer & { requests: number }) | { ok: false; error: string; requests: number };
 
-// Sends one question as a plain user message. Retries once on 429 or 5xx.
-export async function askGemini(prompt: string): Promise<AskResult> {
+type AskOptions = { jsonSchema?: object; maxOutputTokens?: number };
+
+// Sends one message as a plain user turn. Retries once on 429 or 5xx.
+// With jsonSchema, asks for structured output (responseMimeType application/json + responseSchema).
+export async function askGemini(prompt: string, options: AskOptions = {}): Promise<AskResult> {
   const key = process.env.GEMINI_API_KEY?.trim();
   if (!key) return { ok: false, error: "GEMINI_API_KEY is not set", requests: 0 };
   let requests = 0;
@@ -30,7 +33,10 @@ export async function askGemini(prompt: string): Promise<AskResult> {
         headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS },
+          generationConfig: {
+            maxOutputTokens: options.maxOutputTokens ?? MAX_OUTPUT_TOKENS,
+            ...(options.jsonSchema ? { responseMimeType: "application/json", responseSchema: options.jsonSchema, temperature: 0 } : {}),
+          },
         }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
         cache: "no-store",

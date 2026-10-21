@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { analyzeAnswer, brandTerms, canRun, nextRunAt, parseGeminiResponse, suggestPrompts } from "./visibility";
+import { analyzeAnswer, brandTerms, canRun, cleanCompetitors, combineAnalysis, nextRunAt, parseExtraction, parseGeminiResponse, suggestPrompts } from "./visibility";
 
 const terms = brandTerms("Matha test", "https://www.matha.site");
 
@@ -73,5 +75,42 @@ describe("weekly limit", () => {
     expect(canRun("2026-10-15T09:00:00Z", now)).toBe(false);
     expect(canRun("2026-10-14T09:00:00Z", now)).toBe(true);
     expect(nextRunAt("2026-10-15T09:00:00Z")?.toISOString()).toBe("2026-10-22T09:00:00.000Z");
+  });
+});
+
+describe("real Gemini answer: handmade shops in Morocco (fixture)", () => {
+  const answer = readFileSync(join(__dirname, "fixtures/gemini-handmade-morocco.md"), "utf8");
+  const extractionText = readFileSync(join(__dirname, "fixtures/gemini-handmade-morocco.extraction.json"), "utf8");
+  const expected = ["Chabi Chic", "Anou", "MTAAR", "Lalla and Mint", "Etsy"];
+  const noise = ["What they sell", "Why it’s good", "Tip", "Instagram", "Customization", "Shipping", "Authentication"];
+
+  it("text heuristic alone finds the five shops and none of the labels", () => {
+    const a = analyzeAnswer(answer, terms);
+    expect(a.competitors).toEqual(expected);
+    expect(a.mentioned).toBe(false);
+    for (const n of noise) expect(a.competitors).not.toContain(n);
+  });
+
+  it("structured extraction is parsed and filtered to the same five", () => {
+    const extraction = parseExtraction(extractionText);
+    expect(extraction).not.toBeNull();
+    const a = combineAnalysis(answer, terms, extraction);
+    expect(a.method).toBe("model");
+    expect(a.competitors).toEqual(expected);
+    // "mentioned" comes from the text, not from the model's claim.
+    expect(a.mentioned).toBe(false);
+    expect(a.rank).toBeNull();
+  });
+
+  it("falls back to the heuristic when the extraction is not valid JSON", () => {
+    const a = combineAnalysis(answer, terms, parseExtraction("not json"));
+    expect(a.method).toBe("heuristic");
+    expect(a.competitors).toEqual(expected);
+  });
+});
+
+describe("cleanCompetitors", () => {
+  it("drops labels, names ending with a colon, section-like names and the store", () => {
+    expect(cleanCompetitors(["Tip", "Note:", "Why it's good", "Shipping", "Price", "Moroccan Epicerie / Local Cooperatives", "matha.site", "Anou (The Anou Cooperative)", "Etsy", "etsy"], terms)).toEqual(["Anou", "Etsy"]);
   });
 });

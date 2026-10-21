@@ -19,6 +19,7 @@ type Result = {
   competitors: string[];
   urls: string[];
   error: string | null;
+  extraction: "model" | "heuristic" | null;
 };
 
 const ENGINE_LABEL = "Gemini API answer, not the Gemini app";
@@ -37,7 +38,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
   const runs = (runRows ?? []) as Run[];
   const runIds = runs.map((r) => r.id);
   const { data: resultRows } = runIds.length
-    ? await supabase.from("visibility_results").select("run_id, prompt_id, prompt, answer, mentioned, mention_rank, competitors, urls, error").in("run_id", runIds)
+    ? await supabase.from("visibility_results").select("run_id, prompt_id, prompt, answer, mentioned, mention_rank, competitors, urls, error, extraction").in("run_id", runIds)
     : { data: [] };
   const results = (resultRows ?? []) as Result[];
 
@@ -72,7 +73,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
         <p className="muted small">
           Each question is sent once to the Gemini API ({GEMINI_MODEL}) without web search, as a plain question. The Gemini app, other assistants and other
           runs can answer differently. A mention here is what this answer said, not proof that AI recommends your store. Competitor names are read from the
-          answer text automatically and can be wrong.
+          answer by a second small Gemini request (structured output), filtered for labels, and can still be wrong.
         </p>
       </div>
 
@@ -123,7 +124,12 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                     {latest.mentioned && <span className="muted small">{latest.mention_rank ? `#${latest.mention_rank} in the answer's list` : "not in a numbered list"}</span>}
                     <span className="muted small">{formatDate(latestRun!.created_at)}</span>
                   </div>
-                  {latest.competitors.length > 0 && <p className="small"><strong>Also named:</strong> {latest.competitors.join(", ")}</p>}
+                  {latest.competitors.length > 0 && (
+                    <p className="small">
+                      <strong>Also named:</strong> {latest.competitors.join(", ")}{" "}
+                      <span className="muted">({latest.extraction === "model" ? "listed by Gemini from its own answer, then filtered" : "read from the text automatically"})</span>
+                    </p>
+                  )}
                   {latest.urls.length > 0 && (
                     <p className="small" style={{ wordBreak: "break-all" }}>
                       <strong>Links in the answer:</strong> {latest.urls.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer nofollow" style={{ marginRight: 8 }}>{u}</a>)}

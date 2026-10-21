@@ -70,5 +70,7 @@ All need a verified sending domain (DNS records).
   `GEMINI_MODEL`), one at a time, 25 s timeout, one retry on 429/5xx. Google Search grounding is off: it is not in the
   free tier for this model and is billed per search on paid tiers.
 - One run per store every 7 days (failed runs do not count). Requests and tokens are stored on `visibility_runs`.
-- Each answer is stored in full (`visibility_results`) with: mentioned or not, rank in the answer's list, other names
-  and domains found in the text (heuristic), and links. Labelled "Gemini API answer, not the Gemini app".
+- Each answer is stored in full (`visibility_results`) with: mentioned or not (text match), rank in the answer's list,
+  other shops named and links. Shop names come from a second small structured-output request to the same model
+  (`EXTRACTION_SCHEMA`), filtered for labels; if it fails, a text heuristic is used (`extraction` column says which).
+  Tokens of both requests are counted. Labelled "Gemini API answer, not the Gemini app".
