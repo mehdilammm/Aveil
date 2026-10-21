@@ -1,10 +1,11 @@
 import "server-only";
-import { accessPlan, AI_BOTS, BROWSER_UA, checkAccess, type PageResult } from "./access";
+import { accessPlan, AI_BOTS, BROWSER_UA, checkAccess, retryAfterMs, type PageResult } from "./access";
+import { pageGate, type Gate } from "./gate";
 import type { Source } from "./pages";
 import { checkLlmsTxt, checkRobots, type RobotsFetch } from "./robots";
 import type { Finding, WooProduct } from "./rules";
 import { checkStructuredData } from "./structured-data";
-import { fetchPublicPage } from "./woo";
+import { fetchPublicPage, type PageFetch } from "./woo";
 
 const UA = Object.fromEntries(AI_BOTS.map((b) => [b.name, b.ua])) as Record<(typeof AI_BOTS)[number]["name"], string>;
 
@@ -24,15 +25,45 @@ export function sampleProductPages(storeUrl: string, products: WooProduct[]): { 
   return out;
 }
 
-// Runs the 10-request access test one request at a time, so the store is never hit in parallel.
-export async function runAccessCheck(storeUrl: string, productUrls: string[]): Promise<{ findings: Finding[]; pages: PageResult[] }> {
+const REQUEST_GAP_MS = 1500;
+const MAX_RETRIES = 2;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Spaces requests out and retries a 429 once (at most MAX_RETRIES per scan), honouring Retry-After.
+function politeFetcher() {
+  let first = true;
+  let retries = 0;
+  return async (url: string, userAgent: string): Promise<PageFetch> => {
+    if (!first) await sleep(REQUEST_GAP_MS);
+    first = false;
+    const res = await fetchPublicPage(url, userAgent);
+    if (res.ok && res.status === 429 && retries < MAX_RETRIES) {
+      retries++;
+      await sleep(retryAfterMs(res.retryAfter));
+      return fetchPublicPage(url, userAgent);
+    }
+    return res;
+  };
+}
+
+// Runs the access test one request at a time: 10 requests plus at most 2 retries after a 429.
+// Pages that show a Coming soon or maintenance screen are not tested with the bots.
+export async function runAccessCheck(
+  storeUrl: string,
+  productUrls: string[],
+): Promise<{ findings: Finding[]; pages: PageResult[]; gated: { label: string; gate: Gate }[] }> {
+  const get = politeFetcher();
   const pages: PageResult[] = [];
+  const gated: { label: string; gate: Gate }[] = [];
   for (const item of accessPlan(`${storeUrl}/`, productUrls)) {
-    const result: PageResult = { label: item.label, url: item.url, browser: await fetchPublicPage(item.url, BROWSER_UA), bots: {} };
-    for (const bot of item.bots) result.bots[bot] = await fetchPublicPage(item.url, UA[bot]);
+    const result: PageResult = { label: item.label, url: item.url, browser: await get(item.url, BROWSER_UA), bots: {} };
+    const gate = pageGate(result.browser);
+    if (gate) gated.push({ label: item.label, gate });
+    else for (const bot of item.bots) result.bots[bot] = await get(item.url, UA[bot]);
     pages.push(result);
   }
-  return { findings: checkAccess(storeUrl, pages), pages };
+  return { findings: checkAccess(storeUrl, pages), pages, gated };
 }
 
 const CHECKER_UA = "AgentScope/0.3 (+store readiness check)";
@@ -57,12 +88,21 @@ export async function runStructuredChecks(
 
   const schemaPages = samples.map((s) => {
     const loaded = accessPages.find((p) => p.url === s.url)?.browser;
-    const usable = loaded?.ok && loaded.status >= 200 && loaded.status < 300 && !loaded.redirectedTo;
+    const gate = loaded ? pageGate(loaded) : null;
+    const usable = loaded?.ok && loaded.status >= 200 && loaded.status < 300 && !loaded.redirectedTo && !gate;
     return {
       product: s.product,
       url: s.url,
       html: usable && loaded.ok ? loaded.body : null,
-      fetchError: !loaded ? "not loaded" : !loaded.ok ? loaded.error : loaded.redirectedTo ? `redirected to ${loaded.redirectedTo}` : `HTTP ${loaded.status}`,
+      fetchError: !loaded
+        ? "not loaded"
+        : !loaded.ok
+          ? loaded.error
+          : gate
+            ? gate.reason
+            : loaded.redirectedTo
+              ? `redirected to ${loaded.redirectedTo}`
+              : `HTTP ${loaded.status}`,
     };
   });
 

@@ -4,9 +4,10 @@ import { findingState } from "./history";
 import { runAccessCheck, runStructuredChecks, sampleProductPages } from "./agent-checks";
 import { connectionAfterScan } from "./connection";
 import { checkFeedProduct, checkFeedStore } from "./feed";
+import { checkStoreGate } from "./gate";
 import { checkStorePages } from "./pages";
 import { checkProduct, type Finding, type Severity } from "./rules";
-import { fetchPublicPages, fetchPublishedProducts, fetchPublishedVariations, fetchSettings, fetchSiteName, WooError } from "./woo";
+import { fetchPublicPages, fetchPublishedProducts, fetchPublishedVariations, fetchComingSoon, fetchSettings, fetchSiteName, WooError } from "./woo";
 
 type Store = { id: string; owner_id: string; url: string };
 
@@ -96,10 +97,11 @@ export async function runScan(
       )
     ).flat();
 
-    const [settings, pages, siteName] = await Promise.all([
+    const [settings, pages, siteName, comingSoon] = await Promise.all([
       fetchSettings(store.url, ["general", "products", "advanced"], wooCreds),
       fetchPublicPages(store.url),
       fetchSiteName(store.url),
+      fetchComingSoon(store.url, wooCreds),
     ]);
     findings.push(...checkStorePages({ storeUrl: store.url, settings, pages }));
     findings.push(...checkFeedStore({ storeUrl: store.url, siteName, settings }));
@@ -107,6 +109,7 @@ export async function runScan(
     const samples = sampleProductPages(store.url, products.items);
     const access = await runAccessCheck(store.url, samples.map((s) => s.url));
     findings.push(...access.findings);
+    findings.push(...checkStoreGate(store.url, comingSoon, access.gated));
     const currency = settings.ok && /^[A-Z]{3}$/.test(settings.data.woocommerce_currency ?? "") ? settings.data.woocommerce_currency : null;
     findings.push(...(await runStructuredChecks(store.url, samples, access.pages, currency)));
 

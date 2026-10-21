@@ -1,6 +1,7 @@
 // Agent access check: loads the same pages as a normal browser and as known AI bots (by User-Agent only)
 // and compares the answers. Real bots can be treated differently (for example by IP verification),
 // so every finding here is heuristic.
+import { pageGate } from "./gate";
 import type { Finding } from "./rules";
 import type { PageFetch } from "./woo";
 
@@ -33,23 +34,44 @@ export function accessPlan(homeUrl: string, productUrls: string[]): { label: str
 export const requestCount = (plan: ReturnType<typeof accessPlan>) => plan.reduce((n, p) => n + 1 + p.bots.length, 0);
 
 const CHALLENGE_RE = /cf-chl|challenge-platform|cf_chl_opt|just a moment\.\.\.|attention required|px-captcha|_incapsula_resource|sgcaptcha|captcha-delivery|verify you are human|access denied/i;
-const BLOCK_STATUS = new Set([401, 403, 406, 429, 451, 503]);
+// Only these mean "blocked". 429 is rate limiting (often from our own requests in a row), not a block.
+const BLOCK_STATUS = new Set([401, 403]);
+
+// Wait before the one retry after a 429: Retry-After in seconds or as a date, kept between 1 and 10 seconds.
+export function retryAfterMs(header: string | null | undefined, now = Date.now()): number {
+  const fallback = 3000;
+  if (!header) return fallback;
+  const seconds = Number(header.trim());
+  const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(header) - now;
+  return Number.isFinite(ms) ? Math.min(10_000, Math.max(1000, ms)) : fallback;
+}
 
 export type PageResult = { label: string; url: string; browser: PageFetch; bots: Partial<Record<BotName, PageFetch>> };
 
-type Issue = { severity: "high" | "medium"; text: string };
+type Issue = { severity: "high" | "medium"; text: string; rateLimited?: boolean };
+
+// Why the browser request cannot serve as a baseline, or null when it can.
+function baselineProblem(b: PageFetch): string | null {
+  if (!b.ok) return b.error;
+  if (b.redirectedTo) return `redirected to ${b.redirectedTo}`;
+  const gate = pageGate(b);
+  if (gate) return gate.reason;
+  if (b.status < 200 || b.status >= 300) return `HTTP ${b.status}`;
+  return null;
+}
 
 function compare(page: PageResult, bot: PageFetch): Issue | null {
   const b = page.browser;
-  if (!b.ok || b.status < 200 || b.status >= 300 || b.redirectedTo) return null; // no baseline
+  if (!b.ok || baselineProblem(b)) return null; // no baseline
   const browserChallenged = b.challengeHeader || CHALLENGE_RE.test(b.body);
   if (!bot.ok) return { severity: "medium", text: `${page.label}: no answer (${bot.error}), the browser got ${b.status}` };
+  if (bot.status === 429) return { severity: "medium", rateLimited: true, text: `${page.label}: HTTP 429 (rate-limited) even after one retry, the browser got ${b.status}` };
   if (BLOCK_STATUS.has(bot.status)) return { severity: "high", text: `${page.label}: HTTP ${bot.status}, the browser got ${b.status}` };
   if (bot.challengeHeader || (!browserChallenged && CHALLENGE_RE.test(bot.body))) {
     return { severity: "high", text: `${page.label}: challenge or captcha page (HTTP ${bot.status}), the browser got the real page` };
   }
   if (bot.redirectedTo) return { severity: "medium", text: `${page.label}: redirected to ${bot.redirectedTo}, the browser was not` };
-  if (bot.status >= 400) return { severity: "high", text: `${page.label}: HTTP ${bot.status}, the browser got ${b.status}` };
+  if (bot.status >= 400) return { severity: "medium", text: `${page.label}: HTTP ${bot.status}, the browser got ${b.status}` };
   if (b.bytes > 5000 && bot.bytes < b.bytes * 0.3) {
     return { severity: "medium", text: `${page.label}: page is ${Math.round(bot.bytes / 1024)} KB, the browser got ${Math.round(b.bytes / 1024)} KB` };
   }
@@ -59,9 +81,9 @@ function compare(page: PageResult, bot: PageFetch): Issue | null {
 export function checkAccess(storeUrl: string, pages: PageResult[]): Finding[] {
   const findings: Finding[] = [];
 
-  const brokenBaseline = pages.filter((p) => !p.browser.ok || p.browser.status < 200 || p.browser.status >= 300 || p.browser.redirectedTo);
-  for (const p of brokenBaseline) {
-    const why = !p.browser.ok ? p.browser.error : p.browser.redirectedTo ? `redirected to ${p.browser.redirectedTo}` : `HTTP ${p.browser.status}`;
+  for (const p of pages) {
+    const why = baselineProblem(p.browser);
+    if (!why) continue;
     findings.push({
       finding_key: `access:baseline:${p.label}`,
       type: "access_check_unavailable",
@@ -69,7 +91,7 @@ export function checkAccess(storeUrl: string, pages: PageResult[]): Finding[] {
       title: `Could not test AI access on the ${p.label}`,
       severity: "low",
       basis: "unavailable",
-      evidence: `A normal browser request to ${p.url} failed: ${why}. Without a working baseline the bots cannot be compared.`,
+      evidence: `A normal browser request to ${p.url} did not get the real page: ${why}. Without a working baseline the bots cannot be compared.`,
       guidance: "Check that the page loads for visitors. The next scan will try again.",
       fix_url: p.url,
     });
@@ -83,17 +105,20 @@ export function checkAccess(storeUrl: string, pages: PageResult[]): Finding[] {
     });
     if (!issues.length) continue;
     const blocked = issues.some((i) => i.severity === "high");
+    const onlyRateLimited = issues.every((i) => i.rateLimited);
     findings.push({
       finding_key: `access:${bot.name}`,
-      type: blocked ? "access_blocked" : "access_degraded",
+      type: blocked ? "access_blocked" : onlyRateLimited ? "access_rate_limited" : "access_degraded",
       product_id: null,
-      title: blocked ? `AI agents are blocked: ${bot.name}` : `${bot.name} gets a different page`,
+      title: blocked ? `AI agents are blocked: ${bot.name}` : onlyRateLimited ? `Rate-limited for this bot: ${bot.name}` : `${bot.name} gets a different page`,
       severity: blocked ? "high" : "medium",
       basis: "heuristic",
       evidence: `${issues.map((i) => i.text).join("; ")}. ${ACCESS_NOTE}`,
       guidance: blocked
         ? `Allow ${bot.name} in your firewall, security plugin or CDN bot settings (for example Cloudflare → Security → Bots, Wordfence, or your host's bot protection). Then rescan.`
-        : `Check your caching, security or CDN rules for ${bot.name}, then rescan.`,
+        : onlyRateLimited
+          ? `Our test requests were spaced out and retried once. If ${bot.name} keeps getting 429, raise its rate limit in your security plugin or CDN.`
+          : `Check your caching, security or CDN rules for ${bot.name}, then rescan.`,
       fix_url: storeUrl,
     });
   }

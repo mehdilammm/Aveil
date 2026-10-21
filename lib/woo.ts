@@ -154,7 +154,7 @@ export async function fetchSiteName(baseUrl: string): Promise<Source<string>> {
 }
 
 export type PageFetch =
-  | { ok: true; status: number; finalUrl: string; redirectedTo: string | null; bytes: number; body: string; challengeHeader: boolean }
+  | { ok: true; status: number; finalUrl: string; redirectedTo: string | null; bytes: number; body: string; challengeHeader: boolean; retryAfter?: string | null }
   | { ok: false; error: string };
 
 const PAGE_TIMEOUT_MS = 12_000;
@@ -209,11 +209,30 @@ export async function fetchPublicPage(target: string, userAgent: string): Promis
         bytes,
         body: text,
         challengeHeader: (res.headers.get("cf-mitigated") ?? "").toLowerCase() === "challenge",
+        retryAfter: res.headers.get("retry-after"),
       };
     }
     return { ok: false, error: "too many redirects" };
   } catch (err) {
     if (err instanceof Error && err.name === "TimeoutError") return { ok: false, error: "no response within 12 seconds" };
     return { ok: false, error: err instanceof WooError ? err.message : "request failed" };
+  }
+}
+
+// WooCommerce "Coming soon" mode, from the wc-admin options endpoint (needs a key that can manage WooCommerce).
+export async function fetchComingSoon(baseUrl: string, creds: WooCredentials): Promise<Source<{ comingSoon: boolean; storePagesOnly: boolean }>> {
+  try {
+    const url = new URL(`${baseUrl}/wp-json/wc-admin/options`);
+    url.searchParams.set("options", "woocommerce_coming_soon,woocommerce_store_pages_only");
+    const basic = Buffer.from(`${creds.consumerKey}:${creds.consumerSecret}`).toString("base64");
+    const res = await safeFetch(url, { Authorization: `Basic ${basic}`, Accept: "application/json" });
+    if (!res.ok) return { ok: false, reason: `The site visibility setting could not be read (HTTP ${res.status}).` };
+    const body = (await res.json()) as Record<string, unknown>;
+    if (!body || typeof body !== "object" || !("woocommerce_coming_soon" in body)) {
+      return { ok: false, reason: "This WooCommerce version does not report the Coming soon setting." };
+    }
+    return { ok: true, data: { comingSoon: body.woocommerce_coming_soon === "yes", storePagesOnly: body.woocommerce_store_pages_only === "yes" } };
+  } catch (err) {
+    return { ok: false, reason: `The site visibility setting could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
   }
 }
