@@ -104,3 +104,15 @@ td.num, th.num { text-align: right; }
 .area-total { font-size: 24px; font-weight: 700; color: var(--forest); }
 .small { font-size: 13px; }
 .badge.area-tag { background: var(--ivory); color: var(--forest); border: 1px solid var(--border); }
+.public-header { position: static; }
+.public-header .public-nav { display: flex; gap: 4px; margin: 0; padding: 0; overflow: visible; flex-direction: row; }
+.public-header .public-nav a { padding: 6px 8px; }
+@media (min-width: 900px) { .public-header { width: auto; height: auto; padding: 14px 32px; } }
+.public-main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+.hero h1 { font-size: 26px; }
+.check-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.check-form input { flex: 1 1 220px; }
+.cta { background: var(--forest); color: var(--on-forest); border-radius: 12px; padding: 18px; margin-top: 24px; }
+.cta p { color: var(--on-forest); }
+.cta .button { background: #fff; color: var(--forest); border-color: #fff; }
+code.inline { background: var(--slate-soft); padding: 1px 6px; border-radius: 4px; font-size: 13px; }

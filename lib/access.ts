@@ -62,25 +62,28 @@ function baselineProblem(b: PageFetch, gateReason?: string): string | null {
   return null;
 }
 
-function compare(page: PageResult, bot: PageFetch): Issue | null {
+function compare(page: PageResult, bot: PageFetch, base: string, retried: boolean): Issue | null {
   const b = page.browser;
   if (!b.ok || baselineProblem(b, page.gate)) return null; // no baseline
   const browserChallenged = b.challengeHeader || CHALLENGE_RE.test(b.body);
-  if (!bot.ok) return { severity: "medium", text: `${page.label}: no answer (${bot.error}), the browser got ${b.status}` };
-  if (bot.status === 429) return { severity: "medium", rateLimited: true, text: `${page.label}: HTTP 429 (rate-limited) even after one retry, the browser got ${b.status}` };
-  if (BLOCK_STATUS.has(bot.status)) return { severity: "high", text: `${page.label}: HTTP ${bot.status}, the browser got ${b.status}` };
+  if (!bot.ok) return { severity: "medium", text: `${page.label}: no answer (${bot.error}), ${base} got ${b.status}` };
+  if (bot.status === 429) return { severity: "medium", rateLimited: true, text: `${page.label}: HTTP 429 (rate-limited)${retried ? " even after one retry" : ""}, ${base} got ${b.status}` };
+  if (BLOCK_STATUS.has(bot.status)) return { severity: "high", text: `${page.label}: HTTP ${bot.status}, ${base} got ${b.status}` };
   if (bot.challengeHeader || (!browserChallenged && CHALLENGE_RE.test(bot.body))) {
-    return { severity: "high", text: `${page.label}: challenge or captcha page (HTTP ${bot.status}), the browser got the real page` };
+    return { severity: "high", text: `${page.label}: challenge or captcha page (HTTP ${bot.status}), ${base} got the real page` };
   }
-  if (bot.redirectedTo) return { severity: "medium", text: `${page.label}: redirected to ${bot.redirectedTo}, the browser was not` };
-  if (bot.status >= 400) return { severity: "medium", text: `${page.label}: HTTP ${bot.status}, the browser got ${b.status}` };
+  if (bot.redirectedTo) return { severity: "medium", text: `${page.label}: redirected to ${bot.redirectedTo}, ${base} was not` };
+  if (bot.status >= 400) return { severity: "medium", text: `${page.label}: HTTP ${bot.status}, ${base} got ${b.status}` };
   if (b.bytes > 5000 && bot.bytes < b.bytes * 0.3) {
-    return { severity: "medium", text: `${page.label}: page is ${Math.round(bot.bytes / 1024)} KB, the browser got ${Math.round(b.bytes / 1024)} KB` };
+    return { severity: "medium", text: `${page.label}: page is ${Math.round(bot.bytes / 1024)} KB, ${base} got ${Math.round(b.bytes / 1024)} KB` };
   }
   return null;
 }
 
-export function checkAccess(storeUrl: string, pages: PageResult[]): Finding[] {
+// baseline: how the comparison request is described; retried: whether a 429 was already retried once.
+export function checkAccess(storeUrl: string, pages: PageResult[], opts: { baseline?: string; retried?: boolean } = {}): Finding[] {
+  const base = opts.baseline ?? "the browser";
+  const retried = opts.retried ?? true;
   const findings: Finding[] = [];
 
   for (const p of pages) {
@@ -102,7 +105,7 @@ export function checkAccess(storeUrl: string, pages: PageResult[]): Finding[] {
   for (const bot of AI_BOTS) {
     const issues = pages.flatMap((p) => {
       const result = p.bots[bot.name];
-      const issue = result ? compare(p, result) : null;
+      const issue = result ? compare(p, result, base, retried) : null;
       return issue ? [issue] : [];
     });
     if (!issues.length) continue;

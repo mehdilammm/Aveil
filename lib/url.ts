@@ -42,3 +42,11 @@ export function normalizeStoreUrl(input: string): { url: string } | { error: str
   const path = u.pathname.replace(/\/+$/, "");
   return { url: `${u.protocol}//${u.host}${path}` };
 }
+
+// DNS answers for a host we are about to connect to: refuse if any address is private, loopback, link-local
+// (cloud metadata 169.254.169.254) or otherwise not public. Checked again at connect time and on every redirect.
+export function assertPublicAddresses(addresses: { address: string }[]): string | null {
+  if (!addresses.length) return "no address";
+  const bad = addresses.find((a) => isPrivateAddress(a.address) || isIP(a.address) === 0);
+  return bad ? `${bad.address} is not a public address` : null;
+}

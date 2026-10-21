@@ -1,4 +1,4 @@
-# AgentScope (v0.4)
+# AgentScope (v0.5)
 
 Checks whether WooCommerce stores are ready for AI shopping agents.
 Loop: evidence → specific fix → rescan → history.
@@ -74,3 +74,19 @@ All need a verified sending domain (DNS records).
   other shops named and links. Shop names come from a second small structured-output request to the same model
   (`EXTRACTION_SCHEMA`), filtered for labels; if it fails, a text heuristic is used (`extraction` column says which).
   Tokens of both requests are counted. Labelled "Gemini API answer, not the Gemini app".
+
+## v0.5: Public check (no login)
+
+`/check` lets anyone check a store's public side; reports live at `/check/<random id>` for 30 days. `/bot` explains
+AgentScopeBot and how to block it.
+
+- Checks: robots.txt per AI bot (GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, PerplexityBot, Google-Extended) and
+  sitemap; llms.txt; home page as four AI bots vs. our normal request (user agent only, heuristic); JSON-LD Product on two
+  product pages (home page links, else the product sitemap) and its price vs. the price shown; WooCommerce detection and
+  Coming soon / maintenance; one Gemini question about the domain with the same competitor extraction.
+- Limits: 10 HTTP requests per check (redirect hops count), 1.5 s apart, 10 s timeout, 2 MB per answer, https only, DNS checked
+  at connect time (undici dispatcher) and on every redirect (max 3). User agent `AgentScopeBot/1.0`, header
+  `X-AgentScope-Check: 1`; if robots.txt blocks AgentScopeBot, only robots.txt is read.
+- Same domain within 24 h returns the saved report. 5 checks per hour per visitor (IP kept only as a daily HMAC).
+  Gemini: once per domain per 24 h and 50 per day for the whole app.
+- Tables `public_reports`, `public_scan_limits`, `public_gemini_usage`: server only (RLS, no policies).
