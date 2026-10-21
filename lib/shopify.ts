@@ -148,3 +148,26 @@ export function checkShopifyProducts(body: string, origin: string): ShopifyListR
   }
   return { status: "ok", checked: products.length, findings, handles: products.map((p) => p.handle) };
 }
+
+// Lowest variant price per handle from /products.json, the most exact price source on a Shopify store.
+export function shopifyPricesByHandle(body: string): Map<string, number> {
+  const out = new Map<string, number>();
+  try {
+    const data = JSON.parse(body) as { products?: Product[] };
+    for (const p of Array.isArray(data.products) ? data.products : []) {
+      const prices = (p.variants ?? []).map((v) => num(v.price)).filter((n) => Number.isFinite(n));
+      if (p.handle && prices.length) out.set(p.handle, Math.min(...prices));
+    }
+  } catch {
+    // not a product list
+  }
+  return out;
+}
+
+export function handleOf(url: string): string | null {
+  try {
+    return /\/products\/([^/?#]+)/.exec(new URL(url).pathname)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}

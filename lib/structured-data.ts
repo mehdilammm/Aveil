@@ -4,21 +4,26 @@ import { describePage, pageGate } from "./gate";
 import type { Finding, WooProduct } from "./rules";
 
 type Json = unknown;
+type Node = Record<string, Json>;
+
 export type SchemaProduct = {
+  kind: "Product" | "ProductGroup";
   name: string | null;
   image: boolean;
-  price: string | null;
+  price: string | null; // lowest offer price
   currency: string | null;
   availability: string | null;
+  readable: boolean; // false when a Product node exists but none of its fields could be read
 };
 
 const LD_RE = /<script[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi;
 
-function isProduct(node: Record<string, Json>): boolean {
+function types(node: Node): string[] {
   const t = node["@type"];
-  const types = Array.isArray(t) ? t : [t];
-  return types.some((x) => x === "Product" || x === "ProductGroup");
+  return (Array.isArray(t) ? t : [t]).filter((x): x is string => typeof x === "string").map((x) => x.replace(/^https?:\/\/schema\.org\//, ""));
 }
+
+const isProductType = (node: Node) => types(node).some((t) => t === "Product" || t === "ProductGroup");
 
 function str(v: Json): string | null {
   if (typeof v === "string" && v.trim()) return v.trim();
@@ -26,32 +31,67 @@ function str(v: Json): string | null {
   return null;
 }
 
-function walk(node: Json, out: Record<string, Json>[]) {
+const asArray = <T,>(v: T | T[] | undefined | null): T[] => (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v]);
+const objects = (v: Json): Node[] => asArray(v as Json[] | Json).filter((x): x is Node => !!x && typeof x === "object" && !Array.isArray(x));
+
+// Products at the page level: inside @graph, arrays and nested objects, but not variants (hasVariant) or
+// products in lists (ItemList of related products), which are not the page's product.
+function walk(node: Json, out: Node[]) {
   if (Array.isArray(node)) return node.forEach((n) => walk(n, out));
   if (!node || typeof node !== "object") return;
-  const obj = node as Record<string, Json>;
-  if (isProduct(obj)) out.push(obj);
-  for (const [k, v] of Object.entries(obj)) if (k === "@graph" || (typeof v === "object" && k !== "offers")) walk(v, out);
+  const obj = node as Node;
+  if (isProductType(obj)) {
+    out.push(obj);
+    return;
+  }
+  if (types(obj).includes("ItemList")) return;
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === "hasVariant" || k === "isVariantOf" || k === "offers" || k === "itemListElement") continue;
+    if (v && typeof v === "object") walk(v, out);
+  }
 }
 
-function first<T>(v: T | T[] | undefined | null): T | undefined {
-  return Array.isArray(v) ? v[0] : (v ?? undefined);
+function hasImage(v: Json): boolean {
+  return asArray(v as Json[] | Json).some((x) => !!str(x) || (!!x && typeof x === "object" && (!!str((x as Node).url) || !!str((x as Node).contentUrl))));
 }
 
-function readOffer(offers: Json): Pick<SchemaProduct, "price" | "currency" | "availability"> {
-  const offer = first(offers as Json[] | Json) as Record<string, Json> | undefined;
-  if (!offer || typeof offer !== "object") return { price: null, currency: null, availability: null };
-  const spec = first(offer.priceSpecification as Json[] | Json) as Record<string, Json> | undefined;
-  return {
-    price: str(offer.price) ?? str(offer.lowPrice) ?? str(spec?.price) ?? str(spec?.minPrice),
-    currency: str(offer.priceCurrency) ?? str(spec?.priceCurrency),
-    availability: str(offer.availability),
-  };
+type OfferRead = { price: number | null; priceText: string | null; currency: string | null; availability: string | null };
+
+// Offer, list of offers, AggregateOffer (lowPrice) or priceSpecification.
+function readOffers(offers: Json): OfferRead[] {
+  return objects(offers).map((o) => {
+    const spec = objects(o.priceSpecification)[0];
+    const priceText = str(o.price) ?? str(o.lowPrice) ?? str(spec?.price) ?? str(spec?.minPrice);
+    const n = priceText === null ? NaN : Number(priceText.replace(/,/g, ""));
+    return { price: Number.isFinite(n) ? n : null, priceText, currency: str(o.priceCurrency) ?? str(spec?.priceCurrency), availability: str(o.availability) };
+  });
 }
 
-// Product nodes found in the page, and how many JSON-LD blocks were not valid JSON.
+function summarize(node: Node): SchemaProduct {
+  const kind = types(node).includes("ProductGroup") ? "ProductGroup" : "Product";
+  // A ProductGroup carries its offers on the variants (hasVariant); a Product can also list offers per variant.
+  const variants = objects(node.hasVariant);
+  const offers = [...readOffers(node.offers), ...variants.flatMap((v) => readOffers(v.offers))];
+  const priced = offers.filter((o) => o.price !== null).sort((a, b) => a.price! - b.price!);
+  const lowest = priced[0] ?? offers[0];
+  const inStock = offers.find((o) => /InStock/i.test(o.availability ?? ""));
+  const name = str(node.name) ?? str(variants[0]?.name);
+  const image = hasImage(node.image) || variants.some((v) => hasImage(v.image));
+  const result = {
+    kind,
+    name,
+    image,
+    price: lowest?.priceText ?? null,
+    currency: lowest?.currency ?? offers.find((o) => o.currency)?.currency ?? null,
+    availability: (inStock ?? offers.find((o) => o.availability))?.availability ?? null,
+  } as const;
+  const readable = Boolean(result.name || result.image || result.price || result.currency || result.availability);
+  return { ...result, readable };
+}
+
+// The page's product (ProductGroup first, then a Product with offers), and how many JSON-LD blocks were not valid JSON.
 export function extractSchemaProducts(html: string): { products: SchemaProduct[]; invalidBlocks: number } {
-  const nodes: Record<string, Json>[] = [];
+  const nodes: Node[] = [];
   let invalidBlocks = 0;
   for (const m of html.matchAll(LD_RE)) {
     try {
@@ -60,15 +100,12 @@ export function extractSchemaProducts(html: string): { products: SchemaProduct[]
       invalidBlocks++;
     }
   }
-  const products = nodes.map((n) => {
-    const image = n.image;
-    return {
-      name: str(n.name),
-      image: Boolean(str(image) ?? str((first(image as Json[]) as Record<string, Json> | undefined)?.url) ?? str(first(image as Json[]))),
-      ...readOffer(n.offers),
-    };
-  });
-  return { products, invalidBlocks };
+  const ranked = [...nodes].sort((a, b) => score(b) - score(a));
+  return { products: ranked.map(summarize), invalidBlocks };
+}
+
+function score(n: Node): number {
+  return (types(n).includes("ProductGroup") ? 2 : 0) + (n.offers || n.hasVariant ? 1 : 0);
 }
 
 const AVAILABILITY_MAP: Record<string, string> = { instock: "InStock", outofstock: "OutOfStock", onbackorder: "BackOrder" };
@@ -109,6 +146,18 @@ export function checkStructuredData(pages: SchemaPage[], storeCurrency: string |
           ? `${page.url} has ${invalidBlocks} JSON-LD block(s) that are not valid JSON, and no Product.`
           : `${page.url} has no JSON-LD Product.`}${page.seen ? ` Page: ${page.seen}.` : ""}`,
         guidance: "WooCommerce adds Product structured data by default. Check that a theme, SEO or cache plugin does not remove or break it.",
+        fix_url: page.url,
+      }));
+      continue;
+    }
+
+    if (!schema.readable) {
+      findings.push(f("schema_unparsed", {
+        title: "Product structured data could not be read",
+        severity: "low",
+        basis: "unavailable",
+        evidence: `${page.url} has a JSON-LD ${schema.kind}, but none of its fields could be read by this check.${page.seen ? ` Page: ${page.seen}.` : ""}`,
+        guidance: "Nothing to fix for now: this is a limit of the check, not necessarily of your page.",
         fix_url: page.url,
       }));
       continue;

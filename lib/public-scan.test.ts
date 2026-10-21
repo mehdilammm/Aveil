@@ -83,7 +83,7 @@ describe("price consistency", () => {
   });
 
   it("reads the sale price from the main price block, not related products", () => {
-    expect(visiblePrice(productHtml("390.00"))).toEqual({ amount: 390, text: "390,00" });
+    expect(visiblePrice(productHtml("390.00"))).toEqual({ amount: 390, text: "390,00", source: "price block" });
     expect(visiblePrice("<html><body>no price</body></html>").amount).toBeNull();
   });
 

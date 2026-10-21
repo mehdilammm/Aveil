@@ -4,7 +4,7 @@ import { createHmac } from "node:crypto";
 import { ACCESS_NOTE, checkAccess, type BotName, type PageResult } from "./access";
 import { describePage, pageGate, type Gate } from "./gate";
 import { detectProtection, ERROR_TITLE_RE, type Protection } from "./protection";
-import { checkShopifyProducts, detectShopify, SHOPIFY_LIST_NOTE, shopifyProductUrl } from "./shopify";
+import { checkShopifyProducts, detectShopify, handleOf, SHOPIFY_LIST_NOTE, shopifyPricesByHandle, shopifyProductUrl } from "./shopify";
 import type { Source } from "./pages";
 import { isAllowed, parseRobots, type Robots } from "./robots";
 import type { Finding, Severity } from "./rules";
@@ -214,31 +214,71 @@ export function parseAmount(raw: string): number | null {
   return Number(`${s.slice(0, last).replace(/[.,]/g, "")}.${s.slice(last + 1)}`);
 }
 
-const PRICE_BLOCK_RE = /class\s*=\s*["'][^"']*\b(price|wc-block-components-product-price|wp-block-woocommerce-product-price)\b[^"']*["']/i;
+// Where the main product lives on the page (WooCommerce summary, Shopify product info / product form).
+const MAIN_PRODUCT_RE = /class\s*=\s*["'][^"']*\b(entry-summary|summary|product__info-container|product__info-wrapper|product-single__meta|product__meta|product-info|product-form|wp-block-woocommerce-product-price)\b/i;
+// Where other products start: related, recommended, upsell blocks.
+const OTHER_PRODUCTS_RE = /class\s*=\s*["'][^"']*\b(related|upsells?|cross-sells?|product-recommendations|complementary-products|recently-viewed)\b|<product-recommendations|you may also like/i;
+// Installment and pay-later texts ("from $29/mo", "4 payments of", Shop Pay, Affirm, Klarna, Afterpay, Sezzle).
+const INSTALLMENT_BLOCK_RE = /<(shopify-payment-terms|afterpay-placement|klarna-placement|affirm-as-low-as)[\s\S]*?<\/\1>|<[a-z]+[^>]*class\s*=\s*["'][^"']*(installment|payment-terms|afterpay|klarna|affirm|sezzle|shop-pay)[^"']*["'][^>]*>[\s\S]*?<\/[a-z]+>/gi;
+const INSTALLMENT_AFTER_RE = /^\s*(?:[a-z]{3})?\s*(\/\s*mo|\/\s*month|per month|a month|monthly|x\s*\d|with (affirm|klarna|afterpay|shop pay))/i;
+const INSTALLMENT_BEFORE_RE = /(payments? of|installments? of|as low as|from|starting at)\s*[^\d\s]{0,4}\s*$/i;
 
-// The price a visitor sees on a product page: the main WooCommerce price block, the sale price when there is one.
-export function visiblePrice(html: string): { amount: number | null; text: string | null } {
-  const summary = html.search(/class\s*=\s*["'][^"']*\b(summary|entry-summary|wp-block-woocommerce-product-price)\b/i);
-  const from = summary >= 0 ? summary : 0;
-  const rel = html.slice(from).search(PRICE_BLOCK_RE);
-  if (rel < 0) return { amount: null, text: null };
-  let segment = html.slice(from + rel, from + rel + 3000);
-  const ins = /<ins[^>]*>([\s\S]*?)<\/ins>/i.exec(segment);
-  if (ins) segment = ins[1];
-  // Shopify themes (Dawn and similar): the sale price item, else the regular one.
-  const shopifyItem =
-    /class\s*=\s*["'][^"']*price-item--sale[^"']*["'][^>]*>([\s\S]*?)<\//i.exec(segment) ??
-    /class\s*=\s*["'][^"']*price-item--regular[^"']*["'][^>]*>([\s\S]*?)<\//i.exec(segment);
-  if (!ins && shopifyItem) segment = shopifyItem[1];
-  const amountStart = segment.search(/woocommerce-Price-amount/i);
-  if (amountStart >= 0) segment = segment.slice(amountStart);
-  const text = segment
-    .replace(/<span[^>]*woocommerce-Price-currencySymbol[^>]*>[\s\S]*?<\/span>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/^[^>]*>/, " ");
-  const num = /\d[\d.,   ]*\d|\d/.exec(text.replace(/&nbsp;|&#160;/g, " "));
-  if (!num) return { amount: null, text: null };
-  return { amount: parseAmount(num[0]), text: num[0].trim() };
+function metaPrice(html: string): { amount: number | null; text: string | null } | null {
+  const m =
+    /<meta[^>]+property\s*=\s*["'](?:og|product):price:amount["'][^>]*content\s*=\s*["']([^"']+)["']/i.exec(html) ??
+    /<meta[^>]+content\s*=\s*["']([^"']+)["'][^>]*property\s*=\s*["'](?:og|product):price:amount["']/i.exec(html);
+  if (!m) return null;
+  const amount = parseAmount(m[1]);
+  return amount === null ? null : { amount, text: m[1].trim() };
+}
+
+// First real price number in a piece of text: not a monthly / installment amount.
+function firstPrice(text: string): string | null {
+  for (const m of text.matchAll(/\d[\d.,\u00a0\u202f ]*\d|\d/g)) {
+    const before = text.slice(Math.max(0, m.index! - 25), m.index);
+    const after = text.slice(m.index! + m[0].length, m.index! + m[0].length + 25);
+    if (INSTALLMENT_AFTER_RE.test(after) || INSTALLMENT_BEFORE_RE.test(before)) continue;
+    return m[0].trim();
+  }
+  return null;
+}
+
+export type VisiblePrice = { amount: number | null; text: string | null; source: "price block" | "meta" | null };
+
+// The price shown for the page's main product, from the product area only (never related products or
+// installment texts); falls back to og:price:amount / product:price:amount. Unknown when not sure.
+export function visiblePrice(html: string): VisiblePrice {
+  const start = html.search(MAIN_PRODUCT_RE);
+  if (start >= 0) {
+    let region = html.slice(start, start + 20_000);
+    // Cut where other products start (skip the opening tag of the main area itself).
+    const skip = region.indexOf(">") + 1;
+    const other = region.slice(skip).search(OTHER_PRODUCTS_RE);
+    if (other >= 0) region = region.slice(0, other + skip);
+    region = region.replace(INSTALLMENT_BLOCK_RE, " ");
+    const rel = region.search(/class\s*=\s*["'][^"']*\b(price|price-item|woocommerce-Price-amount|wc-block-components-product-price)\b/i);
+    if (rel >= 0) {
+      let segment = region.slice(rel, rel + 3000);
+      const ins = /<ins[^>]*>([\s\S]*?)<\/ins>/i.exec(segment);
+      const shopifyItem =
+        /class\s*=\s*["'][^"']*price-item--sale[^"']*["'][^>]*>([\s\S]*?)<\//i.exec(segment) ??
+        /class\s*=\s*["'][^"']*price-item--regular[^"']*["'][^>]*>([\s\S]*?)<\//i.exec(segment);
+      if (ins) segment = ins[1];
+      else if (shopifyItem) segment = shopifyItem[1];
+      const amountStart = segment.search(/woocommerce-Price-amount/i);
+      if (amountStart >= 0) segment = segment.slice(amountStart);
+      const text = segment
+        .replace(/<span[^>]*woocommerce-Price-currencySymbol[^>]*>[\s\S]*?<\/span>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/^[^>]*>/, " ")
+        .replace(/&nbsp;|&#160;/g, " ");
+      const n = firstPrice(text);
+      const amount = n === null ? null : parseAmount(n);
+      if (amount !== null) return { amount, text: n, source: "price block" };
+    }
+  }
+  const meta = metaPrice(html);
+  return meta ? { ...meta, source: "meta" } : { amount: null, text: null, source: null };
 }
 
 export type PriceCheck = "match" | "mismatch" | "unknown";
@@ -320,6 +360,9 @@ export type PublicPage = {
   schema: SchemaProduct | null;
   visiblePrice: string | null;
   priceCheck: PriceCheck;
+  // What the JSON-LD price was compared with: the store's product list (Shopify /products.json) or the page.
+  comparedWith?: "store product list" | "price on the page" | null;
+  storePrice?: string | null;
 };
 
 export type PublicReport = {
@@ -501,6 +544,8 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
   if (!agentScopeBlocked && !gate && !protection && homeOk && input.products.length === 0) {
     findings.push(f("structured_data", "schema:no_product_pages", { title: "Could not find product pages to check", severity: "low", basis: "unavailable", evidence: "The home page links no product page (/product/… or /products/…) and the product list or sitemap gave none.", guidance: "Link a few products from the home page, or make sure the product sitemap is public (WordPress: /wp-sitemap.xml, Shopify: /sitemap.xml)." }));
   }
+  const sp = input.shopifyProducts;
+  const storePrices = sp?.ok && sp.status === 200 ? shopifyPricesByHandle(sp.body) : new Map<string, number>();
   input.products.forEach((p, i) => {
     const key = `product${i + 1}`;
     const pp = detectProtection(p.fetch);
@@ -512,18 +557,27 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     }
     const schema = extractSchemaProducts(p.fetch.body).products[0] ?? null;
     const visible = visiblePrice(p.fetch.body);
-    const check = priceConsistency(schema?.price ?? null, visible.amount);
-    pages.push({ url: p.url, kind: "product", seen: describePage(p.fetch), schema, visiblePrice: visible.text, priceCheck: check });
+    // Shopify: the product list price for the same handle is the reference when available.
+    const handle = handleOf(p.url);
+    const listPrice = handle ? storePrices.get(handle) ?? null : null;
+    const comparedWith = listPrice !== null ? "store product list" : visible.amount !== null ? "price on the page" : null;
+    const check = priceConsistency(schema?.readable ? schema.price : null, listPrice ?? visible.amount);
+    pages.push({ url: p.url, kind: "product", seen: describePage(p.fetch), schema, visiblePrice: visible.text, priceCheck: check, comparedWith, storePrice: listPrice === null ? null : String(listPrice) });
     if (!schema) {
-      findings.push(f("structured_data", `schema:missing:${key}`, { type: "schema_product_missing", title: "No Product structured data", severity: "medium", basis: "observed", evidence: `${p.url} has no JSON-LD Product. Page: ${describePage(p.fetch)}.`, guidance: "WooCommerce adds Product structured data by default. Check that your theme, SEO plugin or cache plugin does not remove it, then check again." }));
+      findings.push(f("structured_data", `schema:missing:${key}`, { type: "schema_product_missing", title: "No Product structured data", severity: "medium", basis: "observed", evidence: `${p.url} has no JSON-LD Product. Page: ${describePage(p.fetch)}.`, guidance: "WooCommerce and Shopify themes add Product structured data by default. Check that your theme, SEO app/plugin or cache does not remove it, then check again." }));
+      return;
+    }
+    if (!schema.readable) {
+      findings.push(f("structured_data", `schema:unparsed:${key}`, { type: "schema_unparsed", title: "Product structured data found but could not be read", severity: "low", basis: "unavailable", evidence: `${p.url} has a JSON-LD ${schema.kind}, but this check could not read its name, price, currency, availability or image.`, guidance: "Nothing to fix for now: this is a limit of the check, not necessarily of your page." }));
       return;
     }
     const missing = [!schema.name && "name", !schema.price && "price", !schema.currency && "priceCurrency", !schema.availability && "availability", !schema.image && "image"].filter(Boolean);
     if (missing.length) {
-      findings.push(f("structured_data", `schema:fields:${key}`, { type: "schema_fields_missing", title: "Product structured data is incomplete", severity: "medium", basis: "observed", evidence: `The JSON-LD Product on ${p.url} has no ${missing.join(", ")}.`, guidance: "In WooCommerce, set the product's price, stock status and product image; if they are set, the SEO plugin writing the structured data is dropping them." }));
+      findings.push(f("structured_data", `schema:fields:${key}`, { type: "schema_fields_missing", title: "Product structured data is incomplete", severity: "medium", basis: "observed", evidence: `The JSON-LD ${schema.kind} on ${p.url} has no ${missing.join(", ")}.`, guidance: "Set the product's price, stock and image in WooCommerce or Shopify admin; if they are set, the theme or SEO app/plugin writing the structured data is dropping them." }));
     }
     if (check === "mismatch") {
-      findings.push(f("structured_data", `price:mismatch:${key}`, { type: "price_mismatch", title: "Price in structured data differs from the price on the page", severity: "high", basis: "observed", evidence: `On ${p.url}, structured data says ${schema.price}${schema.currency ? ` ${schema.currency}` : ""}; the page shows ${visible.text}.`, guidance: "AI agents may quote the wrong price. Clear your page cache, check sale price dates in the product, and check the plugin that writes structured data (taxes shown on the page vs. in the data can also differ). Then check again." }));
+      const other = comparedWith === "store product list" ? `the store's product list (/products.json) says ${listPrice}` : `the page shows ${visible.text}`;
+      findings.push(f("structured_data", `price:mismatch:${key}`, { type: "price_mismatch", title: comparedWith === "store product list" ? "Price in structured data differs from the store's product price" : "Price in structured data differs from the price on the page", severity: "high", basis: "observed", evidence: `On ${p.url}, structured data says ${schema.price}${schema.currency ? ` ${schema.currency}` : ""}; ${other}.`, guidance: "AI agents may quote the wrong price. Clear your page cache, check sale price dates in the product, and check the theme or plugin that writes structured data (taxes shown on the page vs. in the data can also differ). Then check again." }));
     }
   });
 

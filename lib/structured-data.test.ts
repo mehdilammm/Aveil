@@ -19,13 +19,13 @@ const page = (html: string | null, over: Partial<WooProduct> = {}) => ({ product
 describe("extractSchemaProducts", () => {
   it("reads WooCommerce's @graph with priceSpecification", () => {
     const { products } = extractSchemaProducts(`<html>${wooLd()}</html>`);
-    expect(products).toEqual([{ name: "Mint Tea Box", image: true, price: "75.00", currency: "MAD", availability: "http://schema.org/InStock" }]);
+    expect(products).toEqual([{ kind: "Product", name: "Mint Tea Box", image: true, price: "75.00", currency: "MAD", availability: "http://schema.org/InStock", readable: true }]);
   });
 
   it("reads a plain Offer and counts invalid blocks", () => {
     const html = `<script type='application/ld+json'>{"@type":"Product","name":"X","image":["a.jpg"],"offers":{"@type":"Offer","price":12,"priceCurrency":"EUR","availability":"https://schema.org/OutOfStock"}}</script><script type="application/ld+json">{broken</script>`;
     const r = extractSchemaProducts(html);
-    expect(r.products[0]).toEqual({ name: "X", image: true, price: "12", currency: "EUR", availability: "https://schema.org/OutOfStock" });
+    expect(r.products[0]).toEqual({ kind: "Product", name: "X", image: true, price: "12", currency: "EUR", availability: "https://schema.org/OutOfStock", readable: true });
     expect(r.invalidBlocks).toBe(1);
   });
 });

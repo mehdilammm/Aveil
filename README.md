@@ -110,3 +110,9 @@ Request order in the public check (the 10-request limit drops the last ones firs
 product page 2. A same-site redirect on the first request (example.com → www.example.com) is learned and later requests
 go straight to the final host. Anything not requested is "not checked: request limit" (unavailable), never a finding,
 and the report lists every step with its result.
+
+Product data on product pages: JSON-LD Product or ProductGroup (variants via hasVariant, lowest price), @graph, arrays,
+several scripts, AggregateOffer (lowPrice) and ImageObject; products inside ItemList are ignored. A product whose fields
+cannot be read is "could not parse" (unavailable), not "incomplete". The price shown is read only from the main product
+area (installment / "per month" amounts, cart, banners and recommendations ignored), else og:price:amount; unknown
+otherwise. On Shopify, the JSON-LD price is compared with the /products.json price of the same handle when available.

@@ -144,16 +144,27 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             products.map((p) => (
               <div key={p.url} style={{ borderBottom: "1px solid var(--border)", padding: "8px 0" }}>
                 <p className="small" style={{ wordBreak: "break-all" }}><a href={p.url} target="_blank" rel="noopener noreferrer nofollow">{p.url}</a></p>
-                {p.schema ? (
+                {p.schema && p.schema.readable === false ? (
+                  <p className="small muted">JSON-LD {p.schema.kind} found, but its fields could not be read.</p>
+                ) : p.schema ? (
                   <p className="small">
-                    JSON-LD Product: name {p.schema.name ? "✓" : "✗"} · price {p.schema.price ?? "✗"} · currency {p.schema.currency ?? "✗"} · availability{" "}
+                    JSON-LD {p.schema.kind ?? "Product"}: name {p.schema.name ? "✓" : "✗"} · price {p.schema.price ?? "✗"} · currency {p.schema.currency ?? "✗"} · availability{" "}
                     {p.schema.availability?.replace(/^https?:\/\/schema\.org\//, "") ?? "✗"} · image {p.schema.image ? "✓" : "✗"}
                   </p>
                 ) : (
                   <p className="small">No JSON-LD Product. Page: {p.seen}.</p>
                 )}
                 <p className="small">
-                  Price shown on the page: {p.visiblePrice ?? "not found"} · {p.priceCheck === "match" ? <span className="status-connected">matches</span> : p.priceCheck === "mismatch" ? <span className="error">does not match</span> : "could not compare"}
+                  Price shown on the page: {p.visiblePrice ?? "not found (or only monthly / installment amounts)"}
+                  {p.storePrice && <> · store product list: {p.storePrice}</>}
+                  {" · "}
+                  {p.priceCheck === "match" ? (
+                    <span className="status-connected">structured data matches{p.comparedWith ? ` the ${p.comparedWith}` : ""}</span>
+                  ) : p.priceCheck === "mismatch" ? (
+                    <span className="error">structured data does not match{p.comparedWith ? ` the ${p.comparedWith}` : ""}</span>
+                  ) : (
+                    "could not compare"
+                  )}
                 </p>
               </div>
             ))
