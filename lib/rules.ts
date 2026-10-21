@@ -1,7 +1,7 @@
 // Scan rules for WooCommerce products. Pure functions, same rules as the WordPress plugin.
 
 export type Severity = "high" | "medium" | "low";
-export type Basis = "observed" | "heuristic";
+export type Basis = "observed" | "heuristic" | "unavailable";
 
 export type WooProduct = {
   id: number;
@@ -34,8 +34,9 @@ export type Finding = {
   severity: Severity;
   evidence: string;
   guidance: string;
-  product_id: number;
+  product_id: number | null;
   basis: Basis;
+  fix_url?: string | null;
 };
 
 export const MIN_DESCRIPTION_LENGTH = 80;
@@ -92,7 +93,7 @@ function describePrice(p: PriceInput): string {
   return `price ${show(p.price)}, regular ${show(p.regular_price)}, sale ${show(p.sale_price)}`;
 }
 
-function finding(product: WooProduct, type: string, fields: Omit<Finding, "finding_key" | "type" | "product_id" | "basis"> & { basis?: Basis }): Finding {
+function finding(product: WooProduct, type: string, fields: Omit<Finding, "finding_key" | "type" | "product_id" | "basis" | "fix_url"> & { basis?: Basis }): Finding {
   return {
     finding_key: `${type}:${product.id}`,
     type,

@@ -16,9 +16,10 @@ type Row = {
   product_id: number | null;
   basis: string;
   state: string | null;
+  fix_url: string | null;
 };
 
-const COLUMNS = "finding_key, type, title, severity, evidence, guidance, product_id, basis, state";
+const COLUMNS = "finding_key, type, title, severity, evidence, guidance, product_id, basis, state, fix_url";
 
 async function allFindings(supabase: Awaited<ReturnType<typeof getUser>>["supabase"], scanId: string) {
   const rows: Row[] = [];
@@ -84,11 +85,12 @@ export default async function ScanPage({ params }: { params: Promise<{ id: strin
             <div className="row">
               <SeverityBadge severity={f.severity} />
               <strong>{f.title}</strong>
-              <span className="muted">· {f.state}{f.basis === "heuristic" ? " · heuristic" : ""}</span>
+              <span className="muted">· {f.state} · {f.basis}</span>
             </div>
             <p>{f.evidence}</p>
             <p className="muted">{f.guidance}</p>
             {editor && <a href={editor} target="_blank" rel="noopener noreferrer">Edit product #{f.product_id}</a>}
+            {!editor && f.fix_url && <a href={f.fix_url} target="_blank" rel="noopener noreferrer">Open in WordPress</a>}
           </div>
         );
       })}

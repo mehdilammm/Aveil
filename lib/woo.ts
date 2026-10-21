@@ -1,5 +1,6 @@
 import "server-only";
 import { lookup } from "node:dns/promises";
+import type { PublicPage, Source } from "./pages";
 import type { WooProduct, WooVariation } from "./rules";
 import { isPrivateAddress } from "./url";
 
@@ -91,4 +92,49 @@ export function fetchPublishedProducts(baseUrl: string, creds: WooCredentials) {
 export async function fetchPublishedVariations(baseUrl: string, productId: number, creds: WooCredentials) {
   const { items } = await getAll<WooVariation>(baseUrl, `/products/${productId}/variations`, { orderby: "id", order: "asc" }, creds);
   return items.filter((v) => (v.status ?? "publish") === "publish");
+}
+
+type SettingRow = { id: string; value: unknown };
+
+// Reads WooCommerce settings groups. Needs a key owned by an admin or shop manager.
+export async function fetchSettings(baseUrl: string, groups: string[], creds: WooCredentials): Promise<Source<Record<string, string>>> {
+  const values: Record<string, string> = {};
+  try {
+    for (const group of groups) {
+      const { items } = await getPage<SettingRow>(baseUrl, `/settings/${group}`, {}, creds);
+      for (const row of items) values[row.id] = typeof row.value === "string" ? row.value : String(row.value ?? "");
+    }
+    return { ok: true, data: values };
+  } catch (err) {
+    if (err instanceof WooError && (err.status === 401 || err.status === 403)) {
+      return { ok: false, reason: "This API key is not allowed to read WooCommerce settings, so page assignments could not be checked." };
+    }
+    return { ok: false, reason: `WooCommerce settings could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
+  }
+}
+
+const MAX_PAGE_LIST_PAGES = 5;
+
+// Published pages from the public WordPress API. No credentials are sent.
+export async function fetchPublicPages(baseUrl: string): Promise<Source<PublicPage[]>> {
+  const pages: PublicPage[] = [];
+  try {
+    for (let page = 1, totalPages = 1; page <= Math.min(totalPages, MAX_PAGE_LIST_PAGES); page++) {
+      const url = new URL(`${baseUrl}/wp-json/wp/v2/pages`);
+      url.searchParams.set("per_page", "100");
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("_fields", "id,slug,title");
+      const res = await safeFetch(url, { Accept: "application/json" });
+      if (!res.ok) {
+        return { ok: false, reason: `The public WordPress pages list answered HTTP ${res.status}, so published pages could not be checked.` };
+      }
+      const body = (await res.json()) as { id: number; slug: string; title?: { rendered?: string } }[];
+      if (!Array.isArray(body)) return { ok: false, reason: "The public WordPress pages list returned an unexpected response." };
+      for (const p of body) pages.push({ id: p.id, slug: p.slug ?? "", title: p.title?.rendered ?? "" });
+      totalPages = Number(res.headers.get("x-wp-totalpages") ?? 1);
+    }
+    return { ok: true, data: pages };
+  } catch (err) {
+    return { ok: false, reason: `Published pages could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
+  }
 }

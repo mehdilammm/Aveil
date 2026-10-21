@@ -1,8 +1,10 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findingState } from "./history";
+import { connectionAfterScan } from "./connection";
+import { checkStorePages } from "./pages";
 import { checkProduct, type Finding, type Severity } from "./rules";
-import { fetchPublishedProducts, fetchPublishedVariations, WooError } from "./woo";
+import { fetchPublicPages, fetchPublishedProducts, fetchPublishedVariations, fetchSettings, WooError } from "./woo";
 
 type Store = { id: string; owner_id: string; url: string };
 
@@ -78,13 +80,15 @@ export async function runScan(admin: SupabaseClient, store: Store): Promise<{ sc
 
     const wooCreds = { consumerKey: creds.consumer_key, consumerSecret: creds.consumer_secret };
     const products = await fetchPublishedProducts(store.url, wooCreds);
-    await admin.from("stores").update({ connection_status: "connected" }).eq("id", store.id);
 
     const findings: Finding[] = (
       await mapLimit(products.items, VARIATION_CONCURRENCY, async (p) =>
         checkProduct(p, p.type === "variable" ? await fetchPublishedVariations(store.url, p.id, wooCreds) : []),
       )
     ).flat();
+
+    const [settings, pages] = await Promise.all([fetchSettings(store.url, ["products", "advanced"], wooCreds), fetchPublicPages(store.url)]);
+    findings.push(...checkStorePages({ storeUrl: store.url, settings, pages }));
 
     const { previous, ever } = await earlierKeys(admin, store.id, scan.id);
     const rows = findings.map((f) => ({
@@ -114,13 +118,12 @@ export async function runScan(admin: SupabaseClient, store: Store): Promise<{ sc
         error: products.truncated ? `Only the first ${products.items.length} of ${products.total} products were scanned.` : null,
       })
       .eq("id", scan.id);
+    await admin.from("stores").update(connectionAfterScan({ ok: true })).eq("id", store.id);
     return { scanId: scan.id };
   } catch (err) {
     const message = err instanceof WooError ? err.message : "The scan failed. Please try again.";
     if (!(err instanceof WooError)) console.error("scan failed", scan.id, err);
-    if (err instanceof WooError && (err.status === 401 || err.status === 403)) {
-      await admin.from("stores").update({ connection_status: "error" }).eq("id", store.id);
-    }
+    await admin.from("stores").update(connectionAfterScan({ ok: false, message })).eq("id", store.id);
     // Drop partial findings so a failed scan never counts in history.
     await admin.from("findings").delete().eq("scan_id", scan.id);
     await admin.from("scans").update({ status: "failed", finished_at: new Date().toISOString(), error: message }).eq("id", scan.id);
