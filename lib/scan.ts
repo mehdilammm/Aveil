@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findingState } from "./history";
-import { runAccessCheck, sampleProductPages } from "./agent-checks";
+import { runAccessCheck, runStructuredChecks, sampleProductPages } from "./agent-checks";
 import { connectionAfterScan } from "./connection";
 import { checkFeedProduct, checkFeedStore } from "./feed";
 import { checkStorePages } from "./pages";
@@ -103,6 +103,8 @@ export async function runScan(admin: SupabaseClient, store: Store): Promise<{ sc
     const samples = sampleProductPages(store.url, products.items);
     const access = await runAccessCheck(store.url, samples.map((s) => s.url));
     findings.push(...access.findings);
+    const currency = settings.ok && /^[A-Z]{3}$/.test(settings.data.woocommerce_currency ?? "") ? settings.data.woocommerce_currency : null;
+    findings.push(...(await runStructuredChecks(store.url, samples, access.pages, currency)));
 
     const { previous, ever } = await earlierKeys(admin, store.id, scan.id);
     const rows = findings.map((f) => ({
