@@ -154,7 +154,7 @@ export async function fetchSiteName(baseUrl: string): Promise<Source<string>> {
 }
 
 export type PageFetch =
-  | { ok: true; status: number; finalUrl: string; redirectedTo: string | null; bytes: number; body: string; challengeHeader: boolean; retryAfter?: string | null; vendorHint?: string | null }
+  | { ok: true; status: number; finalUrl: string; redirectedTo: string | null; bytes: number; body: string; challengeHeader: boolean; retryAfter?: string | null; vendorHint?: string | null; shopifyHeader?: boolean }
   | { ok: false; error: string };
 
 const PAGE_TIMEOUT_MS = 12_000;
@@ -253,4 +253,9 @@ export function vendorFromHeaders(h: { get(name: string): string | null }): stri
   if (h.get("x-datadome") || h.get("x-dd-b")) return "DataDome";
   if (server.includes("akamaighost") || h.get("akamai-grn")) return "Akamai";
   return null;
+}
+
+// Shopify answers carry headers such as x-shopify-stage, x-shopid or "powered-by: Shopify".
+export function shopifyFromHeaders(h: { get(name: string): string | null }): boolean {
+  return Boolean(h.get("x-shopify-stage") || h.get("x-shopid") || h.get("x-shardid") || /shopify/i.test(h.get("powered-by") ?? ""));
 }

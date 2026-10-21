@@ -26,6 +26,7 @@ export default function BotPage() {
           <ul>
             <li>robots.txt and llms.txt</li>
             <li>The home page, once with our user agent and once with each of four AI bot user agents (GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot), to compare the answers</li>
+            <li>On Shopify stores, the public product list once (/products.json?limit=10, no further pages)</li>
             <li>A product sitemap if needed, and up to two product pages</li>
           </ul>
           <p>

@@ -188,6 +188,9 @@ export const NAME_TYPES = ["store", "marketplace", "brand", "service", "other"] 
 export type NameType = (typeof NAME_TYPES)[number];
 const KEEP_TYPES = new Set<NameType>(["store", "marketplace", "brand"]);
 
+// Output budget for the extraction reply: long answers list many names, and 512 tokens cut the JSON off.
+export const EXTRACTION_MAX_TOKENS = 2048;
+
 export const EXTRACTION_SCHEMA = {
   type: "OBJECT",
   properties: {
@@ -227,22 +230,59 @@ export function extractionPrompt(answer: string, storeName: string, host: string
 
 export type Extraction = { brands: { name: string; type: NameType | null; url: string | null }[]; storeMentioned: boolean; rank: number | null };
 
-export function parseExtraction(text: string): Extraction | null {
+// Recovers the complete brand entries of a JSON reply that was cut off (for example by the output token limit).
+function salvageTruncated(text: string): unknown {
+  const start = text.indexOf('"brands"');
+  if (start < 0) return null;
+  const arrayStart = text.indexOf("[", start);
+  if (arrayStart < 0) return null;
+  let lastComplete = -1;
+  let depth = 0;
+  let inString = false;
+  for (let i = arrayStart + 1; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === "\\") i++;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === "{") depth++;
+    else if (c === "}" && --depth === 0) lastComplete = i;
+    else if (c === "]" && depth === 0) break;
+  }
+  if (lastComplete < 0) return null;
   try {
-    const data = JSON.parse(text) as { brands?: unknown; store_mentioned?: unknown; rank_if_listed?: unknown };
-    if (!Array.isArray(data.brands) || typeof data.store_mentioned !== "boolean") return null;
-    const brands = data.brands
-      .filter((b): b is { name: string; type?: unknown; url_if_present?: unknown } => !!b && typeof (b as { name?: unknown }).name === "string")
-      .map((b) => ({
-        name: b.name.trim(),
-        type: (NAME_TYPES as readonly string[]).includes(String(b.type)) ? (b.type as NameType) : null,
-        url: typeof b.url_if_present === "string" && /^https?:\/\/|^[\w-]+(\.[\w-]+)+/.test(b.url_if_present) ? b.url_if_present.trim() : null,
-      }));
-    const rank = Number.isInteger(data.rank_if_listed) && (data.rank_if_listed as number) > 0 ? (data.rank_if_listed as number) : null;
-    return { brands, storeMentioned: data.store_mentioned, rank };
+    return { brands: JSON.parse(`[${text.slice(arrayStart + 1, lastComplete + 1)}]`), store_mentioned: false, truncated: true };
   } catch {
     return null;
   }
+}
+
+export function parseExtraction(text: string): Extraction | null {
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  let data: { brands?: unknown; store_mentioned?: unknown; rank_if_listed?: unknown } | null = null;
+  try {
+    data = JSON.parse(cleaned);
+  } catch {
+    data = salvageTruncated(cleaned) as typeof data;
+  }
+  if (!data || !Array.isArray(data.brands) || typeof data.store_mentioned !== "boolean") return null;
+  const brands = data.brands
+    .filter((b): b is { name: string; type?: unknown; url_if_present?: unknown } => !!b && typeof (b as { name?: unknown }).name === "string")
+    .map((b) => ({
+      name: b.name.trim(),
+      type: (NAME_TYPES as readonly string[]).includes(String(b.type)) ? (b.type as NameType) : null,
+      url: typeof b.url_if_present === "string" && /^https?:\/\/|^[\w-]+(\.[\w-]+)+/.test(b.url_if_present) ? b.url_if_present.trim() : null,
+    }));
+  const rank = Number.isInteger(data.rank_if_listed) && (data.rank_if_listed as number) > 0 ? (data.rank_if_listed as number) : null;
+  return { brands, storeMentioned: data.store_mentioned, rank };
+}
+
+// Why an extraction reply could not be used, for the record ("finish reason MAX_TOKENS", "not valid JSON", ...).
+export function extractionProblem(r: { ok: boolean; text?: string; finishReason?: string | null; error?: string }): string | null {
+  if (!r.ok) return r.error ?? "request failed";
+  if (!r.text) return `empty reply${r.finishReason ? ` (finish reason ${r.finishReason})` : ""}`;
+  if (parseExtraction(r.text)) return null;
+  return `reply was not valid JSON${r.finishReason && r.finishReason !== "STOP" ? ` (finish reason ${r.finishReason})` : ""}`;
 }
 
 // Final analysis: the text match decides "mentioned" (it is checkable in the answer); names come only from the

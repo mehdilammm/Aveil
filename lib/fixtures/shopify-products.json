@@ -1,0 +1,13 @@
+{"products":[
+{"id":1001,"title":"BW-01 Freestanding Bathtub","handle":"bw-01-l-freestanding-bathtub","body_html":"<p>Stone resin freestanding bathtub, 67 inches, matte white. Designed in Germany, made from solid surface.</p>","vendor":"Badeloft","product_type":"Bathtub","images":[{"id":1,"src":"https://cdn.shopify.com/a.jpg"}],
+ "variants":[{"id":11,"title":"Matte","price":"1099.00","compare_at_price":"1299.00","available":true,"grams":120000,"requires_shipping":true}]},
+{"id":1002,"title":"Sample Kit","handle":"sample-kit","body_html":"<p>Free sample of our stone resin surface, sent by mail so you can feel the finish.</p>","vendor":"Badeloft","product_type":"Sample","images":[{"id":2,"src":"https://cdn.shopify.com/b.jpg"}],
+ "variants":[{"id":21,"title":"Default Title","price":"0.00","compare_at_price":null,"available":true,"grams":200,"requires_shipping":true}]},
+{"id":1003,"title":"BW-04 Oval Bathtub","handle":"bw-04-oval-bathtub","body_html":"<p>Oval stone resin bathtub with a slim rim and pop-up drain, available in matte and glossy white.</p>","vendor":"Badeloft","product_type":"Bathtub","images":[{"id":3,"src":"https://cdn.shopify.com/c.jpg"}],
+ "variants":[{"id":31,"title":"Glossy","price":"1599.00","compare_at_price":"1599.00","available":true,"grams":110000,"requires_shipping":true},
+             {"id":32,"title":"Matte","price":"1599.00","compare_at_price":"1499.00","available":true,"grams":110000,"requires_shipping":true}]},
+{"id":1004,"title":"Drain Cover","handle":"drain-cover","body_html":"<p>Cover.</p>","vendor":"","product_type":"Accessory","images":[],
+ "variants":[{"id":41,"title":"Default Title","price":"49.00","compare_at_price":null,"available":false,"grams":0,"requires_shipping":true}]},
+{"id":1005,"title":"Gift Card","handle":"gift-card","body_html":"<p>Give the gift of a calm bathroom. Delivered by email with instructions on how to redeem it online.</p>","vendor":"Badeloft","product_type":"Gift card","images":[{"id":5,"src":"https://cdn.shopify.com/e.jpg"}],
+ "variants":[{"id":51,"title":"$100","price":"100.00","compare_at_price":null,"available":true,"grams":0,"requires_shipping":false}]}
+]}

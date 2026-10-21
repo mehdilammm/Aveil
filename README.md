@@ -1,4 +1,4 @@
-# AgentScope (v0.5)
+# AgentScope (v0.6)
 
 Checks whether WooCommerce stores are ready for AI shopping agents.
 Loop: evidence → specific fix → rescan → history.
@@ -93,3 +93,14 @@ AgentScopeBot and how to block it.
 - Same domain within 24 h returns the saved report. 5 checks per hour per visitor (IP kept only as a daily HMAC).
   Gemini: once per domain per 24 h (2 questions + 2 extractions) and 50 requests per day for the whole app.
 - Tables `public_reports`, `public_scan_limits`, `public_gemini_usage`: server only (RLS, no policies).
+
+## v0.6: Shopify in the public check
+
+- Platform: WooCommerce / Shopify (cdn.shopify.com, Shopify.theme, /cdn/shop/, Shopify headers) / WordPress / unknown.
+- Shopify product pages: /products/<handle> links from the home page, else handles from /products.json, else the
+  sitemap index → sitemap_products_1.xml. Same JSON-LD and price checks (Dawn-style sale price).
+- /products.json?limit=10, one request, no pagination: price missing or 0, compare-at not higher than price, no images,
+  short description, empty vendor, all variants unavailable, shipped variants with 0 g. Not public → unavailable, not a problem.
+- CTA: WooCommerce → full scan sign-up; Shopify → waitlist with optional email (`shopify_waitlist`, server only, nothing sent).
+- Gemini: each question reserves 2 requests (question + extraction) in the daily budget, so an asked question always gets its
+  extraction; the extraction reply gets 2048 output tokens and a cut-off reply keeps its complete entries.

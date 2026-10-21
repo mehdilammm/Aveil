@@ -4,6 +4,7 @@ import { createHmac } from "node:crypto";
 import { ACCESS_NOTE, checkAccess, type BotName, type PageResult } from "./access";
 import { describePage, pageGate, type Gate } from "./gate";
 import { detectProtection, ERROR_TITLE_RE, type Protection } from "./protection";
+import { checkShopifyProducts, detectShopify, SHOPIFY_LIST_NOTE, shopifyProductUrl } from "./shopify";
 import type { Source } from "./pages";
 import { isAllowed, parseRobots, type Robots } from "./robots";
 import type { Finding, Severity } from "./rules";
@@ -98,8 +99,18 @@ export function robotsFrom(fetch: PageFetch | null): { robots: Robots | null; st
 
 // ---------- page content ----------
 
-export function detectPlatform(html: string): { wordpress: boolean; woocommerce: boolean } {
+export type Platform = { wordpress: boolean; woocommerce: boolean; shopify?: boolean };
+
+export function platformName(p: Platform | null): "WooCommerce" | "Shopify" | "WordPress" | "unknown" {
+  if (!p) return "unknown";
+  if (p.shopify) return "Shopify";
+  if (p.woocommerce) return "WooCommerce";
+  return p.wordpress ? "WordPress" : "unknown";
+}
+
+export function detectPlatform(html: string, shopifyHeader = false): Platform {
   return {
+    shopify: detectShopify(html, shopifyHeader),
     wordpress: /\/wp-content\/|\/wp-includes\/|<meta[^>]+name=["']generator["'][^>]+WordPress/i.test(html),
     woocommerce: /\/wp-content\/plugins\/woocommerce\/|class=["'][^"']*\bwoocommerce\b|wc-block-|<meta[^>]+name=["']generator["'][^>]+WooCommerce/i.test(html),
   };
@@ -150,11 +161,11 @@ export function productSitemapUrl(robotsSitemaps: string[], origin: string): str
   return `${origin}/wp-sitemap-posts-product-1.xml`;
 }
 
-export function sitemapProductUrls(xml: string, pageUrl: string, max = 2): string[] {
+export function sitemapProductUrls(xml: string, pageUrl: string, max = 2, platform: "woocommerce" | "shopify" = "woocommerce"): string[] {
   const base = new URL(pageUrl);
   const out: string[] = [];
   for (const m of xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)) {
-    const u = sameHostProductUrl(m[1], base);
+    const u = platform === "shopify" ? shopifyProductUrl(m[1], base) : sameHostProductUrl(m[1], base);
     if (u && !out.includes(u)) out.push(u);
     if (out.length >= max) break;
   }
@@ -183,6 +194,11 @@ export function visiblePrice(html: string): { amount: number | null; text: strin
   let segment = html.slice(from + rel, from + rel + 3000);
   const ins = /<ins[^>]*>([\s\S]*?)<\/ins>/i.exec(segment);
   if (ins) segment = ins[1];
+  // Shopify themes (Dawn and similar): the sale price item, else the regular one.
+  const shopifyItem =
+    /class\s*=\s*["'][^"']*price-item--sale[^"']*["'][^>]*>([\s\S]*?)<\//i.exec(segment) ??
+    /class\s*=\s*["'][^"']*price-item--regular[^"']*["'][^>]*>([\s\S]*?)<\//i.exec(segment);
+  if (!ins && shopifyItem) segment = shopifyItem[1];
   const amountStart = segment.search(/woocommerce-Price-amount/i);
   if (amountStart >= 0) segment = segment.slice(amountStart);
   const text = segment
@@ -205,7 +221,7 @@ export function priceConsistency(schemaPrice: string | null, visible: number | n
 // ---------- report ----------
 
 export type GeminiPart =
-  | { status: "ok"; model: string; prompt: string; answer: string; mentioned: boolean; competitors: string[]; method: "model" | "heuristic" | "failed" }
+  | { status: "ok"; model: string; prompt: string; answer: string; mentioned: boolean; competitors: string[]; method: "model" | "heuristic" | "failed"; extractionError?: string }
   | { status: "unavailable"; reason: string; prompt: string };
 
 // Two Gemini questions per domain:
@@ -281,7 +297,9 @@ export type PublicReport = {
   host: string;
   checkedAt: string;
   requests: number;
-  platform: { wordpress: boolean; woocommerce: boolean } | null;
+  platform: Platform | null;
+  platformName?: ReturnType<typeof platformName>;
+  shopifyList?: { status: "ok"; checked: number; note: string } | { status: "unavailable"; reason: string } | null;
   gate: Gate | null;
   protection?: Protection | null;
   agentScopeBlocked: boolean;
@@ -289,7 +307,7 @@ export type PublicReport = {
   llmsTxt: "present" | "missing" | "unavailable";
   accessTested: boolean;
   accessResults: { bot: string; seen: string }[];
-  productSource: "home page links" | "sitemap" | "none";
+  productSource: "home page links" | "sitemap" | "products.json" | "none";
   pages: PublicPage[];
   gemini: GeminiParts;
   findings: (Finding & { area: string })[];
@@ -306,6 +324,7 @@ export type PublicScanInput = {
   bots: Partial<Record<BotName, PageFetch>>;
   products: { url: string; fetch: PageFetch }[];
   productSource: PublicReport["productSource"];
+  shopifyProducts?: PageFetch | null; // /products.json, Shopify only
   gemini: GeminiParts;
 };
 
@@ -367,7 +386,7 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
   const home = input.home;
   const protection = detectProtection(home);
   const homeOk = Boolean(home?.ok && !home.redirectedTo && home.status >= 200 && home.status < 400);
-  const platform = home?.ok && homeOk && !protection ? detectPlatform(home.body) : null;
+  const platform = home?.ok && homeOk && !protection ? detectPlatform(home.body, home.shopifyHeader) : null;
   const gate = home && !protection ? pageGate(home) : null;
   if (protection) {
     findings.push(f("access", "protection:blocked", {
@@ -382,7 +401,7 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
       title: "Platform, product pages, structured data and bot access could not be checked",
       severity: "low",
       basis: "unavailable",
-      evidence: `The home page was a ${protection.reason}, not the store.`,
+      evidence: `The home page was a bot protection page (${protection.vendor}), not the store.`,
       guidance: "Allow AgentScopeBot (or verified bots) in your bot protection to get the full public check.",
     }));
   }
@@ -396,8 +415,31 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
       guidance: gate.kind === "maintenance" ? "Turn off maintenance mode when the store is ready, then check again." : "When the store is ready: WooCommerce → Settings → Site visibility → Live, then check again.",
     }));
   }
-  if (platform && !platform.woocommerce) {
-    findings.push(f("store_pages", "platform:not_woocommerce", { title: "WooCommerce not detected", severity: "low", basis: "heuristic", evidence: `No WooCommerce markers in the home page HTML (${platform.wordpress ? "WordPress was detected" : "WordPress was not detected"}).`, guidance: "The full AgentScope scan works with WooCommerce stores. Other checks on this page still apply." }));
+  if (platform?.shopify) {
+    findings.push(f("store_pages", "platform:shopify", { title: "Shopify store detected", severity: "low", basis: "observed", evidence: "The home page loads Shopify assets (cdn.shopify.com, Shopify.theme or Shopify headers).", guidance: "The checks below apply to Shopify too. The full scan with a store key is for WooCommerce for now." }));
+  }
+
+  // Shopify: the public product list (/products.json), first 10 products only.
+  let shopifyList: PublicReport["shopifyList"] = null;
+  if (platform?.shopify && input.shopifyProducts !== undefined) {
+    const sp = input.shopifyProducts;
+    const spProtection = detectProtection(sp);
+    const result = !sp
+      ? { status: "unavailable" as const, reason: "not requested (request limit or robots.txt)" }
+      : !sp.ok
+        ? { status: "unavailable" as const, reason: sp.error }
+        : spProtection
+          ? { status: "unavailable" as const, reason: spProtection.reason }
+          : sp.status !== 200
+            ? { status: "unavailable" as const, reason: `HTTP ${sp.status}` }
+            : checkShopifyProducts(sp.body, input.url.replace(/\/$/, ""));
+    if (result.status === "ok") {
+      shopifyList = { status: "ok", checked: result.checked, note: SHOPIFY_LIST_NOTE };
+      findings.push(...result.findings.map((x) => ({ ...x, area: "product_data" })));
+    } else {
+      shopifyList = { status: "unavailable", reason: result.reason };
+      findings.push(f("product_data", "shopify:list_unavailable", { title: "Shopify product list not available (not a problem)", severity: "low", basis: "unavailable", evidence: `/products.json: ${result.reason}. Many stores turn it off; product data was checked on product pages only.`, guidance: "Nothing to do. The product pages below were still checked." }));
+    }
   }
 
   // Bot access: one request per bot on the home page, compared with our normal request.
@@ -415,7 +457,7 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     pages.push({ url: input.url, kind: "home", seen: describePage(home), schema: products[0] ?? null, visiblePrice: null, priceCheck: "unknown" });
   }
   if (!agentScopeBlocked && !gate && !protection && homeOk && input.products.length === 0) {
-    findings.push(f("structured_data", "schema:no_product_pages", { title: "Could not find product pages to check", severity: "low", basis: "unavailable", evidence: "The home page links no /product/ page and the product sitemap gave none.", guidance: "Link a few products from the home page, or make sure the product sitemap is public (WordPress: /wp-sitemap.xml)." }));
+    findings.push(f("structured_data", "schema:no_product_pages", { title: "Could not find product pages to check", severity: "low", basis: "unavailable", evidence: "The home page links no product page (/product/… or /products/…) and the product list or sitemap gave none.", guidance: "Link a few products from the home page, or make sure the product sitemap is public (WordPress: /wp-sitemap.xml, Shopify: /sitemap.xml)." }));
   }
   input.products.forEach((p, i) => {
     const key = `product${i + 1}`;
@@ -463,6 +505,8 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     checkedAt: input.checkedAt,
     requests: input.requests,
     platform,
+    platformName: platformName(platform),
+    shopifyList,
     gate,
     protection,
     agentScopeBlocked,

@@ -173,7 +173,8 @@ describe("buildPublicReport", () => {
 
   it("a healthy WooCommerce store only gets the information notes", () => {
     const r = buildPublicReport(base());
-    expect(r.platform).toEqual({ wordpress: true, woocommerce: true });
+    expect(r.platform).toEqual({ shopify: false, wordpress: true, woocommerce: true });
+    expect(r.platformName).toBe("WooCommerce");
     expect(r.pages.find((p) => p.kind === "product")?.priceCheck).toBe("match");
     expect(keys(base())).toEqual(["llms_txt:missing/low/observed", "gemini:unavailable/low/unavailable"]);
   });

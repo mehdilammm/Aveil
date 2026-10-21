@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { askGemini, GEMINI_MODEL, geminiConfigured } from "./gemini";
-import { brandTerms, canRun, combineAnalysis, EXTRACTION_SCHEMA, extractionPrompt, MAX_PROMPTS, nextRunAt, parseExtraction } from "./visibility";
+import { brandTerms, canRun, combineAnalysis, EXTRACTION_MAX_TOKENS, EXTRACTION_SCHEMA, extractionPrompt, MAX_PROMPTS, nextRunAt, parseExtraction } from "./visibility";
 
 type Store = { id: string; owner_id: string; name: string; url: string };
 
@@ -68,7 +68,7 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
     } else {
       // Second, small request: the model lists the shops named in its answer as JSON. Falls back to the text heuristic.
       await sleep(GAP_MS);
-      const x = await askGemini(extractionPrompt(r.text, store.name, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: 512 });
+      const x = await askGemini(extractionPrompt(r.text, store.name, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: EXTRACTION_MAX_TOKENS });
       totals.requests += x.requests;
       const xIn = x.ok ? x.inputTokens : 0;
       const xOut = x.ok ? x.outputTokens : 0;
@@ -125,7 +125,7 @@ export async function rereadStoredAnswers(admin: SupabaseClient, store: Store): 
   for (const [i, row] of rows.entries()) {
     if (Date.now() - started > TIME_BUDGET_MS) break;
     if (i > 0) await sleep(GAP_MS);
-    const x = await askGemini(extractionPrompt(row.answer!, store.name, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: 512 });
+    const x = await askGemini(extractionPrompt(row.answer!, store.name, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: EXTRACTION_MAX_TOKENS });
     const t = perRun.get(row.run_id) ?? { requests: 0, input: 0, output: 0 };
     t.requests += x.requests;
     if (x.ok) {

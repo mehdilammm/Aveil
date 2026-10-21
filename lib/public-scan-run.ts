@@ -3,39 +3,50 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AI_BOTS } from "./access";
 import { askGemini, GEMINI_MODEL, geminiConfigured } from "./gemini";
 import { PublicFetcher } from "./public-fetch";
+import { checkShopifyProducts, detectShopify, SHOPIFY_PRODUCTS_LIMIT, shopifyProductLinks, shopifyProductSitemap } from "./shopify";
 import {
   ACCESS_BOTS, knowledgeQuestion, trustedHomeHtml, topicFromHome, visibilityQuestion, type GeminiParts, agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, LIMITS, productLinks, productSitemapUrl, PUBLIC_UA,
   robotsFrom, sitemapProductUrls, type GeminiPart, type PublicReport, type PublicScanInput,
 } from "./public-scan";
-import { brandTerms, combineAnalysis, EXTRACTION_SCHEMA, extractionPrompt, parseExtraction, registrableDomain } from "./visibility";
+import { brandTerms, combineAnalysis, EXTRACTION_MAX_TOKENS, EXTRACTION_SCHEMA, extractionPrompt, extractionProblem, parseExtraction, registrableDomain } from "./visibility";
 
 const UA = Object.fromEntries(AI_BOTS.map((b) => [b.name, b.ua])) as Record<string, string>;
 
 type Usage = { geminiRequests: number; input: number; output: number };
 
-// Reserves one request in the app-wide daily Gemini budget, then asks; extra retries are counted too.
-async function askCounted(admin: SupabaseClient, usage: Usage, prompt: string, options?: Parameters<typeof askGemini>[1]) {
-  const { data: reserved } = await admin.rpc("public_gemini_reserve", { p_limit: LIMITS.geminiPerDay });
-  if (!reserved) return null;
-  const r = await askGemini(prompt, options);
-  usage.geminiRequests += r.requests;
-  for (let i = 1; i < r.requests; i++) await admin.rpc("public_gemini_reserve", { p_limit: LIMITS.geminiPerDay });
+const LIMIT_REASON = "Daily limit reached for free Gemini checks. Try again tomorrow.";
+
+// One question and its extraction. Both requests are reserved together in the app-wide daily budget,
+// so an asked question always gets its extraction; retries beyond those two are recorded too.
+async function ask(admin: SupabaseClient, usage: Usage, prompt: string, terms: ReturnType<typeof brandTerms>, label: string): Promise<GeminiPart> {
+  const { data: reserved } = await admin.rpc("public_gemini_reserve_n", { p_limit: LIMITS.geminiPerDay, p_n: 2 });
+  if (!reserved) return { status: "unavailable", reason: LIMIT_REASON, prompt };
+
+  const r = await askGemini(prompt);
+  let requests = r.requests;
+  const finish = async () => {
+    usage.geminiRequests += requests;
+    if (requests > 2) await admin.rpc("public_gemini_record", { p_n: requests - 2 });
+  };
   if (r.ok) {
     usage.input += r.inputTokens;
     usage.output += r.outputTokens;
   }
-  return r;
-}
+  if (!r.ok || !r.text) {
+    await finish();
+    return { status: "unavailable", reason: r.ok ? (r.blocked ? `Gemini blocked the question (${r.blocked}).` : "Gemini gave an empty answer.") : r.error, prompt };
+  }
 
-const LIMIT_REASON = "Daily limit reached for free Gemini checks. Try again tomorrow.";
-
-async function ask(admin: SupabaseClient, usage: Usage, prompt: string, terms: ReturnType<typeof brandTerms>, label: string): Promise<GeminiPart> {
-  const r = await askCounted(admin, usage, prompt);
-  if (!r) return { status: "unavailable", reason: LIMIT_REASON, prompt };
-  if (!r.ok || !r.text) return { status: "unavailable", reason: r.ok ? (r.blocked ? `Gemini blocked the question (${r.blocked}).` : "Gemini gave an empty answer.") : r.error, prompt };
-  const x = await askCounted(admin, usage, extractionPrompt(r.text, label, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: 512 });
-  const a = combineAnalysis(r.text, terms, x?.ok ? parseExtraction(x.text) : null);
-  return { status: "ok", model: GEMINI_MODEL, prompt, answer: r.text, mentioned: a.mentioned, competitors: a.competitors, method: a.method };
+  const x = await askGemini(extractionPrompt(r.text, label, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: EXTRACTION_MAX_TOKENS });
+  requests += x.requests;
+  if (x.ok) {
+    usage.input += x.inputTokens;
+    usage.output += x.outputTokens;
+  }
+  await finish();
+  const a = combineAnalysis(r.text, terms, x.ok ? parseExtraction(x.text) : null);
+  const problem = a.method === "failed" ? extractionProblem(x.ok ? { ok: true, text: x.text, finishReason: x.finishReason } : { ok: false, error: x.error }) : null;
+  return { status: "ok", model: GEMINI_MODEL, prompt, answer: r.text, mentioned: a.mentioned, competitors: a.competitors, method: a.method, ...(problem ? { extractionError: problem } : {}) };
 }
 
 // Two questions per domain (each followed by a small extraction request): a general one about what the store sells,
@@ -94,12 +105,34 @@ export async function runPublicScan(admin: SupabaseClient, origin: string, host:
     if (home.ok && trustedHomeHtml(home) !== null) {
       for (const bot of ACCESS_BOTS) input.bots[bot] = await fetcher.get(`${origin}/`, UA[bot]);
 
-      let urls = productLinks(home.body, home.finalUrl);
-      if (urls.length) input.productSource = "home page links";
-      else if (fetcher.remaining >= 2) {
-        const sitemap = await fetcher.get(productSitemapUrl(robots?.sitemaps ?? [], origin), PUBLIC_UA);
-        urls = sitemap.ok && sitemap.status === 200 ? sitemapProductUrls(sitemap.body, home.finalUrl) : [];
-        if (urls.length) input.productSource = "sitemap";
+      let urls: string[] = [];
+      if (detectShopify(home.body, home.shopifyHeader)) {
+        // Shopify: the public product list (1 request, first 10 products, no pagination), then product pages.
+        input.shopifyProducts = agentScopeAllowed(robots, "/products.json") ? await fetcher.get(`${origin}/products.json?limit=${SHOPIFY_PRODUCTS_LIMIT}`, PUBLIC_UA) : null;
+        urls = shopifyProductLinks(home.body, home.finalUrl);
+        if (urls.length) input.productSource = "home page links";
+        else {
+          const sp = input.shopifyProducts;
+          const list = sp?.ok && sp.status === 200 ? checkShopifyProducts(sp.body, origin) : null;
+          if (list?.status === "ok" && list.handles.length) {
+            urls = list.handles.slice(0, 2).map((h) => `${origin}/products/${h}`);
+            input.productSource = "products.json";
+          } else if (fetcher.remaining >= 3) {
+            const index = await fetcher.get(`${origin}/sitemap.xml`, PUBLIC_UA);
+            const productsMap = index.ok && index.status === 200 ? shopifyProductSitemap(index.body, home.finalUrl) : null;
+            const sitemap = productsMap ? await fetcher.get(productsMap, PUBLIC_UA) : null;
+            urls = sitemap?.ok && sitemap.status === 200 ? sitemapProductUrls(sitemap.body, home.finalUrl, 2, "shopify") : [];
+            if (urls.length) input.productSource = "sitemap";
+          }
+        }
+      } else {
+        urls = productLinks(home.body, home.finalUrl);
+        if (urls.length) input.productSource = "home page links";
+        else if (fetcher.remaining >= 2) {
+          const sitemap = await fetcher.get(productSitemapUrl(robots?.sitemaps ?? [], origin), PUBLIC_UA);
+          urls = sitemap.ok && sitemap.status === 200 ? sitemapProductUrls(sitemap.body, home.finalUrl) : [];
+          if (urls.length) input.productSource = "sitemap";
+        }
       }
       for (const url of urls.filter((u) => agentScopeAllowed(robots, new URL(u).pathname))) {
         if (fetcher.remaining < 1) break;

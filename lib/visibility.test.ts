@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { analyzeAnswer, brandTerms, canRun, cleanCompetitors, combineAnalysis, nextRunAt, normalizeName, parseExtraction, parseGeminiResponse, registrableDomain, suggestPrompts } from "./visibility";
+import { analyzeAnswer, brandTerms, canRun, cleanCompetitors, combineAnalysis, extractionProblem, nextRunAt, normalizeName, parseExtraction, parseGeminiResponse, registrableDomain, suggestPrompts } from "./visibility";
 
 const terms = brandTerms("Matha test", "https://www.matha.site");
 
@@ -149,5 +149,24 @@ describe("normalizeName", () => {
     expect(normalizeName("Etsy, Inc.")).toBe("etsy");
     expect(normalizeName("TÜV Rheinland")).toBe("tuvrheinland");
     expect(normalizeName("https://www.DHgate.com/shop")).toBe("dhgate");
+  });
+});
+
+describe("extraction replies that are not clean JSON", () => {
+  it("keeps the complete entries of a reply cut off by the token limit", () => {
+    const cut = '{"brands":[{"name":"Frontgate","type":"store","url_if_present":null},{"name":"Polywood","type":"brand","url_if_present":null},{"name":"Wayf';
+    const x = parseExtraction(cut);
+    expect(x?.brands.map((b) => b.name)).toEqual(["Frontgate", "Polywood"]);
+    expect(extractionProblem({ ok: true, text: cut, finishReason: "MAX_TOKENS" })).toBeNull();
+  });
+
+  it("accepts a reply wrapped in a code fence", () => {
+    expect(parseExtraction('```json\n{"brands":[{"name":"Etsy","type":"marketplace"}],"store_mentioned":false}\n```')?.brands[0].name).toBe("Etsy");
+  });
+
+  it("says why an extraction failed", () => {
+    expect(extractionProblem({ ok: false, error: "Gemini API error 400: bad schema" })).toBe("Gemini API error 400: bad schema");
+    expect(extractionProblem({ ok: true, text: "", finishReason: "MAX_TOKENS" })).toBe("empty reply (finish reason MAX_TOKENS)");
+    expect(extractionProblem({ ok: true, text: "{oops", finishReason: "MAX_TOKENS" })).toBe("reply was not valid JSON (finish reason MAX_TOKENS)");
   });
 });

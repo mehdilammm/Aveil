@@ -65,6 +65,7 @@ describe("public check of a store behind Cloudflare (atlanticpatio.com)", () => 
     expect(blocked.title).toBe("Bot protection blocked our automated check (Cloudflare)");
     expect(blocked.evidence).toContain('HTTP 403, title "Attention Required! | Cloudflare"');
     expect(blocked.guidance).toContain("Cloudflare Bot Fight Mode, Verified Bots");
+    expect(r.findings.find((f) => f.finding_key === "protection:unavailable")?.evidence).toBe("The home page was a bot protection page (Cloudflare), not the store.");
     // Nothing judged from the protection page itself.
     for (const k of ["platform:not_woocommerce", "schema:no_product_pages", "robots:no_sitemap", "access:baseline:home page", "llms_txt:missing", "page:store_gate"]) {
       expect(r.findings.map((f) => f.finding_key)).not.toContain(k);

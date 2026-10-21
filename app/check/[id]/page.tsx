@@ -6,13 +6,14 @@ import { PublicHeader } from "@/components/public-header";
 import { ACCESS_NOTE, GEMINI_DISCLAIMER, GEMINI_LABEL, type GeminiPart, type GeminiParts, type PublicReport } from "@/lib/public-scan";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ShareLink } from "./share-link";
+import { WaitlistForm } from "./waitlist-form";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "AI agent readiness report – AgentScope", robots: { index: false } };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SEV = { high: 0, medium: 1, low: 2 } as const;
-const AREA_LABEL: Record<string, string> = { robots: "robots.txt", access: "Bot access", structured_data: "Structured data", store_pages: "Store", ai_visibility: "Gemini" };
+const AREA_LABEL: Record<string, string> = { product_data: "Product data", robots: "robots.txt", access: "Bot access", structured_data: "Structured data", store_pages: "Store", ai_visibility: "Gemini" };
 
 export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -62,7 +63,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           <h1>{r.host}</h1>
           <p className="sub">
             Checked {formatDate(r.checkedAt)} · {r.requests} requests to the store
-            {r.platform && <> · {r.platform.woocommerce ? "WooCommerce detected" : r.platform.wordpress ? "WordPress, WooCommerce not detected" : "WooCommerce not detected"}</>}
+            {" · "}Platform: {r.platformName ?? (r.platform?.woocommerce ? "WooCommerce" : r.platform?.wordpress ? "WordPress" : "unknown")}
           </p>
           <ShareLink path={`/check/${row.id}`} />
           <p className="muted small">This link works until {formatDate(row.expires_at)}.</p>
@@ -122,6 +123,19 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           )}
         </div>
 
+        {r.shopifyList && (
+          <>
+            <h2>Shopify product list</h2>
+            <div className="card">
+              {r.shopifyList.status === "ok" ? (
+                <p className="small">{r.shopifyList.note} {r.shopifyList.checked} product{r.shopifyList.checked === 1 ? "" : "s"} read; findings are listed above under Product data.</p>
+              ) : (
+                <p className="muted small">Not available: {r.shopifyList.reason}. This is not a problem; many stores turn it off.</p>
+              )}
+            </div>
+          </>
+        )}
+
         <h2>Product pages</h2>
         <div className="card">
           {products.length === 0 ? (
@@ -166,11 +180,21 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         />
 
         <div className="cta">
-          <p>
-            This public check sees only what any visitor sees. The full scan (prices, stock, weights, feed readiness, weekly tracking) needs a read-only key
-            from the store owner.
-          </p>
-          <Link className="button" href="/login">Sign up</Link>
+          <p>This public check sees only what any visitor sees.</p>
+          {r.platform?.shopify ? (
+            <>
+              <p><strong>Full Shopify scan is coming. Join the waitlist.</strong></p>
+              <WaitlistForm reportId={row.id} />
+            </>
+          ) : (
+            <>
+              <p>
+                <strong>Full scan with a read-only key.</strong> Prices, stock, weights, feed readiness and weekly tracking for every product need a read-only
+                WooCommerce key from the store owner.
+              </p>
+              <Link className="button" href="/login">Sign up</Link>
+            </>
+          )}
         </div>
       </main>
     </>
@@ -189,7 +213,7 @@ function GeminiBlock({ part, empty, note, verdict, namesLabel }: { part: GeminiP
           {verdict && <p>{verdict(part)}</p>}
           {note && <p className="muted small">{note}</p>}
           {part.method === "failed" ? (
-            <p className="muted small">Could not extract store names from this answer.</p>
+            <p className="muted small">Could not extract store names from this answer{part.extractionError ? ` (${part.extractionError})` : ""}.</p>
           ) : (
             part.competitors.length > 0 && <p className="small"><strong>{namesLabel}:</strong> {part.competitors.join(", ")}</p>
           )}
