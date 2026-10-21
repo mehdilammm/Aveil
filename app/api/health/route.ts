@@ -65,5 +65,6 @@ export async function GET() {
   }
 
   const ok = Object.values(env).every((c) => c.ok) && serviceRole.ok;
-  return NextResponse.json({ ok, env, serviceRole }, { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } });
+  const optional = { CRON_SECRET: envCheck("CRON_SECRET", (v) => v.length >= 16) };
+  return NextResponse.json({ ok, env, serviceRole, optional }, { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } });
 }

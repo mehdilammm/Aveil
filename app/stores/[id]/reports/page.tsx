@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { formatDate } from "@/components/badges";
-import { deltasForScans, getStore, listScans } from "@/lib/data";
+import { deltasForScans, getStore, listScans, weeklyReport } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
 
 export default async function ReportsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -12,6 +12,8 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
   const scans = await listScans(supabase, id, 50);
   const deltas = await deltasForScans(supabase, scans);
   const lastComplete = scans.find((s) => s.status === "complete");
+  const weekly = await weeklyReport(supabase, scans);
+  const titleList = (keys: string[]) => (keys.length ? <ul>{keys.map((k) => <li key={k}>{weekly?.titles.get(k) ?? k}</li>)}</ul> : <p className="muted">None.</p>);
 
   return (
     <>
@@ -28,6 +30,23 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
         {lastComplete && <a className="button" href={`/api/stores/${store.id}/report.csv`} download>Download CSV</a>}
       </div>
 
+      <h2>Weekly report</h2>
+      {weekly ? (
+        <div className="card">
+          <p className="muted">
+            {formatDate(weekly.summary.fromDate)} → {formatDate(weekly.summary.toDate)} · {weekly.summary.open} open findings now
+          </p>
+          <h3 className="status-connected">Fixed ({weekly.summary.fixed.length})</h3>
+          {titleList(weekly.summary.fixed)}
+          <h3>New ({weekly.summary.added.length})</h3>
+          {titleList(weekly.summary.added)}
+          <h3 className="error">Came back ({weekly.summary.recurred.length})</h3>
+          {titleList(weekly.summary.recurred)}
+        </div>
+      ) : (
+        <p className="muted">The weekly report needs at least two complete scans. Scheduled scans run once a week.</p>
+      )}
+
       <h2>Scan history</h2>
       {scans.length === 0 ? (
         <p className="muted">No scans yet.</p>
@@ -36,7 +55,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
           <table>
             <thead>
               <tr>
-                <th>Date</th><th>Status</th><th className="num">Products</th><th className="num">Critical</th><th className="num">Warnings</th><th className="num">Low</th>
+                <th>Date</th><th>Status</th><th>By</th><th className="num">Products</th><th className="num">Critical</th><th className="num">Warnings</th><th className="num">Low</th>
                 <th className="num">New</th><th className="num">Resolved</th>
               </tr>
             </thead>
@@ -48,6 +67,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
                   <tr key={s.id}>
                     <td>{formatDate(s.finished_at ?? s.started_at)}</td>
                     <td className={s.status === "failed" ? "error" : undefined}>{s.status}</td>
+                    <td>{s.trigger === "scheduled" ? "Schedule" : "You"}</td>
                     <td className="num">{s.scanned_products ?? "—"}</td>
                     <td className="num">{s.status === "complete" ? c.high ?? 0 : "—"}</td>
                     <td className="num">{s.status === "complete" ? c.medium ?? 0 : "—"}</td>

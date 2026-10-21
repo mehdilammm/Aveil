@@ -1,4 +1,4 @@
-# AgentScope (v0.2)
+# AgentScope (v0.3)
 
 Checks whether WooCommerce stores are ready for AI shopping agents.
 Loop: evidence → specific fix → rescan → history.
@@ -33,3 +33,31 @@ On Vercel, set the same variables. `/api/health` (signed in) shows whether each 
 - `npm run typecheck`, `npm run build`
 
 Migrations live in `supabase/migrations`.
+
+## v0.3: Agent Readiness
+
+- **Feed** (`lib/feed.ts`): product data against the required fields of OpenAI's product feed
+  ([spec](https://developers.openai.com/commerce/specs/file-upload/products)): title, description, url, brand, availability,
+  seller_name, currency; GTIN check digit; low note when there is neither GTIN nor MPN. Image and price come from the product rules.
+- **Access** (`lib/access.ts`): home page and two product pages loaded as a browser and as GPTBot, OAI-SearchBot, ChatGPT-User,
+  ClaudeBot and PerplexityBot (10 requests, one at a time). User agent only, so findings are heuristic.
+- **Structured data** (`lib/robots.ts`, `lib/structured-data.ts`): robots.txt per bot and Sitemap line, JSON-LD Product compared
+  with the API, llms.txt as information only.
+- **Traffic** (`/api/ingest/traffic`, `lib/traffic.ts`): signed daily totals from the agentscope-core plugin
+  (`wordpress/agentscope-core/includes/class-agsc-sender.php`).
+- **Scheduled scans** (`vercel.json`, `/api/cron/weekly-scans`): runs daily, scans stores whose last complete scan is 7+ days old,
+  at most one scheduled scan per store per day. Needs `CRON_SECRET` in Vercel.
+- **Weekly report**: Reports page, fixed / new / came back.
+
+## Weekly email (not connected)
+
+`lib/email.ts` renders the weekly email as text. Nothing sends it until a provider is chosen. Options (check current prices):
+
+| Provider | Free tier | Paid |
+| --- | --- | --- |
+| Resend | 3,000 emails/month, 100/day | from about $20/month |
+| Brevo | 300 emails/day | from about $9/month |
+| Postmark | 100 emails/month | from about $15/month |
+| Amazon SES | none after the first year | about $0.10 per 1,000 emails, more setup |
+
+All need a verified sending domain (DNS records).

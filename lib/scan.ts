@@ -56,7 +56,11 @@ async function earlierKeys(admin: SupabaseClient, storeId: string, scanId: strin
 }
 
 // Runs one scan for a store the caller has already verified belongs to the user.
-export async function runScan(admin: SupabaseClient, store: Store): Promise<{ scanId: string; error?: string }> {
+export async function runScan(
+  admin: SupabaseClient,
+  store: Store,
+  trigger: "manual" | "scheduled" = "manual",
+): Promise<{ scanId: string; error?: string }> {
   const { data: running } = await admin
     .from("scans")
     .select("id, started_at")
@@ -68,7 +72,7 @@ export async function runScan(admin: SupabaseClient, store: Store): Promise<{ sc
 
   const { data: scan, error: scanErr } = await admin
     .from("scans")
-    .insert({ store_id: store.id, owner_id: store.owner_id, status: "running", started_at: new Date().toISOString() })
+    .insert({ store_id: store.id, owner_id: store.owner_id, status: "running", trigger, started_at: new Date().toISOString() })
     .select("id")
     .single();
   if (scanErr) throw scanErr;

@@ -1,5 +1,6 @@
 import "server-only";
 import { scanDeltas, type ScanDelta } from "./history";
+import { weeklySummary, type WeeklySummary } from "./weekly";
 import type { getUser } from "./supabase/server";
 
 type Client = Awaited<ReturnType<typeof getUser>>["supabase"];
@@ -16,6 +17,7 @@ export type ScanRow = {
   findings_count: number | null;
   severity_counts: Record<string, number> | null;
   error: string | null;
+  trigger: "manual" | "scheduled";
 };
 export type FindingRow = {
   finding_key: string;
@@ -30,7 +32,7 @@ export type FindingRow = {
   fix_url: string | null;
 };
 
-const SCAN_COLUMNS = "id, status, created_at, started_at, finished_at, published_products, scanned_products, findings_count, severity_counts, error";
+const SCAN_COLUMNS = "id, status, trigger, created_at, started_at, finished_at, published_products, scanned_products, findings_count, severity_counts, error";
 const FINDING_COLUMNS = "finding_key, type, title, severity, evidence, guidance, product_id, basis, state, fix_url";
 
 export async function listStores(supabase: Client) {
@@ -88,4 +90,23 @@ export function editorUrl(storeUrl: string, f: Pick<FindingRow, "product_id" | "
   if (f.product_id) return { href: `${storeUrl}/wp-admin/post.php?post=${f.product_id}&action=edit`, label: `Edit product #${f.product_id}` };
   if (f.fix_url) return { href: f.fix_url, label: "Open in WordPress" };
   return null;
+}
+
+// Weekly report for the store, with finding titles for display.
+export async function weeklyReport(supabase: Client, scans: ScanRow[]): Promise<{ summary: WeeklySummary; titles: Map<string, string> } | null> {
+  const complete = scans.filter((s) => s.status === "complete" && s.finished_at).reverse();
+  if (complete.length < 2) return null;
+  const keys = new Map<string, string[]>(complete.map((s) => [s.id, []]));
+  const titles = new Map<string, string>();
+  const ids = complete.map((s) => s.id);
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase.from("findings").select("scan_id, finding_key, title").in("scan_id", ids).range(from, from + 999);
+    for (const f of data ?? []) {
+      keys.get(f.scan_id)?.push(f.finding_key);
+      titles.set(f.finding_key, f.title);
+    }
+    if (!data || data.length < 1000) break;
+  }
+  const summary = weeklySummary(complete.map((s) => ({ id: s.id, finishedAt: s.finished_at!, keys: keys.get(s.id) ?? [] })));
+  return summary ? { summary, titles } : null;
 }
