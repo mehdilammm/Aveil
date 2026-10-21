@@ -1,0 +1,41 @@
+[
+  {
+    "id": 101,
+    "name": "Walnut Cutting Board",
+    "permalink": "https://shop.test/product/walnut-cutting-board/",
+    "short_description": "<p>A thick end-grain walnut cutting board, finished with food-safe oil. 40 x 30 cm, made by hand in our shop.</p>",
+    "description": "",
+    "on_sale": false,
+    "prices": { "price": "8500", "regular_price": "8500", "sale_price": "8500", "currency_code": "USD", "currency_minor_unit": 2 },
+    "images": [{ "id": 1, "src": "https://shop.test/board.jpg" }],
+    "is_in_stock": true,
+    "is_purchasable": true
+  },
+  {
+    "id": 102,
+    "name": "Gift Card",
+    "permalink": "https://shop.test/product/gift-card/",
+    "short_description": "<p>Gift card.</p>",
+    "on_sale": false,
+    "prices": { "price": "0", "regular_price": "0", "sale_price": "0", "currency_code": "USD", "currency_minor_unit": 2 },
+    "images": [{ "id": 2, "src": "https://shop.test/gift.jpg" }]
+  },
+  {
+    "id": 103,
+    "name": "Oak Stool",
+    "permalink": "https://shop.test/product/oak-stool/",
+    "short_description": "<p>Solid white oak stool with a hand-shaped seat and wedged tenons. Seat height 45 cm, oil finish, made to order.</p>",
+    "on_sale": true,
+    "prices": { "price": "30000", "regular_price": "25000", "sale_price": "30000", "currency_code": "USD", "currency_minor_unit": 2 },
+    "images": []
+  },
+  {
+    "id": 104,
+    "name": "Mint Tea",
+    "permalink": "https://shop.test/product/mint-tea/",
+    "short_description": "<p>Fresh mint tea from Morocco, packed in a 250 g tin that keeps the leaves dry. Brew 3 minutes in hot water.</p>",
+    "on_sale": false,
+    "prices": { "price": "390", "regular_price": "390", "sale_price": "390", "currency_code": "JPY", "currency_minor_unit": 0 },
+    "images": [{ "id": 4, "src": "https://shop.test/tea.jpg" }]
+  }
+]

@@ -15,7 +15,8 @@ export function geminiConfigured(): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export type AskResult = ({ ok: true } & EngineAnswer & { requests: number }) | { ok: false; error: string; requests: number };
+// waitedMs: time spent waiting for the engine's rate limit (queue gap and Retry-After), for the record.
+export type AskResult = ({ ok: true } & EngineAnswer & { requests: number; waitedMs?: number }) | { ok: false; error: string; requests: number; waitedMs?: number };
 
 type AskOptions = { jsonSchema?: object; maxOutputTokens?: number };
 

@@ -128,3 +128,15 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
   exhausted free plan stops the Mistral lane; Gemini continues and Mistral rows say why.
 - Public check: the general question also goes to Mistral (once per domain per 24 h, 50 per day app-wide, separate
   `public_mistral_usage` budget). Labelled "Mistral API answer, not the Le Chat app".
+
+### v0.7.1 fixes
+
+- Mistral: every call of a server instance goes through one queue (one at a time, ≥ 1.2 s apart). On 429 it waits
+  `Retry-After` (2 s if missing, max 10 s) and retries once; the wait is shown in the report. A 429 on Mistral's
+  extraction falls back to Gemini extraction. Separate serverless instances have separate queues.
+- Topic of the general question: one small Gemini request turns the home title, meta description and category names
+  into 2-8 English words without the brand. Invalid answer → title without the brand → category links. The report shows
+  the topic and its source.
+- WooCommerce stores whose home page links no `/product/` page: one request to the public Store API
+  `/wp-json/wc/store/v1/products?per_page=10` (price 0, sale not lower, no images, short description). The first
+  permalink is checked for JSON-LD and its price compared with the Store API. 401/404 = not available, no finding.

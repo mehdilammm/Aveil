@@ -138,6 +138,19 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           </>
         )}
 
+        {r.wooStoreApi && (
+          <>
+            <h2>WooCommerce Store API</h2>
+            <div className="card">
+              {r.wooStoreApi.status === "ok" ? (
+                <p className="small">{r.wooStoreApi.note} {r.wooStoreApi.checked} product{r.wooStoreApi.checked === 1 ? "" : "s"} read; findings are listed above under Product data.</p>
+              ) : (
+                <p className="muted small">Not available: {r.wooStoreApi.reason}. This is not a problem; some stores turn it off.</p>
+              )}
+            </div>
+          </>
+        )}
+
         <h2>Product pages</h2>
         <div className="card">
           {products.length === 0 ? (
@@ -175,6 +188,11 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         </div>
 
         <h2>AI visibility</h2>
+        {gemini.topic && (
+          <p className="muted small">
+            Topic of the general question: &ldquo;{gemini.topic.text}&rdquo; ({gemini.topic.source === "gemini" ? "summarized by Gemini from the home page title, description and categories" : gemini.topic.source === "title" ? "from the home page title" : "from category links on the home page"}).
+          </p>
+        )}
         {gemini.visibilityMistral && (
           <div className="card table-wrap">
             <table>
@@ -283,10 +301,11 @@ function GeminiBlock({ part, empty, note, verdict, namesLabel }: { part: GeminiP
               <pre style={{ whiteSpace: "pre-wrap", font: "inherit", fontSize: 14, margin: 0 }}>{part.answer}</pre>
             </blockquote>
           </details>
+          {part.note && <p className="muted small">{part.note}</p>}
           <p className="muted small"><strong>{GEMINI_DISCLAIMER}</strong> One answer from the API; the Gemini app and other runs can answer differently.</p>
         </>
       ) : (
-        part.prompt && <p className="muted">Not available: {part.reason}</p>
+        part.prompt && <p className="muted">Not available: {part.reason}{part.note ? ` ${part.note}` : ""}</p>
       )}
     </div>
   );

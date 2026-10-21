@@ -43,8 +43,19 @@ describe("extractNames", () => {
     const x = await extractNames("mistral", "1. **Etsy** 2. **SGS**", terms, "Matha", usage);
     expect(x.extractor).toBe("mistral");
     expect(x.analysis.competitors).toEqual(["Etsy"]);
-    expect(usage.mistral).toEqual({ requests: 1, input: 10, output: 20 });
+    expect(usage.mistral).toEqual({ requests: 1, input: 10, output: 20, waitedMs: 0 });
     expect(askGemini).not.toHaveBeenCalled();
+  });
+
+  it("a 429 on Mistral's extraction falls back to Gemini", async () => {
+    const { extractNames, emptyUsage } = await import("./engines");
+    askMistral.mockResolvedValueOnce({ ok: false, error: "Mistral API error 429 (free plan rate limit or quota reached) after waiting 2.0 s: Rate limit exceeded", requests: 2, waitedMs: 2000 });
+    askGemini.mockResolvedValueOnce(answer(extraction));
+    const usage = emptyUsage();
+    const x = await extractNames("mistral", "text", terms, "Matha", usage);
+    expect(x.extractor).toBe("gemini");
+    expect(x.analysis.competitors).toEqual(["Etsy"]);
+    expect(usage.mistral.requests).toBe(2);
   });
 
   it("falls back to Gemini when Mistral's extraction fails, and records who extracted", async () => {

@@ -21,30 +21,75 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type AskOptions = { jsonSchema?: object; maxOutputTokens?: number };
 
-export async function askMistral(prompt: string, options: AskOptions = {}): Promise<AskResult> {
+// All Mistral calls of this server instance go through one queue: one request at a time, at least
+// MISTRAL_GAP_MS between the end of one and the start of the next. (Separate serverless instances each have
+// their own queue; the free plan's limit is per key, so a 429 is still handled below.)
+export const MISTRAL_GAP_MS = 1200;
+const RETRY_DEFAULT_MS = 2000;
+const RETRY_MAX_MS = 10_000;
+let queue: Promise<unknown> = Promise.resolve();
+let lastEnd = 0;
+
+function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  const run = queue.then(fn, fn);
+  queue = run.catch(() => undefined);
+  return run;
+}
+
+// Retry-After in seconds or as a date; 2 s when missing; at most 10 s.
+export function mistralRetryWaitMs(header: string | null, now = Date.now()): number {
+  if (!header) return RETRY_DEFAULT_MS;
+  const seconds = Number(header.trim());
+  const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(header) - now;
+  return Number.isFinite(ms) && ms > 0 ? Math.min(ms, RETRY_MAX_MS) : RETRY_DEFAULT_MS;
+}
+
+export function askMistral(prompt: string, options: AskOptions = {}): Promise<AskResult> {
+  return enqueue(() => callMistral(prompt, options));
+}
+
+async function callMistral(prompt: string, options: AskOptions): Promise<AskResult> {
   const key = process.env.MISTRAL_API_KEY?.trim();
   if (!key) return { ok: false, error: "MISTRAL_API_KEY is not set", requests: 0 };
   let requests = 0;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    requests++;
-    try {
-      const res = await fetch(ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, Accept: "application/json" },
-        body: JSON.stringify({
-          model: MISTRAL_MODEL,
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: options.maxOutputTokens ?? MAX_TOKENS,
-          ...(options.jsonSchema
-            ? { temperature: 0, response_format: { type: "json_schema", json_schema: { name: "extraction", schema: options.jsonSchema, strict: true } } }
-            : {}),
-        }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-        cache: "no-store",
-      });
+  let waitedMs = 0;
+  const pause = async (ms: number) => {
+    if (ms <= 0) return;
+    waitedMs += ms;
+    await sleep(ms);
+  };
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await pause(lastEnd + MISTRAL_GAP_MS - Date.now());
+      requests++;
+      let res: Response;
+      try {
+        res = await fetch(ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, Accept: "application/json" },
+          body: JSON.stringify({
+            model: MISTRAL_MODEL,
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: options.maxOutputTokens ?? MAX_TOKENS,
+            ...(options.jsonSchema
+              ? { temperature: 0, response_format: { type: "json_schema", json_schema: { name: "extraction", schema: options.jsonSchema, strict: true } } }
+              : {}),
+          }),
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+          cache: "no-store",
+        });
+      } catch (err) {
+        lastEnd = Date.now();
+        if (attempt === 0) {
+          await pause(RETRY_DEFAULT_MS);
+          continue;
+        }
+        return { ok: false, error: err instanceof Error && err.name === "TimeoutError" ? "Mistral did not answer within 30 seconds" : "Request to Mistral failed", requests, waitedMs };
+      }
+      lastEnd = Date.now();
       if ((res.status === 429 || res.status >= 500) && attempt === 0) {
-        const wait = Number(res.headers.get("retry-after"));
-        await sleep(Number.isFinite(wait) && wait > 0 ? Math.min(wait, 10) * 1000 : 3000);
+        await res.body?.cancel().catch(() => undefined);
+        await pause(mistralRetryWaitMs(res.headers.get("retry-after")));
         continue;
       }
       const body = await res.json().catch(() => null);
@@ -52,16 +97,13 @@ export async function askMistral(prompt: string, options: AskOptions = {}): Prom
         const b = body as { message?: string; detail?: unknown; error?: { message?: string } } | null;
         const message = b?.message ?? b?.error?.message ?? (typeof b?.detail === "string" ? b.detail : `HTTP ${res.status}`);
         const hint = res.status === 401 ? " (API key not accepted)" : res.status === 429 ? " (free plan rate limit or quota reached)" : "";
-        return { ok: false, error: `Mistral API error ${res.status}${hint}: ${String(message).slice(0, 200)}`, requests };
+        const waited = waitedMs ? ` after waiting ${(waitedMs / 1000).toFixed(1)} s` : "";
+        return { ok: false, error: `Mistral API error ${res.status}${hint}${waited}: ${String(message).slice(0, 200)}`, requests, waitedMs };
       }
-      return { ok: true, ...parseMistralResponse(body), requests };
-    } catch (err) {
-      if (attempt === 0) {
-        await sleep(2000);
-        continue;
-      }
-      return { ok: false, error: err instanceof Error && err.name === "TimeoutError" ? "Mistral did not answer within 30 seconds" : "Request to Mistral failed", requests };
+      return { ok: true, ...parseMistralResponse(body), requests, waitedMs };
     }
+    return { ok: false, error: "Mistral is busy (rate limited). Try again later.", requests, waitedMs };
+  } finally {
+    lastEnd = Date.now();
   }
-  return { ok: false, error: "Mistral is busy (rate limited). Try again later.", requests };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  agentScopeAllowed, applyCanonical, buildPublicReport, knowledgeQuestion, learnCanonical, topicFromHome, visibilityQuestion, geminiAllowedForDomain, hashIp, isFresh, parseAmount, priceConsistency, productLinks,
+  agentScopeAllowed, applyCanonical, buildPublicReport, categoryNames, titleTopic, topicPrompt, validateTopic, knowledgeQuestion, learnCanonical, topicFromHome, visibilityQuestion, geminiAllowedForDomain, hashIp, isFresh, parseAmount, priceConsistency, productLinks,
   productSitemapUrl, robotsVerdicts, sitemapProductUrls, visiblePrice, withinRateLimit, type PublicScanInput,
 } from "./public-scan";
 import { isAllowed, parseRobots } from "./robots";
@@ -171,6 +171,24 @@ describe("buildPublicReport", () => {
   });
   const keys = (i: PublicScanInput) => buildPublicReport(i).findings.map((x) => `${x.finding_key}/${x.severity}/${x.basis}`);
 
+  it("WooCommerce Store API: 404 is unavailable without a finding", () => {
+    const r = buildPublicReport(base({ wooStoreApi: page(404, '{"code":"rest_no_route"}') }));
+    expect(r.wooStoreApi).toEqual({ status: "unavailable", reason: "HTTP 404" });
+    expect(r.findings.some((x) => x.finding_key.startsWith("wcstore:"))).toBe(false);
+    expect(keys(base({ wooStoreApi: page(401, "no") }))).toEqual(keys(base()));
+  });
+
+  it("WooCommerce Store API: product findings and the price compared by permalink", () => {
+    const list = JSON.stringify([
+      { id: 7, name: "Brass Lantern", permalink: "https://shop.test/product/brass-lantern/", short_description: "<p>x</p>", on_sale: false, prices: { price: "45000", regular_price: "45000", sale_price: "45000", currency_code: "MAD", currency_minor_unit: 2 }, images: [{ id: 1 }] },
+    ]);
+    const r = buildPublicReport(base({ wooStoreApi: page(200, list), productSource: "Store API" }));
+    expect(r.wooStoreApi).toMatchObject({ status: "ok", checked: 1 });
+    expect(r.findings.find((x) => x.finding_key === "wcstore:short_description:7")?.area).toBe("product_data");
+    const mismatch = r.findings.find((x) => x.finding_key === "price:mismatch:product1");
+    expect(mismatch?.evidence).toContain("the store's product list (the Store API) says 450");
+  });
+
   it("a healthy WooCommerce store only gets the information notes", () => {
     const r = buildPublicReport(base());
     expect(r.platform).toEqual({ shopify: false, wordpress: true, woocommerce: true });
@@ -294,5 +312,36 @@ describe("Mistral in the public check", () => {
     const unavailable = buildPublicReport({ ...base, gemini: { visibility: ok(true, "gemini"), knowledge: ok(true, "gemini"), visibilityMistral: { status: "unavailable", reason: "Mistral API error 429 (free plan rate limit or quota reached)", prompt: "q", engine: "mistral" } } });
     expect(unavailable.findings.map((f) => f.finding_key)).not.toContain("mistral:not_named");
     expect(unavailable.gemini.visibilityMistral).toMatchObject({ status: "unavailable" });
+  });
+});
+
+describe("topic of the general question", () => {
+  const home = `<html><head><title>Offerman Woodshop - Handmade Products &amp; Custom Fine Furniture</title>
+<meta name="description" content="Handmade wooden goods, furniture and books from Nick Offerman's woodshop in Los Angeles."></head>
+<body><a href="/product-category/hearth-and-kindling/">Hearth &amp; Kindling</a><a href="/product-category/library/">Library</a>
+<a href="/product-category/shop/">Shop</a><a href="/product-category/home-goods/"><span>Home Goods</span></a></body></html>`;
+  const brand = ["offerman", "offermanwoodshop"];
+
+  it("reads full category names, not slugs", () => {
+    expect(categoryNames(home)).toEqual(["Hearth & Kindling", "Library", "Home Goods"]);
+  });
+
+  it("asks with title, description and categories", () => {
+    const p = topicPrompt(home)!;
+    expect(p).toContain("Title: Offerman Woodshop - Handmade Products & Custom Fine Furniture");
+    expect(p).toContain("Categories: Hearth & Kindling; Library; Home Goods");
+    expect(p).toContain("2 to 8 English words");
+  });
+
+  it("accepts 2-8 plain words without the brand", () => {
+    expect(validateTopic("Handmade wooden furniture and home goods.", brand)).toBe("handmade wooden furniture and home goods");
+    expect(validateTopic("furniture", brand)).toBeNull();
+    expect(validateTopic("Offerman handmade wooden furniture", brand)).toBeNull();
+    expect(validateTopic("goods from offermanwoodshop.com", brand)).toBeNull();
+    expect(validateTopic("one two three four five six seven eight nine", brand)).toBeNull();
+  });
+
+  it("falls back to the title without the brand", () => {
+    expect(titleTopic(home, brand)).toBe("handmade products & custom fine furniture");
   });
 });

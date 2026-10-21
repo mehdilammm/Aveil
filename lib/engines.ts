@@ -16,11 +16,12 @@ export function askEngine(id: EngineId, prompt: string): Promise<AskResult> {
   return id === "gemini" ? askGemini(prompt) : askMistral(prompt);
 }
 
-export type Usage = Record<EngineId, { requests: number; input: number; output: number }>;
-export const emptyUsage = (): Usage => ({ gemini: { requests: 0, input: 0, output: 0 }, mistral: { requests: 0, input: 0, output: 0 } });
+export type Usage = Record<EngineId, { requests: number; input: number; output: number; waitedMs?: number }>;
+export const emptyUsage = (): Usage => ({ gemini: { requests: 0, input: 0, output: 0, waitedMs: 0 }, mistral: { requests: 0, input: 0, output: 0, waitedMs: 0 } });
 
 function count(usage: Usage, id: EngineId, r: AskResult) {
   usage[id].requests += r.requests;
+  usage[id].waitedMs = (usage[id].waitedMs ?? 0) + (r.waitedMs ?? 0);
   if (r.ok) {
     usage[id].input += r.inputTokens;
     usage[id].output += r.outputTokens;

@@ -5,6 +5,7 @@ import { ACCESS_NOTE, checkAccess, type BotName, type PageResult } from "./acces
 import { describePage, pageGate, type Gate } from "./gate";
 import { detectProtection, ERROR_TITLE_RE, servedVia, type Protection } from "./protection";
 import { checkShopifyProducts, detectShopify, handleOf, SHOPIFY_LIST_NOTE, shopifyPricesByHandle, shopifyProductUrl } from "./shopify";
+import { checkStoreApiProducts, pathOf, STORE_API_NOTE } from "./woo-store-api";
 import type { Source } from "./pages";
 import { isAllowed, parseRobots, type Robots } from "./robots";
 import type { Finding, Severity } from "./rules";
@@ -303,14 +304,15 @@ export type GeminiPart =
       method: "model" | "heuristic" | "failed";
       extractionError?: string;
       extractor?: "gemini" | "mistral" | null;
+      note?: string; // e.g. how long we waited for the engine's rate limit
     }
-  | { status: "unavailable"; reason: string; prompt: string; engine?: "gemini" | "mistral" };
+  | { status: "unavailable"; reason: string; prompt: string; engine?: "gemini" | "mistral"; note?: string };
 
 // Two Gemini questions per domain:
 // visibility: a general question about what the store sells, without its name. "Mentioned" there is the real signal.
 // knowledge: "Does Gemini know this store?", asked by domain. Its answer names the store by construction, so it is
 // shown for information and never counted as visibility.
-export type GeminiParts = { visibility: GeminiPart; knowledge: GeminiPart; visibilityMistral?: GeminiPart };
+export type GeminiParts = { visibility: GeminiPart; knowledge: GeminiPart; visibilityMistral?: GeminiPart; topic?: Topic | null };
 
 export const GEMINI_DISCLAIMER = "This is what the AI model says. Facts like prices, warranties or history were not verified by AgentScope.";
 
@@ -356,6 +358,77 @@ export function topicFromHome(html: string, brandKeys: string[]): string | null 
   return null;
 }
 
+// ---------- topic of the general question ----------
+
+export type TopicSource = "gemini" | "title" | "category links";
+export type Topic = { text: string; source: TopicSource };
+
+// Category link texts in full (WooCommerce /product-category/, Shopify /collections/, /category/), not slugs.
+export function categoryNames(html: string, max = 8): string[] {
+  const out: string[] = [];
+  for (const m of html.matchAll(/<a[^>]+href\s*=\s*["'][^"']*\/(?:product-category|collections|category)\/[^"']+["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    const text = decode(m[1].replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+    if (text.length < 3 || text.length > 60 || /^(all|shop|sale|new|view all|see all|shop all)$/i.test(text)) continue;
+    if (!out.some((o) => o.toLowerCase() === text.toLowerCase())) out.push(text);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+export function homeTitle(html: string): string | null {
+  const t = /<title[^>]*>([^<]{3,200})<\/title>/i.exec(html)?.[1];
+  return t ? decode(t).replace(/\s+/g, " ").trim() : null;
+}
+
+export function homeDescription(html: string): string | null {
+  const m =
+    /<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']{10,400})["']/i.exec(html)?.[1] ??
+    /<meta[^>]+content=["']([^"']{10,400})["'][^>]+(?:name|property)=["'](?:description|og:description)["']/i.exec(html)?.[1];
+  return m ? decode(m).replace(/\s+/g, " ").trim() : null;
+}
+
+// Prompt for a short, natural description of what the store sells (asked to Gemini).
+export function topicPrompt(html: string): string | null {
+  const title = homeTitle(html);
+  const description = homeDescription(html);
+  const categories = categoryNames(html);
+  if (!title && !description && !categories.length) return null;
+  return [
+    "Here is information from an online store's home page.",
+    title ? `Title: ${title}` : null,
+    description ? `Description: ${description}` : null,
+    categories.length ? `Categories: ${categories.join("; ")}` : null,
+    "",
+    "In 2 to 8 English words, describe what the store sells, as a shopper would say it (for example: \"handmade wooden furniture and home goods\").",
+    "Do not include the store's name or brand. Answer with the words only, no punctuation at the end.",
+  ].filter((l) => l !== null).join("\n");
+}
+
+// A topic must be 2-8 plain words and must not contain the store's name or domain.
+export function validateTopic(raw: string | null | undefined, brandKeys: string[]): string | null {
+  if (!raw) return null;
+  const text = raw.replace(/^["'`\s]+|["'`.\s]+$/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  const words = text.split(" ").filter(Boolean);
+  if (words.length < 2 || words.length > 8) return null;
+  if (!/^[a-z0-9&,' -]+$/i.test(text) || ERROR_TITLE_RE.test(text)) return null;
+  const compact = text.replace(/[^a-z0-9]/g, "");
+  if (brandKeys.some((k) => k.length >= 3 && (compact.includes(k) || words.some((w) => w.replace(/[^a-z0-9]/g, "") === k)))) return null;
+  return text;
+}
+
+// Fallback: the home page title without the brand ("Offerman Woodshop - Handmade Products & Custom Fine Furniture"
+// → "handmade products & custom fine furniture").
+export function titleTopic(html: string, brandKeys: string[]): string | null {
+  const title = homeTitle(html);
+  if (!title || ERROR_TITLE_RE.test(title)) return null;
+  const parts = title.split(/\s[-–—|:]\s|\s·\s/).map((p) => p.trim()).filter(Boolean);
+  for (const part of parts) {
+    const t = validateTopic(part, brandKeys);
+    if (t) return t;
+  }
+  return validateTopic(stripBrand(title, brandKeys), brandKeys);
+}
+
 export function visibilityQuestion(topic: string): string {
   return `Which online stores would you recommend for ${topic}?`;
 }
@@ -395,7 +468,8 @@ export type PublicReport = {
   llmsTxt: "present" | "missing" | "unavailable";
   accessTested: boolean;
   accessResults: { bot: string; seen: string }[];
-  productSource: "home page links" | "sitemap" | "products.json" | "none";
+  productSource: "home page links" | "sitemap" | "products.json" | "Store API" | "none";
+  wooStoreApi?: { status: "ok"; checked: number; note: string } | { status: "unavailable"; reason: string } | null;
   pages: PublicPage[];
   gemini: GeminiParts;
   findings: (Finding & { area: string })[];
@@ -414,6 +488,7 @@ export type PublicScanInput = {
   products: { url: string; fetch: PageFetch }[];
   productSource: PublicReport["productSource"];
   shopifyProducts?: PageFetch | null; // /products.json, Shopify only
+  wooStoreApi?: PageFetch | null; // /wp-json/wc/store/v1/products, WooCommerce only
   gemini: GeminiParts;
 };
 
@@ -556,6 +631,28 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
   if (!agentScopeBlocked && !gate && !protection && homeOk && input.products.length === 0) {
     findings.push(f("structured_data", "schema:no_product_pages", { title: "Could not find product pages to check", severity: "low", basis: "unavailable", evidence: "The home page links no product page (/product/… or /products/…) and the product list or sitemap gave none.", guidance: "Link a few products from the home page, or make sure the product sitemap is public (WordPress: /wp-sitemap.xml, Shopify: /sitemap.xml)." }));
   }
+  // WooCommerce: the public Store API (first 10 products). Not available = unavailable, without a finding.
+  let wooStoreApi: PublicReport["wooStoreApi"] = null;
+  let wooPrices = new Map<string, number>();
+  if (input.wooStoreApi !== undefined) {
+    const w = input.wooStoreApi;
+    const wp = detectProtection(w);
+    const result = !w
+      ? { status: "unavailable" as const, reason: "not requested" }
+      : !w.ok
+        ? { status: "unavailable" as const, reason: w.error }
+        : wp
+          ? { status: "unavailable" as const, reason: wp.reason }
+          : w.status !== 200
+            ? { status: "unavailable" as const, reason: `HTTP ${w.status}` }
+            : checkStoreApiProducts(w.body);
+    if (result.status === "ok") {
+      wooStoreApi = { status: "ok", checked: result.checked, note: STORE_API_NOTE };
+      wooPrices = result.prices;
+      findings.push(...result.findings.map((x) => ({ ...x, area: "product_data" })));
+    } else wooStoreApi = { status: "unavailable", reason: result.reason };
+  }
+
   const sp = input.shopifyProducts;
   const storePrices = sp?.ok && sp.status === 200 ? shopifyPricesByHandle(sp.body) : new Map<string, number>();
   input.products.forEach((p, i) => {
@@ -571,7 +668,9 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     const visible = visiblePrice(p.fetch.body);
     // Shopify: the product list price for the same handle is the reference when available.
     const handle = handleOf(p.url);
-    const listPrice = handle ? storePrices.get(handle) ?? null : null;
+    const pagePath = pathOf(p.url);
+    const listPrice = (handle ? storePrices.get(handle) : undefined) ?? (pagePath ? wooPrices.get(pagePath) : undefined) ?? null;
+    const listName = handle && storePrices.has(handle) ? "/products.json" : "the Store API";
     const comparedWith = listPrice !== null ? "store product list" : visible.amount !== null ? "price on the page" : null;
     const check = priceConsistency(schema?.readable ? schema.price : null, listPrice ?? visible.amount);
     pages.push({ url: p.url, kind: "product", seen: describePage(p.fetch), schema, visiblePrice: visible.text, priceCheck: check, comparedWith, storePrice: listPrice === null ? null : String(listPrice) });
@@ -588,7 +687,7 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
       findings.push(f("structured_data", `schema:fields:${key}`, { type: "schema_fields_missing", title: "Product structured data is incomplete", severity: "medium", basis: "observed", evidence: `The JSON-LD ${schema.kind} on ${p.url} has no ${missing.join(", ")}.`, guidance: "Set the product's price, stock and image in WooCommerce or Shopify admin; if they are set, the theme or SEO app/plugin writing the structured data is dropping them." }));
     }
     if (check === "mismatch") {
-      const other = comparedWith === "store product list" ? `the store's product list (/products.json) says ${listPrice}` : `the page shows ${visible.text}`;
+      const other = comparedWith === "store product list" ? `the store's product list (${listName}) says ${listPrice}` : `the page shows ${visible.text}`;
       findings.push(f("structured_data", `price:mismatch:${key}`, { type: "price_mismatch", title: comparedWith === "store product list" ? "Price in structured data differs from the store's product price" : "Price in structured data differs from the price on the page", severity: "high", basis: "observed", evidence: `On ${p.url}, structured data says ${schema.price}${schema.currency ? ` ${schema.currency}` : ""}; ${other}.`, guidance: "AI agents may quote the wrong price. Clear your page cache, check sale price dates in the product, and check the theme or plugin that writes structured data (taxes shown on the page vs. in the data can also differ). Then check again." }));
     }
   });
@@ -627,6 +726,7 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     platform,
     platformName: platformName(platform),
     shopifyList,
+    wooStoreApi,
     gate,
     protection,
     servedVia: servedVia(home),

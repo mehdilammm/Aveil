@@ -6,8 +6,9 @@ import { askGemini, GEMINI_MODEL, geminiConfigured } from "./gemini";
 import { askMistral, MISTRAL_MODEL, mistralConfigured } from "./mistral";
 import { PublicFetcher } from "./public-fetch";
 import { checkShopifyProducts, detectShopify, SHOPIFY_PRODUCTS_LIMIT, shopifyProductLinks, shopifyProductSitemap } from "./shopify";
+import { checkStoreApiProducts, STORE_API_PATH } from "./woo-store-api";
 import {
-  ACCESS_BOTS, knowledgeQuestion, trustedHomeHtml, topicFromHome, visibilityQuestion, type GeminiParts, agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, LIMITS, productLinks, productSitemapUrl, PUBLIC_UA,
+  ACCESS_BOTS, detectPlatform, knowledgeQuestion, titleTopic, topicPrompt, trustedHomeHtml, topicFromHome, validateTopic, visibilityQuestion, type GeminiParts, type Topic, agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, LIMITS, productLinks, productSitemapUrl, PUBLIC_UA,
   robotsFrom, sitemapProductUrls, type GeminiPart, type PublicReport, type PublicScanInput,
 } from "./public-scan";
 import { brandTerms, combineAnalysis, EXTRACTION_MAX_TOKENS, EXTRACTION_SCHEMA, extractionPrompt, extractionProblem, parseExtraction, registrableDomain } from "./visibility";
@@ -66,9 +67,10 @@ async function askMistralPart(admin: SupabaseClient, usage: Usage, prompt: strin
     usage.mistral.input += r.inputTokens;
     usage.mistral.output += r.outputTokens;
   }
+  const waitNote = (ms: number) => (ms > 0 ? `Waited ${(ms / 1000).toFixed(1)} s for Mistral's rate limit.` : undefined);
   if (!r.ok || !r.text) {
     if (r.requests > 2) await admin.rpc("public_mistral_record", { p_n: r.requests - 2 });
-    return { status: "unavailable", reason: r.ok ? "Mistral gave an empty answer." : r.error, prompt, engine: "mistral" };
+    return { status: "unavailable", reason: r.ok ? "Mistral gave an empty answer." : r.error, prompt, engine: "mistral", note: waitNote(r.waitedMs ?? 0) };
   }
   const x = emptyUsage();
   const extracted = await extractNames("mistral", r.text, terms, label, x);
@@ -92,15 +94,41 @@ async function askMistralPart(admin: SupabaseClient, usage: Usage, prompt: strin
     competitors: a.competitors,
     method: a.method,
     extractor: extracted.extractor,
+    note: waitNote((r.waitedMs ?? 0) + (x.mistral.waitedMs ?? 0)),
     ...(extracted.problem && a.method === "failed" ? { extractionError: extracted.problem } : {}),
   };
+}
+
+// What the store sells, for the general question: a short phrase from Gemini (title, description and full category
+// names as input), checked to be 2-8 words without the brand; else the title without the brand; else category links.
+async function buildTopic(admin: SupabaseClient, html: string, brandKeys: string[], usage: Usage): Promise<Topic | null> {
+  const prompt = topicPrompt(html);
+  if (prompt && geminiConfigured()) {
+    const { data: reserved } = await admin.rpc("public_gemini_reserve_n", { p_limit: LIMITS.geminiPerDay, p_n: 1 });
+    if (reserved) {
+      const r = await askGemini(prompt, { maxOutputTokens: 60 });
+      usage.geminiRequests += r.requests;
+      if (r.requests > 1) await admin.rpc("public_gemini_record", { p_n: r.requests - 1 });
+      if (r.ok) {
+        usage.input += r.inputTokens;
+        usage.output += r.outputTokens;
+        const text = validateTopic(r.text, brandKeys);
+        if (text) return { text, source: "gemini" };
+      }
+    }
+  }
+  const fromTitle = titleTopic(html, brandKeys);
+  if (fromTitle) return { text: fromTitle, source: "title" };
+  const fromLinks = topicFromHome(html, brandKeys);
+  return fromLinks ? { text: fromLinks, source: "category links" } : null;
 }
 
 // Two questions per domain (each followed by a small extraction request): a general one about what the store sells,
 // without its name, and "Does Gemini know this store?" by domain. Once per domain per 24 h.
 async function geminiParts(admin: SupabaseClient, origin: string, host: string, homeHtml: string | null, usage: Usage): Promise<GeminiParts> {
   const terms = brandTerms(registrableDomain(host).split(".")[0], origin);
-  const topic = homeHtml ? topicFromHome(homeHtml, terms.keys ?? []) : null;
+  const topicInfo = homeHtml ? await buildTopic(admin, homeHtml, terms.keys ?? [], usage) : null;
+  const topic = topicInfo?.text ?? null;
   const visPrompt = topic ? visibilityQuestion(topic) : "";
   const knowPrompt = knowledgeQuestion(host);
   const off = (reason: string): GeminiParts => ({ visibility: { status: "unavailable", reason, prompt: visPrompt }, knowledge: { status: "unavailable", reason, prompt: knowPrompt } });
@@ -129,7 +157,7 @@ async function geminiParts(admin: SupabaseClient, origin: string, host: string, 
       ? await askMistralPart(admin, usage, visPrompt, terms, host)
       : { status: "unavailable", reason: "Mistral was already asked about this domain in the last 24 hours.", prompt: visPrompt, engine: "mistral" };
   }
-  return { visibility, knowledge, visibilityMistral };
+  return { visibility, knowledge, visibilityMistral, topic: topicInfo };
 }
 
 // Runs one public check: at most 10 HTTP requests to the store, plus up to 2 Gemini requests.
@@ -192,7 +220,23 @@ export async function runPublicScan(
       } else {
         urls = productLinks(home.body, home.finalUrl);
         if (urls.length) input.productSource = "home page links";
-        else {
+        else if (detectPlatform(home.body, home.shopifyHeader).woocommerce && agentScopeAllowed(robots, "/wp-json/wc/store/v1/products")) {
+          // WooCommerce without /product/ links: the public Store API lists products (1 request, 10 products).
+          input.wooStoreApi = await fetcher.get(`${site}${STORE_API_PATH}`, PUBLIC_UA, "WooCommerce Store API (products)");
+          const w = input.wooStoreApi;
+          const list = w.ok && w.status === 200 ? checkStoreApiProducts(w.body) : null;
+          if (list?.status === "ok" && list.permalinks.length) {
+            urls = list.permalinks.filter((u) => {
+              try {
+                return new URL(u).hostname.replace(/^www\./, "") === new URL(site).hostname.replace(/^www\./, "");
+              } catch {
+                return false;
+              }
+            });
+            if (urls.length) input.productSource = "Store API";
+          }
+        }
+        if (!urls.length && input.productSource === "none") {
           const sitemap = await fetcher.get(productSitemapUrl(robots?.sitemaps ?? [], site), PUBLIC_UA, "product sitemap");
           urls = sitemap.ok && sitemap.status === 200 ? sitemapProductUrls(sitemap.body, home.finalUrl) : [];
           if (urls.length) input.productSource = "sitemap";
