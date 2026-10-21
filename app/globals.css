@@ -33,3 +33,4 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .table-wrap { overflow-x: auto; }
 small.hint { color: var(--muted); font-weight: 400; }
+button.danger { background: var(--high); border-color: var(--high); }

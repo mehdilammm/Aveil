@@ -26,7 +26,7 @@ export function AddStoreForm() {
       <p className="muted">The key and secret are stored encrypted in Supabase Vault and never shown again.</p>
       {state.error && <p className="error">{state.error}</p>}
       <div>
-        <button disabled={pending}>{pending ? "Saving…" : "Add store"}</button>
+        <button disabled={pending} aria-busy={pending}>{pending ? "Saving…" : "Add store"}</button>
       </div>
     </form>
   );

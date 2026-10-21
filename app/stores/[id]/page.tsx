@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatDate } from "@/components/severity";
 import { getUser } from "@/lib/supabase/server";
+import { DeleteStoreForm } from "../delete-store-form";
 import { RunScanButton } from "./run-scan-button";
 
 export default async function StorePage({ params }: { params: Promise<{ id: string }> }) {
@@ -52,6 +53,9 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
       ) : (
         <p className="muted">No scans yet. Run the first scan.</p>
       )}
+
+      <h2>Delete store</h2>
+      <DeleteStoreForm storeId={store.id} storeName={store.name} />
     </>
   );
 }

@@ -56,3 +56,24 @@ export async function addStore(_: AddStoreState, form: FormData): Promise<AddSto
   }
   redirect(`/stores/${store.id}`);
 }
+
+export type DeleteStoreState = { error?: string };
+
+// Deleting the store cascades to its scans, findings and credentials; a trigger removes the Vault secrets.
+export async function deleteStore(_: DeleteStoreState, form: FormData): Promise<DeleteStoreState> {
+  const { supabase, user } = await getUser();
+  if (!user) redirect("/login");
+  const storeId = String(form.get("store_id") ?? "");
+  const confirmName = String(form.get("confirm_name") ?? "").trim();
+
+  const { data: store } = await supabase.from("stores").select("id, name").eq("id", storeId).maybeSingle();
+  if (!store) return { error: "Store not found." };
+  if (confirmName !== store.name) return { error: "Type the store name exactly to confirm." };
+
+  const { data: deleted, error } = await supabase.from("stores").delete().eq("id", store.id).select("id");
+  if (error || !deleted?.length) {
+    console.error("delete store failed", error?.code);
+    return { error: "Could not delete the store. Please try again." };
+  }
+  redirect("/stores");
+}
