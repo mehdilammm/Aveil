@@ -3,6 +3,7 @@
 import { createHmac } from "node:crypto";
 import { ACCESS_NOTE, checkAccess, type BotName, type PageResult } from "./access";
 import { describePage, pageGate, type Gate } from "./gate";
+import { detectProtection, ERROR_TITLE_RE, type Protection } from "./protection";
 import type { Source } from "./pages";
 import { isAllowed, parseRobots, type Robots } from "./robots";
 import type { Finding, Severity } from "./rules";
@@ -88,6 +89,8 @@ export function agentScopeAllowed(robots: Robots | null, path: string): boolean 
 // robots.txt answer → rules. 4xx means no rules; 5xx means "do not crawl" (RFC 9309); unreadable means unknown.
 export function robotsFrom(fetch: PageFetch | null): { robots: Robots | null; status: "ok" | "missing" | "server_error" | "unavailable"; detail: string } {
   if (!fetch || !fetch.ok) return { robots: null, status: "unavailable", detail: fetch && !fetch.ok ? fetch.error : "not loaded" };
+  const protection = detectProtection(fetch);
+  if (protection) return { robots: null, status: "unavailable", detail: protection.reason };
   if (fetch.status >= 500) return { robots: { groups: [{ agents: ["*"], rules: [{ allow: false, pattern: "/" }] }], sitemaps: [] }, status: "server_error", detail: `HTTP ${fetch.status}` };
   if (fetch.status >= 400 || fetch.redirectedTo) return { robots: { groups: [], sitemaps: [] }, status: "missing", detail: `HTTP ${fetch.status}` };
   return { robots: parseRobots(fetch.body), status: "ok", detail: `HTTP ${fetch.status}` };
@@ -202,7 +205,7 @@ export function priceConsistency(schemaPrice: string | null, visible: number | n
 // ---------- report ----------
 
 export type GeminiPart =
-  | { status: "ok"; model: string; prompt: string; answer: string; mentioned: boolean; competitors: string[]; method: "model" | "heuristic" }
+  | { status: "ok"; model: string; prompt: string; answer: string; mentioned: boolean; competitors: string[]; method: "model" | "heuristic" | "failed" }
   | { status: "unavailable"; reason: string; prompt: string };
 
 // Two Gemini questions per domain:
@@ -247,7 +250,7 @@ export function topicFromHome(html: string, brandKeys: string[]): string | null 
     /<meta[^>]+content=["']([^"']{10,400})["'][^>]+(?:name|property)=["'](?:description|og:description)["']/i.exec(html)?.[1];
   const title = /<title[^>]*>([^<]{3,200})<\/title>/i.exec(html)?.[1];
   for (const source of [meta, title]) {
-    if (!source) continue;
+    if (!source || ERROR_TITLE_RE.test(source)) continue;
     const clause = decode(source).split(/[.!?|–—]|\s-\s/)[0];
     const words = stripBrand(clause, brandKeys).replace(/^(welcome to|shop|buy|discover|the|at|from)\s+/i, "").replace(/^(is|are)\s+((an?|the)\s+)?/i, "").trim().split(/\s+/).slice(0, 12).join(" ");
     if (words.split(/\s+/).length >= 2) return words.replace(/[,:;]+$/, "");
@@ -280,6 +283,7 @@ export type PublicReport = {
   requests: number;
   platform: { wordpress: boolean; woocommerce: boolean } | null;
   gate: Gate | null;
+  protection?: Protection | null;
   agentScopeBlocked: boolean;
   robots: { status: string; detail: string; verdicts: RobotsVerdict[]; sitemaps: string[] };
   llmsTxt: "present" | "missing" | "unavailable";
@@ -340,7 +344,7 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
   }
 
   // llms.txt
-  const llmsTxt: PublicReport["llmsTxt"] = !input.llms || !input.llms.ok
+  const llmsTxt: PublicReport["llmsTxt"] = !input.llms || !input.llms.ok || detectProtection(input.llms)
     ? "unavailable"
     : input.llms.status >= 200 && input.llms.status < 300 && !input.llms.redirectedTo && input.llms.body.trim() && !/^\s*<(!doctype|html)/i.test(input.llms.body)
       ? "present"
@@ -361,8 +365,27 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
   }
 
   const home = input.home;
-  const platform = home?.ok ? detectPlatform(home.body) : null;
-  const gate = home ? pageGate(home) : null;
+  const protection = detectProtection(home);
+  const homeOk = Boolean(home?.ok && !home.redirectedTo && home.status >= 200 && home.status < 400);
+  const platform = home?.ok && homeOk && !protection ? detectPlatform(home.body) : null;
+  const gate = home && !protection ? pageGate(home) : null;
+  if (protection) {
+    findings.push(f("access", "protection:blocked", {
+      type: "bot_protection_blocked",
+      title: `Bot protection blocked our automated check (${protection.vendor})`,
+      severity: "medium",
+      basis: "heuristic",
+      evidence: `Home page: HTTP ${protection.status}${protection.title ? `, title "${protection.title}"` : ""}, ${Math.max(1, Math.round(protection.bytes / 1024))} KB. Our request used the AgentScopeBot user agent.`,
+      guidance: "AI shopping agents may be blocked the same way. Check your bot protection settings (e.g. Cloudflare Bot Fight Mode, Verified Bots) and allow the AI agents you want.",
+    }));
+    findings.push(f("store_pages", "protection:unavailable", {
+      title: "Platform, product pages, structured data and bot access could not be checked",
+      severity: "low",
+      basis: "unavailable",
+      evidence: `The home page was a ${protection.reason}, not the store.`,
+      guidance: "Allow AgentScopeBot (or verified bots) in your bot protection to get the full public check.",
+    }));
+  }
   if (gate) {
     findings.push(f("store_pages", "page:store_gate", {
       type: gate.kind === "maintenance" ? "store_maintenance_mode" : "store_coming_soon",
@@ -379,7 +402,7 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
 
   // Bot access: one request per bot on the home page, compared with our normal request.
   let accessTested = false;
-  if (home && !agentScopeBlocked) {
+  if (home && !agentScopeBlocked && !protection) {
     const page: PageResult = { label: "home page", url: input.url, browser: home, bots: input.bots, gate: gate?.reason };
     accessTested = !gate && Object.keys(input.bots).length > 0;
     findings.push(...checkAccess(input.url, [page], { baseline: "our normal request (AgentScopeBot)", retried: false }).map((x) => ({ ...x, area: "access" })));
@@ -391,14 +414,15 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     const { products } = extractSchemaProducts(home.body);
     pages.push({ url: input.url, kind: "home", seen: describePage(home), schema: products[0] ?? null, visiblePrice: null, priceCheck: "unknown" });
   }
-  if (!agentScopeBlocked && !gate && home?.ok && input.products.length === 0) {
+  if (!agentScopeBlocked && !gate && !protection && homeOk && input.products.length === 0) {
     findings.push(f("structured_data", "schema:no_product_pages", { title: "Could not find product pages to check", severity: "low", basis: "unavailable", evidence: "The home page links no /product/ page and the product sitemap gave none.", guidance: "Link a few products from the home page, or make sure the product sitemap is public (WordPress: /wp-sitemap.xml)." }));
   }
   input.products.forEach((p, i) => {
     const key = `product${i + 1}`;
-    const pg = p.fetch.ok ? pageGate(p.fetch) : null;
-    if (!p.fetch.ok || p.fetch.status < 200 || p.fetch.status >= 300 || pg) {
-      findings.push(f("structured_data", `schema:unavailable:${key}`, { title: "Could not check a product page", severity: "low", basis: "unavailable", evidence: `${p.url}: ${pg ? pg.reason : describePage(p.fetch)}.`, guidance: "Check that the product page loads for visitors." }));
+    const pp = detectProtection(p.fetch);
+    const pg = p.fetch.ok && !pp ? pageGate(p.fetch) : null;
+    if (!p.fetch.ok || p.fetch.status < 200 || p.fetch.status >= 300 || pg || pp) {
+      findings.push(f("structured_data", `schema:unavailable:${key}`, { title: "Could not check a product page", severity: "low", basis: "unavailable", evidence: `${p.url}: ${pp ? pp.reason : pg ? pg.reason : describePage(p.fetch)}.`, guidance: pp ? "Allow AgentScopeBot or verified bots in your bot protection." : "Check that the product page loads for visitors." }));
       pages.push({ url: p.url, kind: "product", seen: describePage(p.fetch), schema: null, visiblePrice: null, priceCheck: "unknown" });
       return;
     }
@@ -440,6 +464,7 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     requests: input.requests,
     platform,
     gate,
+    protection,
     agentScopeBlocked,
     robots: { status: robotsStatus, detail: robotsDetail, verdicts, sitemaps: robots?.sitemaps ?? [] },
     llmsTxt,
@@ -453,3 +478,10 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
 }
 
 export { ACCESS_NOTE };
+
+// The home page can describe the store only when it is the real page: 2xx, not a protection, error or placeholder page.
+export function trustedHomeHtml(home: PageFetch | null): string | null {
+  if (!home || !home.ok || home.redirectedTo || home.status < 200 || home.status >= 300) return null;
+  if (detectProtection(home) || pageGate(home)) return null;
+  return home.body;
+}

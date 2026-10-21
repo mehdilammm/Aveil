@@ -20,7 +20,7 @@ type Result = {
   competitors: string[];
   urls: string[];
   error: string | null;
-  extraction: "model" | "heuristic" | null;
+  extraction: "model" | "heuristic" | "failed" | null;
 };
 
 const ENGINE_LABEL = "Gemini API answer, not the Gemini app";
@@ -128,6 +128,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                     {latest.mentioned && <span className="muted small">{latest.mention_rank ? `#${latest.mention_rank} in the answer's list` : "not in a numbered list"}</span>}
                     <span className="muted small">{formatDate(latestRun!.created_at)}</span>
                   </div>
+                  {latest.extraction === "failed" && <p className="muted small">Could not extract store names from this answer.</p>}
                   {latest.competitors.length > 0 && (
                     <p className="small">
                       <strong>Also named:</strong> {latest.competitors.join(", ")}{" "}

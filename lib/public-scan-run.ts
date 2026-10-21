@@ -1,11 +1,10 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AI_BOTS } from "./access";
-import { pageGate } from "./gate";
 import { askGemini, GEMINI_MODEL, geminiConfigured } from "./gemini";
 import { PublicFetcher } from "./public-fetch";
 import {
-  ACCESS_BOTS, knowledgeQuestion, topicFromHome, visibilityQuestion, type GeminiParts, agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, LIMITS, productLinks, productSitemapUrl, PUBLIC_UA,
+  ACCESS_BOTS, knowledgeQuestion, trustedHomeHtml, topicFromHome, visibilityQuestion, type GeminiParts, agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, LIMITS, productLinks, productSitemapUrl, PUBLIC_UA,
   robotsFrom, sitemapProductUrls, type GeminiPart, type PublicReport, type PublicScanInput,
 } from "./public-scan";
 import { brandTerms, combineAnalysis, EXTRACTION_SCHEMA, extractionPrompt, parseExtraction, registrableDomain } from "./visibility";
@@ -54,7 +53,13 @@ async function geminiParts(admin: SupabaseClient, origin: string, host: string, 
 
   const visibility: GeminiPart = topic
     ? await ask(admin, usage, visPrompt, terms, host)
-    : { status: "unavailable", reason: "Could not tell from the home page what the store sells, so no general question was asked.", prompt: "" };
+    : {
+        status: "unavailable",
+        reason: homeHtml
+          ? "Could not tell from the home page what the store sells, so no general question was asked."
+          : "The home page could not be read (bot protection, error or placeholder page), so there is no reliable topic and no general question was asked.",
+        prompt: "",
+      };
   const knowledge = await ask(admin, usage, knowPrompt, terms, host);
   return { visibility, knowledge };
 }
@@ -85,8 +90,8 @@ export async function runPublicScan(admin: SupabaseClient, origin: string, host:
   if (agentScopeAllowed(robots, "/")) {
     const home = await fetcher.get(`${origin}/`, PUBLIC_UA);
     input.home = home;
-    const gate = home.ok ? pageGate(home) : null;
-    if (home.ok && home.status >= 200 && home.status < 300 && !gate) {
+    // Skip bots and product pages when the home page is a placeholder or a bot-protection page: they would only see it too.
+    if (home.ok && trustedHomeHtml(home) !== null) {
       for (const bot of ACCESS_BOTS) input.bots[bot] = await fetcher.get(`${origin}/`, UA[bot]);
 
       let urls = productLinks(home.body, home.finalUrl);
@@ -103,7 +108,7 @@ export async function runPublicScan(admin: SupabaseClient, origin: string, host:
     }
   }
 
-  input.gemini = await geminiParts(admin, origin, host, input.home?.ok ? input.home.body : null, usage);
+  input.gemini = await geminiParts(admin, origin, host, trustedHomeHtml(input.home), usage);
   input.requests = fetcher.requests;
   return { report: buildPublicReport(input), usage, requests: fetcher.requests };
 }

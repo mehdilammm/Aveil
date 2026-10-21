@@ -245,11 +245,12 @@ export function parseExtraction(text: string): Extraction | null {
   }
 }
 
-// Final analysis: the text match decides "mentioned" (it is checkable in the answer); names come from the
-// structured extraction when it worked (stores, marketplaces and brands only), filtered again; otherwise from the text.
-export function combineAnalysis(answer: string, terms: BrandTerms, extraction: Extraction | null): Analysis & { method: "model" | "heuristic" } {
+// Final analysis: the text match decides "mentioned" (it is checkable in the answer); names come only from the
+// structured extraction (stores, marketplaces and brands), filtered again. When it failed, no names are shown
+// ("failed"): wrong names are worse than none.
+export function combineAnalysis(answer: string, terms: BrandTerms, extraction: Extraction | null): Analysis & { method: "model" | "failed" } {
   const text = analyzeAnswer(answer, terms);
-  if (!extraction) return { ...text, method: "heuristic" };
+  if (!extraction) return { ...text, competitors: [], method: "failed" };
   const kept = extraction.brands.filter((b) => b.type === null || KEEP_TYPES.has(b.type));
   const competitors = cleanCompetitors(kept.map((b) => b.name), terms).slice(0, 20);
   const extraUrls = kept.map((b) => b.url).filter((u): u is string => !!u && /^https?:\/\//.test(u));

@@ -4,7 +4,7 @@ import { isIP } from "node:net";
 import { Agent, fetch as undiciFetch } from "undici";
 import { CHECK_HEADER, LIMITS } from "./public-scan";
 import { assertPublicAddresses, isPrivateAddress } from "./url";
-import type { PageFetch } from "./woo";
+import { vendorFromHeaders, type PageFetch } from "./woo";
 
 // DNS check at connect time, so a host cannot switch to a private address between our check and the connection.
 const agent = new Agent({
@@ -94,6 +94,7 @@ export class PublicFetcher {
           body: new TextDecoder().decode(Buffer.concat(chunks).subarray(0, LIMITS.maxBytes)),
           challengeHeader: (res.headers.get("cf-mitigated") ?? "").toLowerCase() === "challenge",
           retryAfter: res.headers.get("retry-after"),
+          vendorHint: vendorFromHeaders(res.headers),
         };
       } catch (err) {
         const e = err as Error & { cause?: Error };

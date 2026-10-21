@@ -118,7 +118,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               </table>
             </div>
           ) : (
-            <p className="muted">Not tested{r.agentScopeBlocked ? ": robots.txt asks AgentScopeBot not to crawl" : r.gate ? ": the store shows a Coming soon or maintenance page" : ""}.</p>
+            <p className="muted">Not tested{r.protection ? `: ${r.protection.reason}` : r.agentScopeBlocked ? ": robots.txt asks AgentScopeBot not to crawl" : r.gate ? ": the store shows a Coming soon or maintenance page" : ""}.</p>
           )}
         </div>
 
@@ -188,7 +188,11 @@ function GeminiBlock({ part, empty, note, verdict, namesLabel }: { part: GeminiP
         <>
           {verdict && <p>{verdict(part)}</p>}
           {note && <p className="muted small">{note}</p>}
-          {part.competitors.length > 0 && <p className="small"><strong>{namesLabel}:</strong> {part.competitors.join(", ")}</p>}
+          {part.method === "failed" ? (
+            <p className="muted small">Could not extract store names from this answer.</p>
+          ) : (
+            part.competitors.length > 0 && <p className="small"><strong>{namesLabel}:</strong> {part.competitors.join(", ")}</p>
+          )}
           <details>
             <summary className="muted small">What Gemini said ({part.model}, no web search)</summary>
             <blockquote style={{ borderLeft: "3px solid var(--border)", margin: "8px 0", paddingLeft: 12 }}>

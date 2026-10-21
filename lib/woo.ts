@@ -154,7 +154,7 @@ export async function fetchSiteName(baseUrl: string): Promise<Source<string>> {
 }
 
 export type PageFetch =
-  | { ok: true; status: number; finalUrl: string; redirectedTo: string | null; bytes: number; body: string; challengeHeader: boolean; retryAfter?: string | null }
+  | { ok: true; status: number; finalUrl: string; redirectedTo: string | null; bytes: number; body: string; challengeHeader: boolean; retryAfter?: string | null; vendorHint?: string | null }
   | { ok: false; error: string };
 
 const PAGE_TIMEOUT_MS = 12_000;
@@ -210,6 +210,7 @@ export async function fetchPublicPage(target: string, userAgent: string): Promis
         body: text,
         challengeHeader: (res.headers.get("cf-mitigated") ?? "").toLowerCase() === "challenge",
         retryAfter: res.headers.get("retry-after"),
+        vendorHint: vendorFromHeaders(res.headers),
       };
     }
     return { ok: false, error: "too many redirects" };
@@ -241,4 +242,15 @@ export async function fetchComingSoon(baseUrl: string, creds: WooCredentials): P
 export async function fetchTopCategories(baseUrl: string, creds: WooCredentials): Promise<string[]> {
   const { items } = await getPage<{ name: string; count: number }>(baseUrl, "/products/categories", { per_page: "20", orderby: "count", order: "desc", hide_empty: "true" }, creds);
   return items.filter((c) => c.count > 0).map((c) => c.name.replace(/&amp;/g, "&"));
+}
+
+// Which bot protection service answered, from response headers (cf-ray, x-sucuri-id, ...), if any.
+export function vendorFromHeaders(h: { get(name: string): string | null }): string | null {
+  const server = (h.get("server") ?? "").toLowerCase();
+  if (h.get("cf-ray") || server.includes("cloudflare")) return "Cloudflare";
+  if (h.get("x-sucuri-id") || server.includes("sucuri")) return "Sucuri";
+  if (h.get("x-iinfo") || (h.get("x-cdn") ?? "").toLowerCase().includes("incapsula")) return "Imperva";
+  if (h.get("x-datadome") || h.get("x-dd-b")) return "DataDome";
+  if (server.includes("akamaighost") || h.get("akamai-grn")) return "Akamai";
+  return null;
 }

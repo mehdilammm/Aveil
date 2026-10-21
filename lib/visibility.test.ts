@@ -102,10 +102,11 @@ describe("real Gemini answer: handmade shops in Morocco (fixture)", () => {
     expect(a.rank).toBeNull();
   });
 
-  it("falls back to the heuristic when the extraction is not valid JSON", () => {
+  it("shows no names when the extraction is not valid JSON (no text guessing)", () => {
     const a = combineAnalysis(answer, terms, parseExtraction("not json"));
-    expect(a.method).toBe("heuristic");
-    expect(a.competitors).toEqual(expected);
+    expect(a.method).toBe("failed");
+    expect(a.competitors).toEqual([]);
+    expect(a.mentioned).toBe(false);
   });
 });
 
