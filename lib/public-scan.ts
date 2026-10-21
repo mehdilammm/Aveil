@@ -205,6 +205,64 @@ export type GeminiPart =
   | { status: "ok"; model: string; prompt: string; answer: string; mentioned: boolean; competitors: string[]; method: "model" | "heuristic" }
   | { status: "unavailable"; reason: string; prompt: string };
 
+// Two Gemini questions per domain:
+// visibility: a general question about what the store sells, without its name. "Mentioned" there is the real signal.
+// knowledge: "Does Gemini know this store?", asked by domain. Its answer names the store by construction, so it is
+// shown for information and never counted as visibility.
+export type GeminiParts = { visibility: GeminiPart; knowledge: GeminiPart };
+
+export const GEMINI_DISCLAIMER = "This is what the AI model says. Facts like prices, warranties or history were not verified by AgentScope.";
+
+const SLUG_RE = /\/(?:product-category|collections|category|shop\/category)\/([a-z0-9-]{3,40})\/?["'?#]/gi;
+const STOP_SLUGS = new Set(["uncategorized", "uncategorised", "all", "sale", "new", "featured", "frontpage", "home", "shop", "products", "blog", "news"]);
+
+function stripBrand(text: string, brandKeys: string[]): string {
+  return text
+    .split(/\s+/)
+    .filter((w) => {
+      const k = w.toLowerCase().replace(/[^a-z0-9]/g, "");
+      return k && !brandKeys.some((b) => k === b || (b.length >= 5 && k.includes(b)));
+    })
+    .join(" ");
+}
+
+function decode(s: string): string {
+  return s.replace(/&amp;/g, "&").replace(/&#0?39;|&apos;|&#8217;/g, "'").replace(/&quot;/g, '"').replace(/&nbsp;/g, " ").replace(/&#\d+;/g, " ");
+}
+
+// What the store sells, in a few words, from the home page and without the store's name:
+// product category links first, then the meta description, then the title.
+export function topicFromHome(html: string, brandKeys: string[]): string | null {
+  const counts = new Map<string, number>();
+  for (const m of html.matchAll(SLUG_RE)) {
+    const slug = m[1].toLowerCase();
+    if (STOP_SLUGS.has(slug)) continue;
+    counts.set(slug, (counts.get(slug) ?? 0) + 1);
+  }
+  const slugs = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([slug]) => stripBrand(slug.replace(/-/g, " "), brandKeys)).filter(Boolean).slice(0, 3);
+  if (slugs.length) return slugs.join(", ");
+
+  const meta =
+    /<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']{10,400})["']/i.exec(html)?.[1] ??
+    /<meta[^>]+content=["']([^"']{10,400})["'][^>]+(?:name|property)=["'](?:description|og:description)["']/i.exec(html)?.[1];
+  const title = /<title[^>]*>([^<]{3,200})<\/title>/i.exec(html)?.[1];
+  for (const source of [meta, title]) {
+    if (!source) continue;
+    const clause = decode(source).split(/[.!?|–—]|\s-\s/)[0];
+    const words = stripBrand(clause, brandKeys).replace(/^(welcome to|shop|buy|discover|the|at|from)\s+/i, "").replace(/^(is|are)\s+((an?|the)\s+)?/i, "").trim().split(/\s+/).slice(0, 12).join(" ");
+    if (words.split(/\s+/).length >= 2) return words.replace(/[,:;]+$/, "");
+  }
+  return null;
+}
+
+export function visibilityQuestion(topic: string): string {
+  return `Which online stores would you recommend for ${topic}?`;
+}
+
+export function knowledgeQuestion(host: string): string {
+  return `What do you know about the online store ${host}? Which similar stores would you recommend?`;
+}
+
 export type PublicPage = {
   url: string;
   kind: "home" | "product";
@@ -215,7 +273,7 @@ export type PublicPage = {
 };
 
 export type PublicReport = {
-  version: 1;
+  version: 2;
   url: string;
   host: string;
   checkedAt: string;
@@ -229,7 +287,7 @@ export type PublicReport = {
   accessResults: { bot: string; seen: string }[];
   productSource: "home page links" | "sitemap" | "none";
   pages: PublicPage[];
-  gemini: GeminiPart;
+  gemini: GeminiParts;
   findings: (Finding & { area: string })[];
 };
 
@@ -244,7 +302,7 @@ export type PublicScanInput = {
   bots: Partial<Record<BotName, PageFetch>>;
   products: { url: string; fetch: PageFetch }[];
   productSource: PublicReport["productSource"];
-  gemini: GeminiPart;
+  gemini: GeminiParts;
 };
 
 type F = Finding & { area: string };
@@ -361,12 +419,21 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     }
   });
 
-  if (input.gemini.status === "unavailable") {
-    findings.push(f("ai_visibility", "gemini:unavailable", { title: "Gemini check not run", severity: "low", basis: "unavailable", evidence: input.gemini.reason, guidance: "Try again tomorrow." }));
+  const vis = input.gemini.visibility;
+  if (vis.status === "unavailable") {
+    findings.push(f("ai_visibility", "gemini:unavailable", { title: "Gemini visibility check not run", severity: "low", basis: "unavailable", evidence: vis.reason, guidance: "Try again tomorrow." }));
+  } else if (!vis.mentioned) {
+    findings.push(f("ai_visibility", "gemini:not_named", {
+      title: "Gemini did not name this store for its category",
+      severity: "low",
+      basis: "observed",
+      evidence: `Asked "${vis.prompt}", the Gemini API answer did not name ${input.host}${vis.competitors.length ? `; it named ${vis.competitors.slice(0, 5).join(", ")}` : ""}. One answer, without web search.`,
+      guidance: "AI answers draw on what is published about your store. Make sure product pages are readable by AI bots (see above), complete product data in WooCommerce (descriptions, brand, GTIN), and get listed on sites that review or list shops in your category.",
+    }));
   }
 
   return {
-    version: 1,
+    version: 2,
     url: input.url,
     host: input.host,
     checkedAt: input.checkedAt,

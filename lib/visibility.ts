@@ -1,17 +1,51 @@
 // AI Visibility: ask an AI engine the store's questions and look for the store in the answers.
-// Everything here works on the answer text only. Competitor names and ranks are extracted heuristically.
+// "Mentioned" is a text match in the answer. Other shop names come from a structured-output request
+// (with a type per name) or, as a fallback, from the answer's list items; both are filtered.
 
 export const MAX_PROMPTS = 15;
 export const RUN_INTERVAL_DAYS = 7;
 
-export type BrandTerms = { names: string[]; host: string };
+// host: the registrable domain (sa.made-in-china.com → made-in-china.com), so the parent brand counts as the store.
+// keys: normalized brand keys used to drop the store itself from competitor lists.
+export type BrandTerms = { names: string[]; host: string; keys?: string[] };
+
+// Second-level public suffixes common for small stores; enough to find the registrable domain.
+const TWO_LEVEL_SUFFIXES = new Set([
+  "co.uk", "org.uk", "ac.uk", "com.au", "net.au", "co.nz", "co.za", "co.jp", "com.br", "com.mx", "com.ar", "com.cn", "com.tr",
+  "co.in", "co.id", "com.sg", "com.my", "co.ma", "net.ma", "com.eg", "com.sa", "co.il", "com.ua", "com.pl",
+]);
+
+export function registrableDomain(host: string): string {
+  const parts = host.toLowerCase().replace(/^www\./, "").split(".");
+  if (parts.length <= 2) return parts.join(".");
+  const lastTwo = parts.slice(-2).join(".");
+  return TWO_LEVEL_SUFFIXES.has(lastTwo) ? parts.slice(-3).join(".") : lastTwo;
+}
+
+const TLD_RE = /\.(com|net|org|co|io|shop|store|biz|info|[a-z]{2})(\.[a-z]{2})?$/i;
+const COMPANY_SUFFIX_RE = /\b(inc|co|ltd|llc|corp|corporation|company|gmbh|sa|sarl|plc|limited)\b\.?/gi;
+
+// "Alibaba.com", "alibaba", "Alibaba Inc." → "alibaba". Used for de-duplication and brand matching only.
+export function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/.*$/, "")
+    .replace(TLD_RE, "")
+    .replace(COMPANY_SUFFIX_RE, " ")
+    .replace(/[^a-z0-9]+/g, "");
+}
 
 // Store name and domain, e.g. "Matha test" + "matha.site" → names ["Matha test", "matha"], host "matha.site".
 export function brandTerms(storeName: string, storeUrl: string): BrandTerms {
-  const host = new URL(storeUrl).hostname.replace(/^www\./, "").toLowerCase();
+  const host = registrableDomain(new URL(storeUrl).hostname);
   const label = host.split(".")[0];
-  const names = [...new Set([storeName.trim(), label].filter((n) => n.length >= 3))];
-  return { names, host };
+  const names = [...new Set([storeName.trim(), label, label.includes("-") ? label.replace(/-/g, " ") : ""].filter((n) => n.length >= 3))];
+  const keys = [...new Set([normalizeName(storeName), normalizeName(label)].filter((k) => k.length >= 3))];
+  return { names, host, keys };
 }
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -25,10 +59,21 @@ function matchTerms(text: string, terms: BrandTerms): string[] {
   return found;
 }
 
+function isOwnBrand(name: string, terms: BrandTerms): boolean {
+  if (matchTerms(name, terms).length) return true;
+  const key = normalizeName(name);
+  // Names that contain the brand ("Made-in-China Global" for made-in-china.com) count as the store too;
+  // very short brand keys must match exactly so they do not swallow unrelated names.
+  return (terms.keys ?? []).some((k) => key === k || (k.length >= 5 && key.includes(k)));
+}
+
 const URL_RE = /https?:\/\/[^\s<>()"'\]\[*`]+/gi;
 // Top-level list items only: nested bullets ("    * What they sell: ...") are details, not names.
 const LIST_ITEM_RE = /^(?: {0,3})(?:\d{1,2}[.)]|[-*•])\s+(.+)$/;
-const HEADING_RE = /^\s{0,3}#{1,6}\s+(.*)$/;
+const HEADING_RE = /^\s{0,3}(#{1,6})\s+(.*)$/;
+// Sections that list shops; "What is X?", "Is it safe?", "Tips…" are skipped when the answer has headings.
+const SHOP_SECTION_RE = /\b(stores?|shops?|platforms?|marketplaces?|alternatives?|competitors?|similar|recommend\w*|brands?|boutiques?|retailers?|sellers?|where to buy|options?|sites?)\b/i;
+const NON_SHOP_SECTION_RE = /\b(tips?|notes?|how to|faq|things to|social media|is it safe|what is)\b/i;
 
 // Words that answers use as labels or section titles, not as shop names.
 const LABELS = new Set([
@@ -37,21 +82,34 @@ const LABELS = new Set([
   "summary", "conclusion", "pros", "cons", "overview", "important", "warning", "bonus", "example", "examples",
   "instagram", "facebook", "whatsapp", "tiktok", "pinterest", "youtube", "social media",
 ]);
-const LABEL_START_RE = /^(why|what|how|where|when|tip|tips|note)\b/i;
+const LABEL_START_RE = /^(why|what|how|where|when|tip|tips|note|the)\b/i;
+// Generic group names ("Local cooperatives", "Global-sourcing agents") are not one shop.
+const GENERIC_RE = /\b(agents|services|companies|cooperatives|platforms|sites|websites|stores|shops|marketplaces|retailers|sellers|brands|options)\b/i;
 
-// Keeps real shop, brand or marketplace names: drops labels, "Name:" fragments, section-like combinations and the store itself.
+function displayName(raw: string): string {
+  const name = raw.replace(/\*+/g, "").trim().replace(/\s*\([^)]*\)\s*$/, "").replace(/[\s.,;:]+$/, "").trim();
+  // A bare domain is shown without its ending: "DHgate.com" → "DHgate".
+  return /^[\w-]+(\.[\w-]+)+$/.test(name) && !name.includes(" ") ? name.replace(TLD_RE, "") : name;
+}
+
+// Keeps real shop, brand or marketplace names: drops labels, "Name:" fragments, generic groups, the store itself and
+// its parent domain, and merges duplicates such as "Alibaba" and "Alibaba.com".
 export function cleanCompetitors(names: string[], terms: BrandTerms): string[] {
   const out: string[] = [];
+  const seen = new Set<string>();
   for (const raw of names) {
     const trimmed = raw.replace(/\*+/g, "").trim();
     if (!trimmed || /:\s*$/.test(trimmed)) continue;
-    const name = trimmed.replace(/\s*\([^)]*\)\s*$/, "").replace(/[\s.,;]+$/, "").trim();
+    const name = displayName(trimmed);
     const lower = name.toLowerCase();
     if (name.length < 2 || name.length > 60) continue;
     if (LABELS.has(lower) || LABEL_START_RE.test(name)) continue;
-    if (name.includes(" / ") || name.split(/\s+/).length > 6) continue;
-    if (matchTerms(name, terms).length) continue;
-    if (!out.some((o) => o.toLowerCase() === lower)) out.push(name);
+    if (name.includes(" / ") || name.split(/\s+/).length > 6 || GENERIC_RE.test(name)) continue;
+    if (isOwnBrand(trimmed, terms) || isOwnBrand(name, terms)) continue;
+    const key = normalizeName(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
   }
   return out;
 }
@@ -75,25 +133,35 @@ export type Analysis = {
 // Text-only analysis, used as is when the structured extraction is not available.
 export function analyzeAnswer(answer: string, terms: BrandTerms): Analysis {
   const matchedTerms = matchTerms(answer, terms);
+  const lines = answer.split(/\r?\n/);
+  const hasHeadings = lines.some((l) => HEADING_RE.test(l));
+  // Relevance per heading level: a subsection inherits a shop-listing parent.
+  const stack: { level: number; shop: boolean }[] = [];
+  let inShopSection = !hasHeadings;
   const named: { name: string | null; text: string }[] = [];
-  let inTips = false;
-  for (const line of answer.split(/\r?\n/)) {
+  for (const line of lines) {
     const heading = HEADING_RE.exec(line);
     if (heading) {
-      inTips = /\b(tips?|notes?|how to|faq|things to)\b/i.test(heading[1]);
+      const level = heading[1].length;
+      while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+      const title = heading[2];
+      const parentShop = stack.some((h) => h.shop);
+      const shop = !NON_SHOP_SECTION_RE.test(title) && (SHOP_SECTION_RE.test(title) || parentShop);
+      stack.push({ level, shop });
+      inShopSection = shop;
       continue;
     }
     const item = LIST_ITEM_RE.exec(line)?.[1];
-    if (item && !inTips) named.push({ name: itemName(item), text: item });
+    if (item && inShopSection) named.push({ name: itemName(item), text: item });
   }
 
   let rank: number | null = null;
   const candidates: string[] = [];
   let position = 0;
   for (const n of named) {
-    if (matchTerms(n.text, terms).length) {
+    if (n.name && isOwnBrand(n.name, terms)) {
       position++;
-      if (rank === null) rank = position;
+      if (rank === null && matchTerms(n.text, terms).length) rank = position;
       continue;
     }
     if (n.name && cleanCompetitors([n.name], terms).length) {
@@ -106,7 +174,7 @@ export function analyzeAnswer(answer: string, terms: BrandTerms): Analysis {
   for (const u of urls) {
     try {
       const host = new URL(u).hostname.replace(/^www\./, "");
-      if (host !== terms.host) candidates.push(host);
+      if (registrableDomain(host) !== terms.host) candidates.push(host);
     } catch {
       // not a URL after all
     }
@@ -115,7 +183,11 @@ export function analyzeAnswer(answer: string, terms: BrandTerms): Analysis {
   return { mentioned: matchedTerms.length > 0, rank, matchedTerms, competitors: cleanCompetitors(candidates, terms).slice(0, 20), urls: urls.slice(0, 30) };
 }
 
-// Second, small request: the same model reads its answer back and lists the shops it named, as JSON.
+// Second, small request: the same model reads its answer back and lists the names it gave, with a type, as JSON.
+export const NAME_TYPES = ["store", "marketplace", "brand", "service", "other"] as const;
+export type NameType = (typeof NAME_TYPES)[number];
+const KEEP_TYPES = new Set<NameType>(["store", "marketplace", "brand"]);
+
 export const EXTRACTION_SCHEMA = {
   type: "OBJECT",
   properties: {
@@ -123,8 +195,12 @@ export const EXTRACTION_SCHEMA = {
       type: "ARRAY",
       items: {
         type: "OBJECT",
-        properties: { name: { type: "STRING" }, url_if_present: { type: "STRING", nullable: true } },
-        required: ["name"],
+        properties: {
+          name: { type: "STRING" },
+          type: { type: "STRING", enum: [...NAME_TYPES] },
+          url_if_present: { type: "STRING", nullable: true },
+        },
+        required: ["name", "type"],
       },
     },
     store_mentioned: { type: "BOOLEAN" },
@@ -135,10 +211,12 @@ export const EXTRACTION_SCHEMA = {
 
 export function extractionPrompt(answer: string, storeName: string, host: string): string {
   return [
-    "Read the text between <answer> tags and list the shops, brands and marketplaces it names.",
-    "Only include real store, brand or marketplace names that appear in the text.",
-    "Do not include headings, section titles or labels (for example \"Tip\", \"Shipping\", \"Why it's good\", \"What they sell\"),",
-    "social networks used only as channels, product types, cities or generic phrases. Keep the order they appear in.",
+    "Read the text between <answer> tags and list the organisations it names.",
+    "Only include real names that appear in the text. Do not include headings, section titles or labels",
+    "(for example \"Tip\", \"Shipping\", \"Why it's good\", \"What they sell\"), product types, cities or generic phrases.",
+    "type: \"store\" for an online or physical shop, \"marketplace\" for a site where many sellers sell, \"brand\" for a product brand or maker,",
+    "\"service\" for inspection, certification, payment, shipping, logistics, sourcing-agent or software companies, \"other\" for anything else",
+    "(media, social networks, organisations). Keep the order they appear in.",
     "Give url_if_present only when a URL or domain for that name is written in the text.",
     `store_mentioned: whether the text names the store "${storeName}" or the domain ${host}.`,
     "rank_if_listed: its position among the listed shops when it is in a list, otherwise null.",
@@ -147,15 +225,19 @@ export function extractionPrompt(answer: string, storeName: string, host: string
   ].join("\n");
 }
 
-export type Extraction = { brands: { name: string; url: string | null }[]; storeMentioned: boolean; rank: number | null };
+export type Extraction = { brands: { name: string; type: NameType | null; url: string | null }[]; storeMentioned: boolean; rank: number | null };
 
 export function parseExtraction(text: string): Extraction | null {
   try {
     const data = JSON.parse(text) as { brands?: unknown; store_mentioned?: unknown; rank_if_listed?: unknown };
     if (!Array.isArray(data.brands) || typeof data.store_mentioned !== "boolean") return null;
     const brands = data.brands
-      .filter((b): b is { name: string; url_if_present?: unknown } => !!b && typeof (b as { name?: unknown }).name === "string")
-      .map((b) => ({ name: b.name.trim(), url: typeof b.url_if_present === "string" && /^https?:\/\/|^[\w-]+(\.[\w-]+)+/.test(b.url_if_present) ? b.url_if_present.trim() : null }));
+      .filter((b): b is { name: string; type?: unknown; url_if_present?: unknown } => !!b && typeof (b as { name?: unknown }).name === "string")
+      .map((b) => ({
+        name: b.name.trim(),
+        type: (NAME_TYPES as readonly string[]).includes(String(b.type)) ? (b.type as NameType) : null,
+        url: typeof b.url_if_present === "string" && /^https?:\/\/|^[\w-]+(\.[\w-]+)+/.test(b.url_if_present) ? b.url_if_present.trim() : null,
+      }));
     const rank = Number.isInteger(data.rank_if_listed) && (data.rank_if_listed as number) > 0 ? (data.rank_if_listed as number) : null;
     return { brands, storeMentioned: data.store_mentioned, rank };
   } catch {
@@ -164,12 +246,13 @@ export function parseExtraction(text: string): Extraction | null {
 }
 
 // Final analysis: the text match decides "mentioned" (it is checkable in the answer); names come from the
-// structured extraction when it worked, filtered again, otherwise from the text heuristic.
+// structured extraction when it worked (stores, marketplaces and brands only), filtered again; otherwise from the text.
 export function combineAnalysis(answer: string, terms: BrandTerms, extraction: Extraction | null): Analysis & { method: "model" | "heuristic" } {
   const text = analyzeAnswer(answer, terms);
   if (!extraction) return { ...text, method: "heuristic" };
-  const competitors = cleanCompetitors(extraction.brands.map((b) => b.name), terms).slice(0, 20);
-  const extraUrls = extraction.brands.map((b) => b.url).filter((u): u is string => !!u && /^https?:\/\//.test(u));
+  const kept = extraction.brands.filter((b) => b.type === null || KEEP_TYPES.has(b.type));
+  const competitors = cleanCompetitors(kept.map((b) => b.name), terms).slice(0, 20);
+  const extraUrls = kept.map((b) => b.url).filter((u): u is string => !!u && /^https?:\/\//.test(u));
   return {
     ...text,
     rank: text.mentioned ? (text.rank ?? extraction.rank) : null,

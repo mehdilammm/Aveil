@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { analyzeAnswer, brandTerms, canRun, cleanCompetitors, combineAnalysis, nextRunAt, parseExtraction, parseGeminiResponse, suggestPrompts } from "./visibility";
+import { analyzeAnswer, brandTerms, canRun, cleanCompetitors, combineAnalysis, nextRunAt, normalizeName, parseExtraction, parseGeminiResponse, registrableDomain, suggestPrompts } from "./visibility";
 
 const terms = brandTerms("Matha test", "https://www.matha.site");
 
 describe("brandTerms", () => {
   it("uses the store name and the domain", () => {
-    expect(terms).toEqual({ names: ["Matha test", "matha"], host: "matha.site" });
+    expect(terms).toEqual({ names: ["Matha test", "matha"], host: "matha.site", keys: ["mathatest", "matha"] });
   });
 });
 
@@ -33,11 +33,11 @@ describe("analyzeAnswer", () => {
     expect(a).toMatchObject({ mentioned: true, rank: null });
   });
 
-  it("does not match the name inside another word", () => {
+  it("does not count the name inside another word as a mention, but does not list same-brand names as competitors", () => {
     const a = analyzeAnswer("1. **Mathabeauty** - cosmetics\n2. **Mathematics shop**: books", terms);
     expect(a.mentioned).toBe(false);
     expect(a.rank).toBeNull();
-    expect(a.competitors).toEqual(["Mathabeauty", "Mathematics shop"]);
+    expect(a.competitors).toEqual(["Mathematics shop"]);
   });
 });
 
@@ -112,5 +112,41 @@ describe("real Gemini answer: handmade shops in Morocco (fixture)", () => {
 describe("cleanCompetitors", () => {
   it("drops labels, names ending with a colon, section-like names and the store", () => {
     expect(cleanCompetitors(["Tip", "Note:", "Why it's good", "Shipping", "Price", "Moroccan Epicerie / Local Cooperatives", "matha.site", "Anou (The Anou Cooperative)", "Etsy", "etsy"], terms)).toEqual(["Anou", "Etsy"]);
+  });
+});
+
+describe("real Gemini answer: sa.made-in-china.com (fixture)", () => {
+  const answer = readFileSync(join(__dirname, "fixtures/gemini-made-in-china.md"), "utf8");
+  const extractionText = readFileSync(join(__dirname, "fixtures/gemini-made-in-china.extraction.json"), "utf8");
+  const mic = brandTerms("sa.made-in-china.com", "https://sa.made-in-china.com");
+  const expected = ["Alibaba", "Global Sources", "DHgate", "AliExpress"];
+  const excluded = ["SGS", "Bureau Veritas", "TÜV Rheinland", "Made-in-China.com", "Made-in-China", "Alibaba.com", "SourcinBox", "LeelineSourcing", "PassDrop"];
+
+  it("treats the parent domain as the store", () => {
+    expect(registrableDomain("sa.made-in-china.com")).toBe("made-in-china.com");
+    expect(registrableDomain("shop.example.co.uk")).toBe("example.co.uk");
+    expect(mic.host).toBe("made-in-china.com");
+  });
+
+  it("structured extraction keeps stores, marketplaces and brands, de-duplicated, without the store", () => {
+    const a = combineAnalysis(answer, mic, parseExtraction(extractionText));
+    expect(a.method).toBe("model");
+    expect(a.competitors).toEqual(expected);
+    for (const n of excluded) expect(a.competitors).not.toContain(n);
+    expect(a.mentioned).toBe(true); // the question names the domain, so this answer always does
+  });
+
+  it("text heuristic alone gives the same list, without inspection companies or section titles", () => {
+    const a = analyzeAnswer(answer, mic);
+    expect(a.competitors).toEqual(expected);
+  });
+});
+
+describe("normalizeName", () => {
+  it("merges the same company written differently", () => {
+    expect(normalizeName("Alibaba")).toBe(normalizeName("Alibaba.com"));
+    expect(normalizeName("Etsy, Inc.")).toBe("etsy");
+    expect(normalizeName("TÜV Rheinland")).toBe("tuvrheinland");
+    expect(normalizeName("https://www.DHgate.com/shop")).toBe("dhgate");
   });
 });

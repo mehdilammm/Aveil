@@ -5,41 +5,58 @@ import { pageGate } from "./gate";
 import { askGemini, GEMINI_MODEL, geminiConfigured } from "./gemini";
 import { PublicFetcher } from "./public-fetch";
 import {
-  ACCESS_BOTS, agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, LIMITS, productLinks, productSitemapUrl, PUBLIC_UA,
+  ACCESS_BOTS, knowledgeQuestion, topicFromHome, visibilityQuestion, type GeminiParts, agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, LIMITS, productLinks, productSitemapUrl, PUBLIC_UA,
   robotsFrom, sitemapProductUrls, type GeminiPart, type PublicReport, type PublicScanInput,
 } from "./public-scan";
-import { brandTerms, combineAnalysis, EXTRACTION_SCHEMA, extractionPrompt, parseExtraction } from "./visibility";
+import { brandTerms, combineAnalysis, EXTRACTION_SCHEMA, extractionPrompt, parseExtraction, registrableDomain } from "./visibility";
 
 const UA = Object.fromEntries(AI_BOTS.map((b) => [b.name, b.ua])) as Record<string, string>;
 
 type Usage = { geminiRequests: number; input: number; output: number };
 
-async function geminiPart(admin: SupabaseClient, origin: string, host: string, usage: Usage): Promise<GeminiPart> {
-  const prompt = `What do you know about the online store ${host}? Which similar stores would you recommend?`;
-  if (!geminiConfigured()) return { status: "unavailable", reason: "The Gemini check is not set up on this server.", prompt };
-
-  const { data: recent } = await admin.from("public_reports").select("created_at").eq("host", host).gt("gemini_requests", 0).order("created_at", { ascending: false }).limit(1);
-  if (!geminiAllowedForDomain(recent?.[0]?.created_at ?? null, new Date())) {
-    return { status: "unavailable", reason: "Gemini was already asked about this domain in the last 24 hours.", prompt };
-  }
+// Reserves one request in the app-wide daily Gemini budget, then asks; extra retries are counted too.
+async function askCounted(admin: SupabaseClient, usage: Usage, prompt: string, options?: Parameters<typeof askGemini>[1]) {
   const { data: reserved } = await admin.rpc("public_gemini_reserve", { p_limit: LIMITS.geminiPerDay });
-  if (!reserved) return { status: "unavailable", reason: "Daily limit reached for free Gemini checks. Try again tomorrow.", prompt };
-
-  const r = await askGemini(prompt);
+  if (!reserved) return null;
+  const r = await askGemini(prompt, options);
   usage.geminiRequests += r.requests;
-  if (!r.ok || !r.text) return { status: "unavailable", reason: r.ok ? (r.blocked ? `Gemini blocked the question (${r.blocked}).` : "Gemini gave an empty answer.") : r.error, prompt };
-  usage.input += r.inputTokens;
-  usage.output += r.outputTokens;
-
-  const terms = brandTerms(host.split(".")[0], origin);
-  const x = await askGemini(extractionPrompt(r.text, host, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: 512 });
-  usage.geminiRequests += x.requests;
-  if (x.ok) {
-    usage.input += x.inputTokens;
-    usage.output += x.outputTokens;
+  for (let i = 1; i < r.requests; i++) await admin.rpc("public_gemini_reserve", { p_limit: LIMITS.geminiPerDay });
+  if (r.ok) {
+    usage.input += r.inputTokens;
+    usage.output += r.outputTokens;
   }
-  const a = combineAnalysis(r.text, terms, x.ok ? parseExtraction(x.text) : null);
+  return r;
+}
+
+const LIMIT_REASON = "Daily limit reached for free Gemini checks. Try again tomorrow.";
+
+async function ask(admin: SupabaseClient, usage: Usage, prompt: string, terms: ReturnType<typeof brandTerms>, label: string): Promise<GeminiPart> {
+  const r = await askCounted(admin, usage, prompt);
+  if (!r) return { status: "unavailable", reason: LIMIT_REASON, prompt };
+  if (!r.ok || !r.text) return { status: "unavailable", reason: r.ok ? (r.blocked ? `Gemini blocked the question (${r.blocked}).` : "Gemini gave an empty answer.") : r.error, prompt };
+  const x = await askCounted(admin, usage, extractionPrompt(r.text, label, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: 512 });
+  const a = combineAnalysis(r.text, terms, x?.ok ? parseExtraction(x.text) : null);
   return { status: "ok", model: GEMINI_MODEL, prompt, answer: r.text, mentioned: a.mentioned, competitors: a.competitors, method: a.method };
+}
+
+// Two questions per domain (each followed by a small extraction request): a general one about what the store sells,
+// without its name, and "Does Gemini know this store?" by domain. Once per domain per 24 h.
+async function geminiParts(admin: SupabaseClient, origin: string, host: string, homeHtml: string | null, usage: Usage): Promise<GeminiParts> {
+  const terms = brandTerms(registrableDomain(host).split(".")[0], origin);
+  const topic = homeHtml ? topicFromHome(homeHtml, terms.keys ?? []) : null;
+  const visPrompt = topic ? visibilityQuestion(topic) : "";
+  const knowPrompt = knowledgeQuestion(host);
+  const off = (reason: string): GeminiParts => ({ visibility: { status: "unavailable", reason, prompt: visPrompt }, knowledge: { status: "unavailable", reason, prompt: knowPrompt } });
+
+  if (!geminiConfigured()) return off("The Gemini check is not set up on this server.");
+  const { data: recent } = await admin.from("public_reports").select("created_at").eq("host", host).gt("gemini_requests", 0).order("created_at", { ascending: false }).limit(1);
+  if (!geminiAllowedForDomain(recent?.[0]?.created_at ?? null, new Date())) return off("Gemini was already asked about this domain in the last 24 hours.");
+
+  const visibility: GeminiPart = topic
+    ? await ask(admin, usage, visPrompt, terms, host)
+    : { status: "unavailable", reason: "Could not tell from the home page what the store sells, so no general question was asked.", prompt: "" };
+  const knowledge = await ask(admin, usage, knowPrompt, terms, host);
+  return { visibility, knowledge };
 }
 
 // Runs one public check: at most 10 HTTP requests to the store, plus up to 2 Gemini requests.
@@ -62,7 +79,7 @@ export async function runPublicScan(admin: SupabaseClient, origin: string, host:
     bots: {},
     products: [],
     productSource: "none",
-    gemini: { status: "unavailable", reason: "not run", prompt: "" },
+    gemini: { visibility: { status: "unavailable", reason: "not run", prompt: "" }, knowledge: { status: "unavailable", reason: "not run", prompt: "" } },
   };
 
   if (agentScopeAllowed(robots, "/")) {
@@ -86,7 +103,7 @@ export async function runPublicScan(admin: SupabaseClient, origin: string, host:
     }
   }
 
-  input.gemini = await geminiPart(admin, origin, host, usage);
+  input.gemini = await geminiParts(admin, origin, host, input.home?.ok ? input.home.body : null, usage);
   input.requests = fetcher.requests;
   return { report: buildPublicReport(input), usage, requests: fetcher.requests };
 }

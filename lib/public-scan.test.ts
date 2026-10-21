@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, hashIp, isFresh, parseAmount, priceConsistency, productLinks,
+  agentScopeAllowed, buildPublicReport, knowledgeQuestion, topicFromHome, visibilityQuestion, geminiAllowedForDomain, hashIp, isFresh, parseAmount, priceConsistency, productLinks,
   productSitemapUrl, robotsVerdicts, sitemapProductUrls, visiblePrice, withinRateLimit, type PublicScanInput,
 } from "./public-scan";
 import { isAllowed, parseRobots } from "./robots";
@@ -166,7 +166,7 @@ describe("buildPublicReport", () => {
     bots: { GPTBot: page(200, homeHtml), "OAI-SearchBot": page(200, homeHtml), ClaudeBot: page(200, homeHtml), PerplexityBot: page(200, homeHtml) },
     products: [{ url: "https://shop.test/product/brass-lantern/", fetch: page(200, productHtml("390.00")) }],
     productSource: "home page links",
-    gemini: { status: "unavailable", reason: "daily limit reached", prompt: "q" },
+    gemini: { visibility: { status: "unavailable", reason: "daily limit reached", prompt: "q" }, knowledge: { status: "unavailable", reason: "daily limit reached", prompt: "k" } },
     ...over,
   });
   const keys = (i: PublicScanInput) => buildPublicReport(i).findings.map((x) => `${x.finding_key}/${x.severity}/${x.basis}`);
@@ -207,5 +207,40 @@ describe("buildPublicReport", () => {
       "access:baseline:home page/unavailable",
       "gemini:unavailable/unavailable",
     ]);
+  });
+});
+
+describe("Gemini questions", () => {
+  it("builds the general question from category links, without the store name", () => {
+    const html = `<a href="https://badeloft.com/product-category/bathtubs/">Bathtubs</a><a href="/product-category/bathtubs/">x</a>
+      <a href="/product-category/vanities/">Vanities</a><a href="/product-category/uncategorized/">u</a><a href="/product-category/badeloft-specials/">s</a>`;
+    const topic = topicFromHome(html, ["badeloft"]);
+    expect(topic).toBe("bathtubs, vanities, specials");
+    expect(visibilityQuestion(topic!)).toBe("Which online stores would you recommend for bathtubs, vanities, specials?");
+  });
+
+  it("falls back to the meta description with the brand removed", () => {
+    const html = `<title>Kinfolk</title><meta name="description" content="Kinfolk is a slow lifestyle magazine and shop for home, design and travel. Since 2011.">`;
+    const topic = topicFromHome(html, ["kinfolk"]);
+    expect(topic).toBe("slow lifestyle magazine and shop for home, design and travel");
+    expect(topic).not.toMatch(/kinfolk/i);
+    expect(topicFromHome("<title>Kinfolk</title>", ["kinfolk"])).toBeNull();
+  });
+
+  it("keeps the knowledge question separate", () => {
+    expect(knowledgeQuestion("kinfolk.com")).toBe("What do you know about the online store kinfolk.com? Which similar stores would you recommend?");
+  });
+
+  it("reports 'not named' only from the general question", () => {
+    const input = (mentioned: boolean) => ({
+      url: "https://shop.test/", host: "shop.test", checkedAt: "2026-10-21T10:00:00Z", requests: 3,
+      robots: null, llms: null, home: null, bots: {}, products: [], productSource: "none" as const,
+      gemini: {
+        visibility: { status: "ok" as const, model: "m", prompt: "Which online stores would you recommend for tea?", answer: "a", mentioned, competitors: ["Etsy"], method: "model" as const },
+        knowledge: { status: "ok" as const, model: "m", prompt: "k", answer: "shop.test is…", mentioned: true, competitors: [], method: "model" as const },
+      },
+    });
+    expect(buildPublicReport(input(false)).findings.map((x) => x.finding_key)).toContain("gemini:not_named");
+    expect(buildPublicReport(input(true)).findings.map((x) => x.finding_key)).not.toContain("gemini:not_named");
   });
 });

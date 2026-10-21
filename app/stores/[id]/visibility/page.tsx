@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { formatDate } from "@/components/badges";
 import { getStore } from "@/lib/data";
+import { GEMINI_DISCLAIMER } from "@/lib/public-scan";
 import { GEMINI_MODEL, geminiConfigured } from "@/lib/gemini";
 import { getUser } from "@/lib/supabase/server";
 import { canRun, MAX_PROMPTS, nextRunAt } from "@/lib/visibility";
@@ -142,6 +143,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                     <summary className="muted small">Full answer ({ENGINE_LABEL})</summary>
                     <pre style={{ whiteSpace: "pre-wrap", font: "inherit", fontSize: 14 }}>{latest.answer}</pre>
                   </details>
+                  <p className="muted small">{GEMINI_DISCLAIMER}</p>
                 </>
               )}
               {completedRuns.length > 1 && (

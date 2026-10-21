@@ -83,10 +83,13 @@ AgentScopeBot and how to block it.
 - Checks: robots.txt per AI bot (GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, PerplexityBot, Google-Extended) and
   sitemap; llms.txt; home page as four AI bots vs. our normal request (user agent only, heuristic); JSON-LD Product on two
   product pages (home page links, else the product sitemap) and its price vs. the price shown; WooCommerce detection and
-  Coming soon / maintenance; one Gemini question about the domain with the same competitor extraction.
+  Coming soon / maintenance; two Gemini questions: a general one built from the home page's categories or description
+  without the store's name (the visibility signal), and "Does Gemini know this store?" by domain (information only).
+  Competitor names keep only stores, marketplaces and brands (typed by a structured-output request), without the store,
+  its parent domain or same-brand names, de-duplicated ("Alibaba" = "Alibaba.com").
 - Limits: 10 HTTP requests per check (redirect hops count), 1.5 s apart, 10 s timeout, 2 MB per answer, https only, DNS checked
   at connect time (undici dispatcher) and on every redirect (max 3). User agent `AgentScopeBot/1.0`, header
   `X-AgentScope-Check: 1`; if robots.txt blocks AgentScopeBot, only robots.txt is read.
 - Same domain within 24 h returns the saved report. 5 checks per hour per visitor (IP kept only as a daily HMAC).
-  Gemini: once per domain per 24 h and 50 per day for the whole app.
+  Gemini: once per domain per 24 h (2 questions + 2 extractions) and 50 requests per day for the whole app.
 - Tables `public_reports`, `public_scan_limits`, `public_gemini_usage`: server only (RLS, no policies).

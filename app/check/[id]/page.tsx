@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BasisBadge, formatDate, SeverityBadge } from "@/components/badges";
 import { PublicHeader } from "@/components/public-header";
-import { ACCESS_NOTE, GEMINI_LABEL, type PublicReport } from "@/lib/public-scan";
+import { ACCESS_NOTE, GEMINI_DISCLAIMER, GEMINI_LABEL, type GeminiPart, type GeminiParts, type PublicReport } from "@/lib/public-scan";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ShareLink } from "./share-link";
 
@@ -48,6 +48,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   }
 
   const r = row.report as PublicReport;
+  // Reports from before v2 had one Gemini question (by domain): show it as the knowledge question.
+  const raw = r.gemini as PublicReport["gemini"] | GeminiPart;
+  const gemini: GeminiParts = "visibility" in raw ? raw : { visibility: { status: "unavailable", reason: "Not part of this older report.", prompt: "" }, knowledge: raw };
   const findings = [...r.findings].sort((a, b) => SEV[a.severity] - SEV[b.severity]);
   const products = r.pages.filter((p) => p.kind === "product");
 
@@ -144,24 +147,23 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           <p className="muted small">Found from: {r.productSource}.</p>
         </div>
 
-        <h2>Gemini</h2>
-        <div className="card">
-          <span className="badge basis-observed">{GEMINI_LABEL}</span>
-          <p className="small"><strong>Question:</strong> {r.gemini.prompt}</p>
-          {r.gemini.status === "ok" ? (
-            <>
-              <p>{r.gemini.mentioned ? <span className="badge state-resolved">Your domain is named in the answer</span> : <span className="badge sev-medium">Your domain is not named in the answer</span>}</p>
-              {r.gemini.competitors.length > 0 && <p className="small"><strong>Also named:</strong> {r.gemini.competitors.join(", ")}</p>}
-              <details>
-                <summary className="muted small">Full answer ({r.gemini.model}, no web search)</summary>
-                <pre style={{ whiteSpace: "pre-wrap", font: "inherit", fontSize: 14 }}>{r.gemini.answer}</pre>
-              </details>
-              <p className="muted small">One answer from the API, without web search. The Gemini app and other runs can answer differently. This is not proof that AI recommends or ignores your store.</p>
-            </>
-          ) : (
-            <p className="muted">Not available: {r.gemini.reason}</p>
-          )}
-        </div>
+        <h2>AI visibility (Gemini)</h2>
+        <GeminiBlock
+          part={gemini.visibility}
+          empty="No general question was asked."
+          verdict={(p) =>
+            p.mentioned ? <span className="badge state-resolved">Your store is named in the answer</span> : <span className="badge sev-medium">Your store is not named in the answer</span>
+          }
+          namesLabel="Stores recommended instead"
+        />
+
+        <h2>Does Gemini know this store?</h2>
+        <GeminiBlock
+          part={gemini.knowledge}
+          empty="Not asked."
+          note="This question names your domain, so the answer always mentions it. It shows what the model says about the store, not whether it recommends it."
+          namesLabel="Similar stores named"
+        />
 
         <div className="cta">
           <p>
@@ -172,5 +174,32 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         </div>
       </main>
     </>
+  );
+}
+
+type OkPart = Extract<GeminiPart, { status: "ok" }>;
+
+function GeminiBlock({ part, empty, note, verdict, namesLabel }: { part: GeminiPart; empty: string; note?: string; verdict?: (p: OkPart) => React.ReactNode; namesLabel: string }) {
+  return (
+    <div className="card">
+      <span className="badge basis-observed">{GEMINI_LABEL}</span>
+      {part.prompt ? <p className="small"><strong>Question:</strong> {part.prompt}</p> : <p className="muted small">{part.status === "unavailable" ? part.reason : empty}</p>}
+      {part.status === "ok" ? (
+        <>
+          {verdict && <p>{verdict(part)}</p>}
+          {note && <p className="muted small">{note}</p>}
+          {part.competitors.length > 0 && <p className="small"><strong>{namesLabel}:</strong> {part.competitors.join(", ")}</p>}
+          <details>
+            <summary className="muted small">What Gemini said ({part.model}, no web search)</summary>
+            <blockquote style={{ borderLeft: "3px solid var(--border)", margin: "8px 0", paddingLeft: 12 }}>
+              <pre style={{ whiteSpace: "pre-wrap", font: "inherit", fontSize: 14, margin: 0 }}>{part.answer}</pre>
+            </blockquote>
+          </details>
+          <p className="muted small"><strong>{GEMINI_DISCLAIMER}</strong> One answer from the API; the Gemini app and other runs can answer differently.</p>
+        </>
+      ) : (
+        part.prompt && <p className="muted">Not available: {part.reason}</p>
+      )}
+    </div>
   );
 }

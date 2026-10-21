@@ -1,0 +1,20 @@
+{
+  "_note": "Example structured-output reply for gemini-made-in-china.md, written by hand (not a recorded API reply) to test type filtering, de-duplication and own-domain removal.",
+  "brands": [
+    { "name": "sa.made-in-china.com", "type": "marketplace", "url_if_present": "sa.made-in-china.com" },
+    { "name": "Made-in-China.com", "type": "marketplace", "url_if_present": "Made-in-China.com" },
+    { "name": "Alibaba", "type": "marketplace", "url_if_present": null },
+    { "name": "SGS", "type": "service", "url_if_present": null },
+    { "name": "Bureau Veritas", "type": "service", "url_if_present": null },
+    { "name": "TÜV Rheinland", "type": "service", "url_if_present": null },
+    { "name": "Alibaba.com", "type": "marketplace", "url_if_present": "Alibaba.com" },
+    { "name": "Global Sources", "type": "marketplace", "url_if_present": "globalsources.com" },
+    { "name": "DHgate.com", "type": "marketplace", "url_if_present": "DHgate.com" },
+    { "name": "AliExpress", "type": "marketplace", "url_if_present": null },
+    { "name": "SourcinBox", "type": "service", "url_if_present": null },
+    { "name": "LeelineSourcing", "type": "service", "url_if_present": null },
+    { "name": "PassDrop", "type": "service", "url_if_present": null }
+  ],
+  "store_mentioned": true,
+  "rank_if_listed": null
+}
