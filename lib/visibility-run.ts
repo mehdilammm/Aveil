@@ -103,3 +103,62 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
     .eq("id", run.id);
   return { runId: run.id, error: allFailed ? "No question got an answer from Gemini." : undefined };
 }
+
+// Runs only the structured extraction on answers stored before it existed (extraction is null).
+// One extraction request per answer; each answer is re-read at most once.
+export async function rereadStoredAnswers(admin: SupabaseClient, store: Store): Promise<{ updated: number; error?: string }> {
+  if (!geminiConfigured()) return { updated: 0, error: "AI Visibility is not set up on the server (GEMINI_API_KEY missing)." };
+  const { data: rows } = await admin
+    .from("visibility_results")
+    .select("id, run_id, answer, input_tokens, output_tokens")
+    .eq("store_id", store.id)
+    .is("extraction", null)
+    .not("answer", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(MAX_PROMPTS);
+  if (!rows?.length) return { updated: 0, error: "No stored answers need re-reading." };
+
+  const terms = brandTerms(store.name, store.url);
+  const started = Date.now();
+  const perRun = new Map<string, { requests: number; input: number; output: number }>();
+  let updated = 0;
+  for (const [i, row] of rows.entries()) {
+    if (Date.now() - started > TIME_BUDGET_MS) break;
+    if (i > 0) await sleep(GAP_MS);
+    const x = await askGemini(extractionPrompt(row.answer!, store.name, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: 512 });
+    const t = perRun.get(row.run_id) ?? { requests: 0, input: 0, output: 0 };
+    t.requests += x.requests;
+    if (x.ok) {
+      t.input += x.inputTokens;
+      t.output += x.outputTokens;
+    }
+    perRun.set(row.run_id, t);
+    const a = combineAnalysis(row.answer!, terms, x.ok ? parseExtraction(x.text) : null);
+    await admin
+      .from("visibility_results")
+      .update({
+        mentioned: a.mentioned,
+        mention_rank: a.rank,
+        matched_terms: a.matchedTerms,
+        competitors: a.competitors,
+        urls: a.urls,
+        extraction: a.method,
+        input_tokens: row.input_tokens + (x.ok ? x.inputTokens : 0),
+        output_tokens: row.output_tokens + (x.ok ? x.outputTokens : 0),
+      })
+      .eq("id", row.id);
+    updated++;
+  }
+
+  // Add the extra requests and tokens to the runs they belong to, so monthly usage stays complete.
+  for (const [runId, t] of perRun) {
+    const { data: run } = await admin.from("visibility_runs").select("requests_count, input_tokens, output_tokens").eq("id", runId).single();
+    if (run) {
+      await admin
+        .from("visibility_runs")
+        .update({ requests_count: run.requests_count + t.requests, input_tokens: run.input_tokens + t.input, output_tokens: run.output_tokens + t.output })
+        .eq("id", runId);
+    }
+  }
+  return { updated };
+}

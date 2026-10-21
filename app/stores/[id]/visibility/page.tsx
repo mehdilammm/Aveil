@@ -6,7 +6,7 @@ import { getUser } from "@/lib/supabase/server";
 import { canRun, MAX_PROMPTS, nextRunAt } from "@/lib/visibility";
 import { deletePrompt } from "./actions";
 import { PromptsForm } from "./prompts-form";
-import { RunVisibilityButton } from "./run-button";
+import { RereadButton, RunVisibilityButton } from "./run-button";
 
 type Run = { id: string; status: string; model: string; created_at: string; finished_at: string | null; requests_count: number; input_tokens: number; output_tokens: number; error: string | null };
 type Result = {
@@ -95,6 +95,9 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
       <h2>Run</h2>
       <div className="card">
         <RunVisibilityButton storeId={store.id} disabledReason={disabledReason} />
+        {geminiConfigured() && results.filter((r) => r.answer && !r.extraction).length > 0 && (
+          <RereadButton storeId={store.id} count={results.filter((r) => r.answer && !r.extraction).length} />
+        )}
         <p className="muted small">
           This month: {usage.requests} Gemini requests, {usage.input} input and {usage.output} output tokens.
         </p>
