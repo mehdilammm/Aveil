@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { listStores } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
+import { LanguageSwitch } from "./language-switch";
 import { Nav, StoreSwitch } from "./nav";
 
 // App frame for signed-in pages. storeId: the store being viewed, if any.
@@ -25,6 +26,7 @@ export async function Shell({ storeId, children }: { storeId?: string; children:
           <span className="email">{user.email}</span>
           <button type="submit">Log out</button>
         </form>
+        <LanguageSwitch />
       </aside>
       <main className="content">{children}</main>
     </div>
