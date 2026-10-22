@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth", "/check", "/bot", "/invite", "/downloads"];
+const PUBLIC_PATHS = ["/login", "/auth", "/check", "/bot", "/invite", "/downloads", "/pricing", "/terms", "/privacy"];
 
 // Refreshes the Supabase session cookie and sends signed-out users to /login.
 export async function proxy(request: NextRequest) {
@@ -23,7 +23,8 @@ export async function proxy(request: NextRequest) {
 
   const { data } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
-  const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+  // "/" is the landing page for visitors (signed-in users are sent on to their stores).
+  const isPublic = path === "/" || PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 
   if (!data.user && !isPublic && !path.startsWith("/api/")) {
     const url = request.nextUrl.clone();

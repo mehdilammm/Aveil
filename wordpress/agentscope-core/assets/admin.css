@@ -102,6 +102,7 @@
 .agsc-field--wide input { display: block; width: 100%; max-width: 520px; margin: 6px 0 10px; }
 .agsc-help { margin: 0 0 8px 24px; color: var(--agsc-muted); font-size: 13px; }
 .agsc-help--flush { margin-left: 0; }
+.agsc-check input[type="date"] { margin-left: 6px; font-weight: 400; }
 
 @media (max-width: 960px) {
   .agsc-grid { grid-template-columns: 1fr; }

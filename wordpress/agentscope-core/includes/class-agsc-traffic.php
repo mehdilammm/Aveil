@@ -183,18 +183,38 @@ final class AGSC_Traffic {
         ));
     }
 
+    const CLEAR_LOG = 'agsc_clear_log';
+
+    /** A YYYY-MM-DD day that exists and is not after $today (pure, tested from the command line). */
+    public static function valid_day($day, $today) {
+        if (!is_string($day) || !preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $day, $m)) {
+            return false;
+        }
+        return checkdate((int) $m[2], (int) $m[3], (int) $m[1]) && strcmp($day, (string) $today) <= 0;
+    }
+
     /**
-     * Sets to 0 the totals recorded up to the legacy day (they may include AgentScope's own checks). Rows are kept
-     * with 0 hits so the next send replaces the app's copy with 0 too. Returns the number of rows changed.
+     * Sets to 0 the totals of the days from $from to $to (inclusive). Rows are kept with 0 hits so the next send
+     * replaces the app's copy with 0 too. Can be repeated. Returns the number of rows changed.
      */
-    public static function clear_legacy() {
+    public static function clear_days($from, $to, $reason) {
         global $wpdb;
+        $table = self::table();
+        $changed = (int) $wpdb->query($wpdb->prepare("UPDATE {$table} SET hits = 0 WHERE day >= %s AND day <= %s AND hits > 0", $from, $to));
+        $log = get_option(self::CLEAR_LOG, array());
+        $log = is_array($log) ? $log : array();
+        $log[] = array('time' => time(), 'from' => $from, 'to' => $to, 'rows' => $changed, 'reason' => $reason);
+        update_option(self::CLEAR_LOG, array_slice($log, -10), false);
+        return $changed;
+    }
+
+    /** Sets to 0 every total up to the legacy day (before 1.1.0, when AgentScope's own checks were counted). */
+    public static function clear_legacy() {
         $until = get_option(self::LEGACY);
         if (!$until) {
             return 0;
         }
-        $table = self::table();
-        $changed = (int) $wpdb->query($wpdb->prepare("UPDATE {$table} SET hits = 0 WHERE day <= %s AND hits > 0", $until));
+        $changed = self::clear_days('2000-01-01', (string) $until, 'before 1.1.0');
         update_option(self::CLEARED, array('time' => time(), 'until' => $until, 'rows' => $changed), false);
         return $changed;
     }

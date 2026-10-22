@@ -204,3 +204,13 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
   Within 60 seconds, 3+ different AI sources, or 5+ AI bot requests with 3+ bot names, are recorded as
   `likely-checker-tool` (the burst's earlier requests are moved too). The plugin and the app's AI Traffic page show
   them apart ("Probably an SEO/GEO checker tool, not real AI traffic") and leave them out of the main numbers.
+
+## v1.0: landing, pricing, legal
+
+- `lib/site.ts`: product name, site URL, contact email (placeholder) and legal date in one place.
+- `lib/plans.ts`: Free / Pro ($29) / Agency ($49) with their limits, used by `/pricing` (and later by enforcement).
+  Paid plans collect a waitlist (`plan_waitlist`, server only, RLS without policies).
+- `/` is a landing page for visitors (signed-in users go to `/stores`); `/pricing`, `/terms`, `/privacy` are public.
+  Sign up needs the "I agree to the Terms and the Privacy Policy" box.
+- agentscope-core 1.2.1 (`/downloads/agentscope-core-1.2.1.zip`): "Clear test data" can be repeated and can clear one
+  chosen day (UTC), with the same confirmation.

@@ -20,6 +20,7 @@ export async function logIn(_: AuthState, form: FormData): Promise<AuthState> {
 
 export async function signUp(_: AuthState, form: FormData): Promise<AuthState> {
   const { email, password } = readForm(form);
+  if (form.get("agree") !== "yes") return { error: "To sign up, tick the box to agree to the Terms and the Privacy Policy." };
   if (password.length < 8) return { error: "Use a password of at least 8 characters." };
   const origin = (await headers()).get("origin") ?? "";
   const supabase = await createClient();

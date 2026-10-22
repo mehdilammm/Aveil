@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicHeader } from "@/components/public-header";
+import { SiteFooter } from "@/components/site-footer";
 import { CheckForm } from "./check-form";
 
 export const metadata: Metadata = {
@@ -32,6 +33,7 @@ export default function CheckPage() {
           <p className="muted small">Each finding says how to fix it in WooCommerce. No score: only what we saw. <Link href="/bot">How our bot behaves</Link>.</p>
         </div>
       </main>
+      <SiteFooter />
     </>
   );
 }

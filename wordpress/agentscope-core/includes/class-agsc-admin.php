@@ -94,10 +94,22 @@ final class AGSC_Admin {
             wp_safe_redirect(self::page_url('agsc-settings', array('agsc_msg' => 'clear-unconfirmed')));
             exit;
         }
-        AGSC_Traffic::clear_legacy();
-        if (AGSC_Sender::is_configured()) {
-            $first = AGSC_Traffic::first_day();
-            AGSC_Sender::send($first);
+        $mode = isset($_POST['clear_mode']) ? sanitize_key(wp_unslash($_POST['clear_mode'])) : 'legacy';
+        if ($mode === 'day') {
+            $day = isset($_POST['clear_day']) ? sanitize_text_field(wp_unslash($_POST['clear_day'])) : '';
+            if (!AGSC_Traffic::valid_day($day, gmdate('Y-m-d'))) {
+                wp_safe_redirect(self::page_url('agsc-settings', array('agsc_msg' => 'clear-bad-day')));
+                exit;
+            }
+            AGSC_Traffic::clear_days($day, $day, 'one day');
+            $resend_from = $day;
+        } else {
+            AGSC_Traffic::clear_legacy();
+            $resend_from = AGSC_Traffic::first_day();
+        }
+        // When connected, the zeroed days are sent so the app's copy is corrected too.
+        if (AGSC_Sender::is_configured() && $resend_from) {
+            AGSC_Sender::send($resend_from);
         }
         wp_safe_redirect(self::page_url('agsc-settings', array('agsc_msg' => 'cleared')));
         exit;
@@ -185,7 +197,8 @@ final class AGSC_Admin {
             'connect-failed'    => array('bad', 'Not connected.'),
             'disconnected'      => array('ok', 'Disconnected from the AgentScope app.'),
             'sent'              => array('ok', 'Send attempted; see "Last send".'),
-            'cleared'           => array('ok', 'Test data cleared: totals recorded before version 1.1.0 are now 0.'),
+            'cleared'           => array('ok', 'Test data cleared: the chosen totals are now 0. See the list below.'),
+            'clear-bad-day'     => array('bad', 'Nothing was cleared. Pick a valid day that is not in the future.'),
             'clear-unconfirmed' => array('bad', 'Nothing was cleared. Tick the confirmation box first.'),
         );
         if (!isset($texts[$msg])) {
@@ -408,18 +421,27 @@ final class AGSC_Admin {
 
         $until = get_option(AGSC_Traffic::LEGACY);
         $cleared = get_option(AGSC_Traffic::CLEARED);
+        $log = get_option(AGSC_Traffic::CLEAR_LOG, array());
         echo '<h2 class="agsc-h2" id="agsc-clear">Clear test data</h2><div class="agsc-form">';
-        if (!$until) {
-            echo '<p class="agsc-help agsc-help--flush">Nothing to clear: no totals were recorded before version 1.1.0 on this site.</p>';
+        echo '<p class="agsc-help agsc-help--flush">Sets the AI traffic totals of the chosen days to 0, for example after testing your site with a checker tool. Real visits on those days are cleared too: they cannot be told apart. When connected, the corrected days are sent to the app. This cannot be undone, and can be repeated.</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="agsc_clear_test_data">';
+        wp_nonce_field('agsc_clear_test_data');
+        if ($until) {
+            echo '<label class="agsc-check"><input type="radio" name="clear_mode" value="legacy"' . (is_array($cleared) ? '' : ' checked') . '> Every day up to ' . esc_html((string) $until) . ' (before version 1.1.0, when AgentScope\'s own checks were counted)' . (is_array($cleared) ? ' – already cleared once' : '') . '</label>';
+        }
+        echo '<label class="agsc-check"><input type="radio" name="clear_mode" value="day"' . ($until && !is_array($cleared) ? '' : ' checked') . '> One day (UTC): <input type="date" name="clear_day" max="' . esc_attr(gmdate('Y-m-d')) . '" value="' . esc_attr(gmdate('Y-m-d')) . '"></label>';
+        echo '<label class="agsc-check"><input type="checkbox" name="confirm_clear" value="1"> I understand: set these totals to 0</label>';
+        echo '<button type="submit" class="agsc-btn agsc-btn--danger">Clear test data</button></form>';
+        if (is_array($log) && $log) {
+            echo '<p class="agsc-meta">Cleared before:</p><ul class="agsc-list agsc-meta">';
+            foreach (array_reverse($log) as $entry) {
+                $range = $entry['from'] === $entry['to'] ? $entry['to'] : 'up to ' . $entry['to'];
+                echo '<li>' . esc_html(gmdate('Y-m-d H:i', (int) $entry['time'])) . ' UTC: ' . esc_html($range) . ', ' . (int) $entry['rows'] . ' daily totals set to 0</li>';
+            }
+            echo '</ul>';
         } elseif (is_array($cleared)) {
-            echo '<p class="agsc-help agsc-help--flush">Cleared on ' . esc_html(gmdate('Y-m-d H:i', (int) $cleared['time'])) . ' UTC: ' . (int) $cleared['rows'] . ' daily totals up to ' . esc_html((string) $cleared['until']) . ' set to 0.</p>';
-        } else {
-            echo '<p class="agsc-help agsc-help--flush">Before version 1.1.0, AgentScope\'s own checks (which use AI bot user agents) were counted as AI traffic. This sets every total recorded up to ' . esc_html((string) $until) . ' to 0, including real visits on those days, which cannot be told apart. When connected, the corrected days are sent to the app. This cannot be undone.</p>';
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
-            echo '<input type="hidden" name="action" value="agsc_clear_test_data">';
-            wp_nonce_field('agsc_clear_test_data');
-            echo '<label class="agsc-check"><input type="checkbox" name="confirm_clear" value="1"> I understand: set the totals up to ' . esc_html((string) $until) . ' to 0</label>';
-            echo '<button type="submit" class="agsc-btn agsc-btn--danger">Clear test data</button></form>';
+            echo '<p class="agsc-meta">Cleared on ' . esc_html(gmdate('Y-m-d H:i', (int) $cleared['time'])) . ' UTC: ' . (int) $cleared['rows'] . ' daily totals up to ' . esc_html((string) $cleared['until']) . ' set to 0.</p>';
         }
         echo '</div>';
 

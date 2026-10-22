@@ -1,7 +1,7 @@
 === AgentScope Core ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 
 Read-only WooCommerce readiness checks and opt-in AI traffic signals.
@@ -41,6 +41,8 @@ GET  /wp-json/agentscope-core/v1/selftest
 Uses its own option names, table (agsc_traffic), classes (AGSC_*) and REST namespace, so it can run next to the older "AgentScope AI Traffic Monitor" plugin while you compare them.
 
 == Changelog ==
+= 1.2.1 =
+* Clear test data can be repeated, and can clear one chosen day (UTC) as well as every day before 1.1.0, with the same confirmation. A short list shows what was cleared.
 = 1.2.0 =
 * Burst detection: several AI bots within a minute are counted apart as "likely-checker-tool" (heuristic) and left out of the totals.
 = 1.1.0 =
