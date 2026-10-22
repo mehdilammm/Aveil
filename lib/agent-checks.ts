@@ -47,7 +47,7 @@ function politeFetcher(checkToken: string | null) {
   };
 }
 
-// Runs the access test one request at a time: 10 requests plus at most 2 retries after a 429.
+// Runs the access test one request at a time: 12 requests plus at most 2 retries after a 429.
 // Pages that show a Coming soon or maintenance screen are not tested with the bots.
 export async function runAccessCheck(
   storeUrl: string,
