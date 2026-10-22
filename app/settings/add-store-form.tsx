@@ -3,10 +3,19 @@
 import { useActionState } from "react";
 import { addStore, type AddStoreState } from "@/app/stores/actions";
 
-export function AddStoreForm() {
+export function AddStoreForm({ workspaces }: { workspaces: { id: string; name: string }[] }) {
   const [state, action, pending] = useActionState<AddStoreState, FormData>(addStore, {});
   return (
     <form action={action} className="stack card" autoComplete="off">
+      {workspaces.length > 1 && (
+        <label>
+          Workspace
+          <select name="workspace_id" defaultValue={workspaces[0].id}>
+            {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        </label>
+      )}
+      {workspaces.length === 1 && <input type="hidden" name="workspace_id" value={workspaces[0].id} />}
       <label>
         Store name
         <input name="name" maxLength={120} required />

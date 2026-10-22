@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { hashToken } from "@/lib/traffic";
 import { normalizeStoreUrl } from "@/lib/url";
+import { canEdit, ensurePersonalWorkspace, storeAccess } from "@/lib/workspace";
 
 export type AddStoreState = { error?: string };
 
@@ -29,8 +30,20 @@ export async function addStore(_: AddStoreState, form: FormData): Promise<AddSto
   if (!KEY_RE.test(consumerKey)) return { error: "The consumer key should start with ck_." };
   if (!SECRET_RE.test(consumerSecret)) return { error: "The consumer secret should start with cs_." };
 
-  // Insert as the user so RLS checks ownership.
-  const { data: store, error } = await supabase.from("stores").insert({ name, url: parsed.url, owner_id: user.id }).select("id").single();
+  // The workspace: the one picked (the user must be its owner or admin), else the personal one.
+  let workspaceId = String(form.get("workspace_id") ?? "");
+  if (!workspaceId) {
+    try {
+      workspaceId = await ensurePersonalWorkspace(createAdminClient(), user.id);
+    } catch {
+      return { error: "Could not prepare your workspace. Please try again." };
+    }
+  }
+  const { data: member } = await supabase.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", user.id).maybeSingle();
+  if (!canEdit(member?.role)) return { error: "You can add stores only to a workspace where you are owner or admin." };
+
+  // Insert as the user so RLS checks the role.
+  const { data: store, error } = await supabase.from("stores").insert({ name, url: parsed.url, owner_id: user.id, workspace_id: workspaceId }).select("id").single();
   if (error || !store) {
     console.error("add store: insert failed", error?.code, error?.message);
     return { error: "Could not save the store. Please try again." };
@@ -69,8 +82,9 @@ export async function deleteStore(_: DeleteStoreState, form: FormData): Promise<
   const storeId = String(form.get("store_id") ?? "");
   const confirmName = String(form.get("confirm_name") ?? "").trim();
 
-  const { data: store } = await supabase.from("stores").select("id, name").eq("id", storeId).maybeSingle();
+  const store = await storeAccess(supabase, user.id, storeId);
   if (!store) return { error: "Store not found." };
+  if (!canEdit(store.role)) return { error: "Viewers cannot delete stores." };
   if (confirmName !== store.name) return { error: "Type the store name exactly to confirm." };
 
   const { data: deleted, error } = await supabase.from("stores").delete().eq("id", store.id).select("id");
@@ -88,14 +102,15 @@ export async function createTrafficToken(_: TrafficTokenState, form: FormData): 
   const { supabase, user } = await getUser();
   if (!user) redirect("/login");
   const storeId = String(form.get("store_id") ?? "");
-  const { data: store } = await supabase.from("stores").select("id").eq("id", storeId).maybeSingle();
+  const store = await storeAccess(supabase, user.id, storeId);
   if (!store) return { error: "Store not found." };
+  if (!canEdit(store.role)) return { error: "Viewers cannot change connection tokens." };
 
   const token = `agsc_${randomBytes(32).toString("base64url")}`;
   try {
     const { error } = await createAdminClient().rpc("save_traffic_connector", {
       p_store_id: store.id,
-      p_owner_id: user.id,
+      p_owner_id: store.owner_id,
       p_token: token,
       p_token_hash: hashToken(token),
       p_hint: `agsc_…${token.slice(-4)}`,
@@ -113,9 +128,9 @@ export async function disconnectTraffic(form: FormData): Promise<void> {
   const { supabase, user } = await getUser();
   if (!user) redirect("/login");
   const storeId = String(form.get("store_id") ?? "");
-  const { data: store } = await supabase.from("stores").select("id").eq("id", storeId).maybeSingle();
-  if (!store) return;
+  const store = await storeAccess(supabase, user.id, storeId);
+  if (!store || !canEdit(store.role)) return;
   // Traffic data already received stays; only the connection (and its Vault secret) is removed.
-  await createAdminClient().from("traffic_connectors").delete().eq("store_id", store.id).eq("owner_id", user.id);
+  await createAdminClient().from("traffic_connectors").delete().eq("store_id", store.id);
   revalidatePath("/settings");
 }

@@ -5,7 +5,7 @@ import type { getUser } from "./supabase/server";
 
 type Client = Awaited<ReturnType<typeof getUser>>["supabase"];
 
-export type StoreRow = { id: string; name: string; url: string; connection_status: string; connection_error: string | null };
+export type StoreRow = { id: string; name: string; url: string; connection_status: string; connection_error: string | null; workspace_id: string };
 export type ScanRow = {
   id: string;
   status: string;
@@ -36,12 +36,12 @@ const SCAN_COLUMNS = "id, status, trigger, created_at, started_at, finished_at, 
 const FINDING_COLUMNS = "finding_key, type, title, severity, evidence, guidance, product_id, basis, state, fix_url";
 
 export async function listStores(supabase: Client) {
-  const { data } = await supabase.from("stores").select("id, name, url, connection_status, connection_error").order("created_at");
+  const { data } = await supabase.from("stores").select("id, name, url, connection_status, connection_error, workspace_id").order("created_at");
   return (data ?? []) as StoreRow[];
 }
 
 export async function getStore(supabase: Client, id: string) {
-  const { data } = await supabase.from("stores").select("id, name, url, connection_status, connection_error").eq("id", id).maybeSingle();
+  const { data } = await supabase.from("stores").select("id, name, url, connection_status, connection_error, workspace_id").eq("id", id).maybeSingle();
   return data as StoreRow | null;
 }
 

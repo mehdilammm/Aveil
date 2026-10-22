@@ -3,12 +3,16 @@ import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listStores } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
+import { canEdit, ensurePersonalWorkspace, listWorkspaces } from "@/lib/workspace";
 import { AddStoreForm } from "./add-store-form";
 import { DeleteStoreForm } from "./delete-store-form";
 import { TrafficConnect } from "./traffic-connect";
 
 export default async function SettingsPage() {
-  const { supabase } = await getUser();
+  const { supabase, user } = await getUser();
+  if (user) await ensurePersonalWorkspace(createAdminClient(), user.id).catch(() => null);
+  const workspaces = user ? await listWorkspaces(supabase, user.id) : [];
+  const roleOf = new Map(workspaces.map((w) => [w.id, w]));
   const stores = await listStores(supabase);
   const host = (await headers()).get("host") ?? "";
   const endpoint = `https://${host}/api/ingest/traffic`;
@@ -28,7 +32,7 @@ export default async function SettingsPage() {
     <>
       <div className="page-head">
         <h1>Settings</h1>
-        <p className="sub">Your stores and their WooCommerce connection.</p>
+        <p className="sub">Your stores and their WooCommerce connection. <Link href="/settings/workspaces">Workspaces and members</Link></p>
       </div>
 
       <h2>Stores</h2>
@@ -39,21 +43,27 @@ export default async function SettingsPage() {
             <Link href={`/stores/${s.id}`}><strong>{s.name}</strong></Link>
             <span className={`status-${s.connection_status}`}>{s.connection_status}</span>
           </div>
-          <div className="muted">{s.url}</div>
+          <div className="muted">{s.url} · {roleOf.get(s.workspace_id)?.name ?? "workspace"} ({roleOf.get(s.workspace_id)?.role ?? "member"})</div>
           {s.connection_status === "error" && s.connection_error && <p className="error">Last error: {s.connection_error}</p>}
-          <details>
-            <summary className="muted">AI traffic plugin</summary>
-            <TrafficConnect storeId={s.id} connected={connectors.get(s.id) ?? null} endpoint={endpoint} />
-          </details>
-          <details>
-            <summary className="muted">Delete this store</summary>
-            <DeleteStoreForm storeId={s.id} storeName={s.name} />
-          </details>
+          {canEdit(roleOf.get(s.workspace_id)?.role) ? (
+            <>
+              <details>
+                <summary className="muted">AI traffic plugin</summary>
+                <TrafficConnect storeId={s.id} connected={connectors.get(s.id) ?? null} endpoint={endpoint} />
+              </details>
+              <details>
+                <summary className="muted">Delete this store</summary>
+                <DeleteStoreForm storeId={s.id} storeName={s.name} />
+              </details>
+            </>
+          ) : (
+            <p className="muted small">You are a viewer in this workspace: you can read reports, not change keys or delete.</p>
+          )}
         </div>
       ))}
 
       <h2>Add store</h2>
-      <AddStoreForm />
+      <AddStoreForm workspaces={workspaces.filter((w) => canEdit(w.role)).map((w) => ({ id: w.id, name: w.personal ? `${w.name} (personal)` : w.name }))} />
     </>
   );
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
+import { canEdit, storeAccess } from "@/lib/workspace";
 import { QUESTION_LANGUAGES, QUESTIONS_GEMINI_SCHEMA, QUESTIONS_JSON_SCHEMA, questionsPrompt, validateQuestions, type QuestionLanguage } from "@/lib/question-suggest";
 import { runTask } from "@/lib/task-models";
 import { brandTerms, MAX_PROMPTS, suggestPrompts } from "@/lib/visibility";
@@ -12,18 +13,19 @@ import { fetchProductSample, fetchSettings, fetchTopCategories } from "@/lib/woo
 // basis: "observed" when written from the store's products by a helper model, "heuristic" for the template fallback.
 export type PromptState = { error?: string; suggestions?: string[]; source?: string; basis?: "observed" | "heuristic" };
 
+// The store, only for its workspace's owners and admins (viewers only read).
 async function ownedStore(storeId: string) {
   const { supabase, user } = await getUser();
   if (!user) redirect("/login");
-  const { data: store } = await supabase.from("stores").select("id, url, name").eq("id", storeId).maybeSingle();
-  return { supabase, user, store };
+  const access = await storeAccess(supabase, user.id, storeId);
+  return { supabase, user, store: access && canEdit(access.role) ? access : null };
 }
 
 // Adds one or more questions (typed, or accepted suggestions). Inserted as the user, so RLS checks ownership.
 export async function addPrompts(_: PromptState, form: FormData): Promise<PromptState> {
   const storeId = String(form.get("store_id") ?? "");
   const { supabase, user, store } = await ownedStore(storeId);
-  if (!store) return { error: "Store not found." };
+  if (!store) return { error: "Store not found, or you can only view it." };
 
   // Picked suggestions: the ticked indexes, with the text as the user edited it.
   const picked = form.getAll("pick").map((i) => form.get(`text_${String(i)}`) ?? "");
@@ -51,14 +53,14 @@ export async function deletePrompt(form: FormData): Promise<void> {
 // task chain (Groq → NVIDIA → Gemini). Falls back to category templates (English). Nothing is saved until the user
 // picks and edits them.
 export async function suggest(_: PromptState, form: FormData): Promise<PromptState> {
-  const { user, store } = await ownedStore(String(form.get("store_id") ?? ""));
-  if (!store) return { error: "Store not found." };
+  const { store } = await ownedStore(String(form.get("store_id") ?? ""));
+  if (!store) return { error: "Store not found, or you can only view it." };
   const lang = String(form.get("language") ?? "en");
   const language: QuestionLanguage = lang in QUESTION_LANGUAGES ? (lang as QuestionLanguage) : "en";
   try {
     const admin = createAdminClient();
     const { data: creds } = await admin
-      .rpc("get_store_credentials", { p_store_id: store.id, p_owner_id: user.id })
+      .rpc("get_store_credentials", { p_store_id: store.id, p_owner_id: store.owner_id })
       .maybeSingle<{ consumer_key: string; consumer_secret: string }>();
     if (!creds) return { error: "No API key saved for this store." };
     const woo = { consumerKey: creds.consumer_key, consumerSecret: creds.consumer_secret };

@@ -170,3 +170,8 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
   WooCommerce API → the task chain writes 15 shopper questions (buy, compare, "best X for Y", "where to buy X") in
   English, French or Arabic, without the store's name. The user ticks and edits them before saving. Fallback:
   category templates, labelled HEURISTIC.
+- Teams and workspaces (`lib/workspace.ts`, Settings → Workspaces): a workspace holds stores and members (owner / admin
+  / viewer). Existing stores were moved into their owner's personal workspace. RLS: members read everything of their
+  workspaces' stores; owners and admins add, change, run and delete; viewers only read. Role helpers live in the
+  non-exposed `private` schema. Invites are single-use links valid 7 days (only a SHA-256 of the token is stored; an
+  optional email must match on accept). Keys and traffic tokens stay under the store's creator, server-only.
