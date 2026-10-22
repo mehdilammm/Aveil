@@ -1,4 +1,5 @@
 import "server-only";
+import { parseGrounding, type Grounding } from "./grounding";
 import { parseGeminiResponse, type EngineAnswer } from "./visibility";
 
 // Gemini Developer API, generateContent. Model docs: https://ai.google.dev/gemini-api/docs/models
@@ -16,9 +17,11 @@ export function geminiConfigured(): boolean {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // waitedMs: time spent waiting for the engine's rate limit (queue gap and Retry-After), for the record.
-export type AskResult = ({ ok: true } & EngineAnswer & { requests: number; waitedMs?: number }) | { ok: false; error: string; requests: number; waitedMs?: number };
+export type AskResult = ({ ok: true } & EngineAnswer & { requests: number; waitedMs?: number; grounding?: Grounding | null }) | { ok: false; error: string; requests: number; waitedMs?: number };
 
-type AskOptions = { jsonSchema?: object; maxOutputTokens?: number };
+// grounding: adds the google_search tool (https://ai.google.dev/gemini-api/docs/google-search); the caller checks
+// GEMINI_GROUNDING_ENABLED and the monthly cap first.
+type AskOptions = { jsonSchema?: object; maxOutputTokens?: number; grounding?: boolean };
 
 // Sends one message as a plain user turn. Retries once on 429 or 5xx.
 // With jsonSchema, asks for structured output (responseMimeType application/json + responseSchema).
@@ -34,6 +37,7 @@ export async function askGemini(prompt: string, options: AskOptions = {}): Promi
         headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
+          ...(options.grounding ? { tools: [{ google_search: {} }] } : {}),
           generationConfig: {
             maxOutputTokens: options.maxOutputTokens ?? MAX_OUTPUT_TOKENS,
             ...(options.jsonSchema ? { responseMimeType: "application/json", responseSchema: options.jsonSchema, temperature: 0 } : {}),
@@ -53,7 +57,8 @@ export async function askGemini(prompt: string, options: AskOptions = {}): Promi
         // Never echo anything that could contain the key.
         return { ok: false, error: `Gemini API error ${res.status}: ${message.replace(/key=[^\s&]+/gi, "key=…").slice(0, 300)}`, requests };
       }
-      return { ok: true, ...parseGeminiResponse(body), requests };
+      const grounding = options.grounding ? parseGrounding((body as { candidates?: { groundingMetadata?: unknown }[] } | null)?.candidates?.[0]?.groundingMetadata) : undefined;
+      return { ok: true, ...parseGeminiResponse(body), requests, ...(options.grounding ? { grounding } : {}) };
     } catch (err) {
       if (attempt === 0) {
         await sleep(2000);

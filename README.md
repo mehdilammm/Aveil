@@ -175,3 +175,10 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
   workspaces' stores; owners and admins add, change, run and delete; viewers only read. Role helpers live in the
   non-exposed `private` schema. Invites are single-use links valid 7 days (only a SHA-256 of the token is stored; an
   optional email must match on accept). Keys and traffic tokens stay under the store's creator, server-only.
+- Citations (`lib/grounding.ts`, AI Visibility → Citations): with `GEMINI_GROUNDING_ENABLED=true` (default false) the
+  questions go to Gemini with the `google_search` tool; `groundingMetadata` (sources, domains, which part of the answer
+  relied on which source, the searches, Google's search suggestions) is stored per answer. The page shows the most
+  cited domains, whether the store's site is among them, and which named competitors have citations. Hard cap in code:
+  1000 grounded requests per month app-wide (`grounding_reserve`), far below the 5,000 free grounded prompts per month
+  of Gemini 3 models (paid tier only; then $14 per 1,000: https://ai.google.dev/gemini-api/docs/pricing). Above the cap
+  questions are asked without Google Search.
