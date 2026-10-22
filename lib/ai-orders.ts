@@ -7,7 +7,9 @@ export const ORDER_WINDOW_DAYS = 90;
 export const MAX_ORDERS = 1000;
 export const ATTRIBUTION_PREFIX = "_wc_order_attribution_";
 // The attribution keys read from each order (the request asks for these only; never names, emails or addresses).
-export const ATTRIBUTION_KEYS = ["source_type", "utm_source", "utm_medium", "referrer", "session_entry"].map((k) => `${ATTRIBUTION_PREFIX}${k}`);
+// The plugin's fallback (agentscope-core 1.4+, opt-in): AI source noted in the WooCommerce session, saved on the order.
+export const PLUGIN_KEYS = { source: "_agsc_ai_referral_source", via: "_agsc_ai_referral_via", entry: "_agsc_ai_referral_entry" } as const;
+export const ATTRIBUTION_KEYS = [...["source_type", "utm_source", "utm_medium", "referrer", "session_entry"].map((k) => `${ATTRIBUTION_PREFIX}${k}`), ...Object.values(PLUGIN_KEYS)];
 
 // AI assistants, by referrer domain and utm_source value. Extend here.
 export const AI_REFERRAL_SOURCES: { source: string; domains: string[]; utm: string[] }[] = [
@@ -27,7 +29,7 @@ export const AI_REFERRAL_SOURCES: { source: string; domains: string[]; utm: stri
 export const AGENT_CHECKOUT_CREATED_VIA = /agentic|(^|[^a-z])acp([^a-z]|$)|instant[-_ ]?checkout|chatgpt|openai/i;
 
 export type WooOrder = { id: number; date_created_gmt?: string; total?: string; currency?: string; status?: string; created_via?: string; meta_data?: { key: string; value: unknown }[] };
-export type AiMatch = { source: string; via: "utm_source" | "referrer" | "session_entry" };
+export type AiMatch = { source: string; via: "utm_source" | "referrer" | "session_entry" | "plugin" };
 export type AiOrder = { order_id: number; ordered_at: string; total: number; currency: string; source: string; via: AiMatch["via"]; entry_path: string | null; agent_checkout: boolean };
 
 function hostOf(url: string): string | null {
@@ -44,6 +46,19 @@ const byUtm = (value: string | null | undefined) => {
   const v = (value ?? "").trim().toLowerCase();
   return v ? AI_REFERRAL_SOURCES.find((s) => s.utm.includes(v)) : undefined;
 };
+
+function metaValue(order: WooOrder, key: string): string | undefined {
+  const m = (order.meta_data ?? []).find((x) => x?.key === key);
+  return m && (typeof m.value === "string" || typeof m.value === "number") ? String(m.value) : undefined;
+}
+
+// The plugin's note, when WooCommerce attribution did not match: source must be one of the configured sources.
+export function pluginMatch(order: WooOrder): (AiMatch & { entry: string | null }) | null {
+  const source = metaValue(order, PLUGIN_KEYS.source);
+  if (!source || !AI_REFERRAL_SOURCES.some((s) => s.source === source)) return null;
+  const entry = metaValue(order, PLUGIN_KEYS.entry);
+  return { source, via: "plugin", entry: entry && entry.startsWith("/") ? entry.slice(0, 200) : null };
+}
 
 export function attributionOf(order: WooOrder): Record<string, string> {
   const out: Record<string, string> = {};
@@ -95,10 +110,11 @@ export function summarizeOrders(orders: WooOrder[]): OrdersSummary {
   const aiOrders: AiOrder[] = [];
   for (const o of orders) {
     const a = attributionOf(o);
-    if (a.source_type) withAttribution++;
+    if (a.source_type || metaValue(o, PLUGIN_KEYS.source)) withAttribution++;
     const agent = AGENT_CHECKOUT_CREATED_VIA.test(o.created_via ?? "");
     if (agent) agentCheckouts++;
-    const match = classifyAttribution(a);
+    const plugin = pluginMatch(o);
+    const match = classifyAttribution(a) ?? plugin;
     if (!match) continue;
     const total = Number(o.total);
     aiOrders.push({
@@ -108,7 +124,7 @@ export function summarizeOrders(orders: WooOrder[]): OrdersSummary {
       currency: /^[A-Z]{3}$/.test(o.currency ?? "") ? o.currency! : "",
       source: match.source,
       via: match.via,
-      entry_path: entryPath(a.session_entry),
+      entry_path: match.via === "plugin" ? plugin?.entry ?? null : entryPath(a.session_entry),
       agent_checkout: agent,
     });
   }

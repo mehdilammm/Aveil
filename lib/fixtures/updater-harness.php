@@ -7,6 +7,11 @@ $GLOBALS['agsc_tr'] = array();
 function get_transient($k) { return isset($GLOBALS['agsc_tr'][$k]) ? $GLOBALS['agsc_tr'][$k] : false; }
 function set_transient($k, $v, $ttl) { $GLOBALS['agsc_tr'][$k] = $v; return true; }
 function delete_transient($k) { unset($GLOBALS['agsc_tr'][$k]); return true; }
+$GLOBALS['agsc_opt'] = array();
+function get_option($k, $d = false) { return array_key_exists($k, $GLOBALS['agsc_opt']) ? $GLOBALS['agsc_opt'][$k] : $d; }
+function update_option($k, $v, $a = null) { $GLOBALS['agsc_opt'][$k] = $v; return true; }
+function delete_option($k) { unset($GLOBALS['agsc_opt'][$k]); return true; }
+function delete_site_transient($k) { return true; }
 function wp_parse_url($u, $c = -1) { return parse_url($u, $c); }
 function plugin_basename($f) { return 'agentscope-core/agentscope-core.php'; }
 function wp_delete_file($f) { @unlink($f); }
@@ -30,14 +35,19 @@ if ($mode === 'parse') {
     // $argv[3]: app JSON, $argv[4]: local zip that "download_url" returns
     $GLOBALS['body'] = $argv[3];
     $GLOBALS['zip'] = $argv[4];
+    $before = AGSC_Updater::inject_update((object) array('response' => array())); // no cache yet: no network call
+    $requests_before_cron = count($GLOBALS['requests']);
+    AGSC_Updater::refresh(); // the daily WP-Cron event
     $t = AGSC_Updater::inject_update((object) array('response' => array()));
-    AGSC_Updater::inject_update((object) array('response' => array())); // second check the same day: cached
+    AGSC_Updater::inject_update((object) array('response' => array())); // filters only read the cache
     $u = $t->response['agentscope-core/agentscope-core.php'] ?? null;
     $file = $u ? AGSC_Updater::verified_download(false, $u->package, null) : null;
     $ok = is_string($file);
     if ($ok) { @unlink($file); }
     echo json_encode(array(
         'update' => $u ? $u->new_version : null,
+        'requests_before_cron' => $requests_before_cron,
+        'offered_before_cron' => !empty($before->response),
         'requests' => count($GLOBALS['requests']),
         'request_url' => $GLOBALS['requests'][0]['url'] ?? null,
         'user_agent' => $GLOBALS['requests'][0]['args']['user-agent'] ?? null,

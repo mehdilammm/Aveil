@@ -1,7 +1,8 @@
 <?php
 /**
- * Update checker without a library: asks the AgentScope app once a day for the latest version, shows it in
- * WordPress like any plugin update, and checks the zip's SHA-256 before WordPress installs it.
+ * Update checker without a library: a daily WP-Cron event asks the AgentScope app for the latest version; the
+ * update filters only read that cached answer, so no admin page or visitor page ever waits for a network call.
+ * The update shows in WordPress like any plugin update, and the zip's SHA-256 is checked before it is installed.
  *
  * The request is a plain GET of /api/plugin/latest. It sends no store data: no site URL (the user agent is
  * "AgentScope-Core/<version>"), no token, no traffic. The app is the one the plugin is connected to, else the default.
@@ -15,8 +16,13 @@ final class AGSC_Updater {
     const DEFAULT_URL = 'https://agentscope-peach.vercel.app/api/plugin/latest';
     const CACHE       = 'agsc_update_info';
     const SLUG        = 'agentscope-core';
+    const CRON        = 'agsc_check_update';
 
     public static function init() {
+        add_action(self::CRON, array(__CLASS__, 'refresh'));
+        if (!wp_next_scheduled(self::CRON)) {
+            wp_schedule_event(time() + 10 * MINUTE_IN_SECONDS, 'daily', self::CRON);
+        }
         add_filter('pre_set_site_transient_update_plugins', array(__CLASS__, 'inject_update'));
         add_filter('plugins_api', array(__CLASS__, 'plugin_info'), 10, 3);
         add_filter('upgrader_pre_download', array(__CLASS__, 'verified_download'), 10, 3);
@@ -62,12 +68,18 @@ final class AGSC_Updater {
         );
     }
 
-    /** Latest info, fetched at most once a day (a failed check is also cached, so the app is not asked again). */
+    public static function deactivate() {
+        wp_clear_scheduled_hook(self::CRON);
+    }
+
+    /** Cached latest info only: never a network call (the cache is filled by the daily WP-Cron event). */
     public static function latest() {
-        $cached = get_transient(self::CACHE);
-        if (is_array($cached)) {
-            return isset($cached['version']) ? $cached : null;
-        }
+        $cached = get_option(self::CACHE);
+        return is_array($cached) && isset($cached['version']) ? $cached : null;
+    }
+
+    /** WP-Cron: asks the app once a day and caches the answer (a failed check keeps the previous answer). */
+    public static function refresh() {
         $url = self::endpoint();
         $response = wp_remote_get($url, array(
             'timeout'    => 10,
@@ -78,7 +90,11 @@ final class AGSC_Updater {
         if (!is_wp_error($response) && (int) wp_remote_retrieve_response_code($response) === 200) {
             $info = self::parse_latest(wp_remote_retrieve_body($response), wp_parse_url($url, PHP_URL_HOST));
         }
-        set_transient(self::CACHE, $info ? $info : array('checked' => time()), DAY_IN_SECONDS);
+        if ($info) {
+            update_option(self::CACHE, $info, false);
+            // WordPress rebuilds its update list from the filter on its next check.
+            delete_site_transient('update_plugins');
+        }
         return $info;
     }
 
@@ -150,7 +166,7 @@ final class AGSC_Updater {
         }
         if (!hash_equals($info['sha256'], (string) hash_file('sha256', $file))) {
             wp_delete_file($file);
-            delete_transient(self::CACHE);
+            delete_option(self::CACHE);
             return new WP_Error('agsc_checksum', 'The AgentScope Core update did not match its published SHA-256 checksum, so it was not installed.');
         }
         return $file;

@@ -4,7 +4,7 @@ Tags: woocommerce, ai, chatgpt, structured data, analytics
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,6 +18,7 @@ AgentScope Core checks whether your WooCommerce store gives AI shopping agents a
 * **Fix Center:** each finding with evidence, guidance and a link to the product editor. Rescan to confirm.
 * **AI Traffic (opt-in, off by default):** counts requests whose user agent or referrer names a known AI service (OpenAI, Anthropic, Perplexity, Google Gemini, Microsoft Copilot). Daily totals only: no IP address, no full user agent, no page URL, no cookie.
 * **Checks and checker tools are kept apart:** requests from the AgentScope app carry an X-AgentScope-Check header and are not counted. Bursts of several AI bots within a minute are counted apart as "likely checker tool" (a heuristic).
+* **AI referral on orders (opt-in, off by default):** when a visitor arrives from an AI assistant (ChatGPT, Perplexity, Gemini, Copilot, Claude and others, by referrer or utm_source), the AI source, how it was matched and the landing path are kept in the WooCommerce session and saved on the order (classic and block checkout, HPOS compatible). A fallback for WooCommerce Order Attribution. No IP, user agent, name or email. When the WP Consent API is active, nothing is stored without "statistics" consent.
 * **Reports:** findings and traffic CSV with formula-injection protection, scan history (last 30 scans).
 * **Optional connection to the AgentScope app:** sends the daily totals to your AgentScope account (see External services).
 
@@ -55,6 +56,10 @@ No. It only reads products, settings and pages.
 
 No. Traffic is stored as daily counts per AI source, type, page type and HTTP status. No IP address, user agent, page URL or cookie is stored or sent.
 
+= Does the plugin read my orders? =
+
+No. The optional AI-referral note only writes three fields on new orders (AI source, how it was matched, landing path). The AgentScope app can read recent orders through your WooCommerce API key to count AI-referred orders; it asks only for order id, date, total, currency, status, how the order was created and the attribution fields, never names, emails, phone numbers or addresses.
+
 = Do I need an AgentScope account? =
 
 No. Readiness checks and traffic counts work inside WordPress. The account is only needed to send the totals to the AgentScope app.
@@ -64,7 +69,7 @@ No. Readiness checks and traffic counts work inside WordPress. The account is on
 This plugin connects to the AgentScope app (https://agentscope-peach.vercel.app) in these cases only:
 
 * **Sending traffic totals** — only after you paste a connection code and click Connect. Once a day, and when you click "Send now" or clear test data, it sends the daily totals of the last days: day, AI source, type, confidence, page type, HTTP status, number of requests and the time of the last request. It also sends your store ID and an HMAC signature made with the connection token. No IP address, user agent, page URL, cookie, customer or order data is sent.
-* **Checking for plugin updates** (builds distributed from the AgentScope app only, not the WordPress.org build) — once a day, a GET request to /api/plugin/latest that returns the latest version, its download link and SHA-256 checksum. It sends no store data and no token; the request's user agent is "AgentScope-Core/<version>". Like any web request, it reveals your server's IP address to the app's host.
+* **Checking for plugin updates** (builds distributed from the AgentScope app only, not the WordPress.org build) — once a day from WP-Cron (never during a page load), a GET request to /api/plugin/latest that returns the latest version, its download link and SHA-256 checksum. It sends no store data and no token; the request's user agent is "AgentScope-Core/<version>". Like any web request, it reveals your server's IP address to the app's host.
 
 The AgentScope app also sends requests *to* your store when you run a check there (with the X-AgentScope-Check header); this plugin does not count them.
 
@@ -79,6 +84,10 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 * GET /wp-json/agentscope-core/v1/selftest
 
 == Changelog ==
+
+= 1.4.0 =
+* Optional AI referral note on orders (session → order meta), classic and block checkout; HPOS and block checkout compatibility declared.
+* No network call during any page load: the update check runs from WP-Cron, and "Connect" / "Send now" / clearing test data send in the background.
 
 = 1.3.1 =
 * Test release for the update checker: no functional change.
@@ -102,6 +111,9 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 * Clean rebuild: paginated scan, scan history, Emerald admin workspace.
 
 == Upgrade Notice ==
+
+= 1.4.0 =
+Adds an optional AI referral note on orders, and moves all network calls to background tasks.
 
 = 1.3.1 =
 Test release for the update checker; nothing else changes.

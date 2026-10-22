@@ -1,9 +1,10 @@
 {
-  "version": "1.3.1",
-  "file": "agentscope-core-1.3.1.zip",
-  "sha256": "bc4160425ab1cf491796a0981fbe44744c75ce970e67c467b7555a3eebd11ef4",
+  "version": "1.4.0",
+  "file": "agentscope-core-1.4.0.zip",
+  "sha256": "635fb81158744206d3776c58b1e2631e557c31aeb174ac04c1e40e33bab4c4de",
   "changelog": [
-    "Test release for the update checker: no functional change."
+    "Optional AI referral note on orders (session → order meta), classic and block checkout; HPOS and block checkout compatibility declared.",
+    "No network call during any page load: the update check runs from WP-Cron, and \"Connect\" / \"Send now\" / clearing test data send in the background."
   ],
   "requires": "6.0",
   "requires_php": "7.4",

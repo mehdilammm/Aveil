@@ -13,7 +13,7 @@ create table public.ai_orders (
   total numeric(14, 2) not null default 0,
   currency text not null default '' check (currency = '' or currency ~ '^[A-Z]{3}$'),
   source text not null check (char_length(source) between 1 and 40),
-  via text not null check (via in ('utm_source', 'referrer', 'session_entry')),
+  via text not null check (via in ('utm_source', 'referrer', 'session_entry', 'plugin')),
   entry_path text check (entry_path is null or char_length(entry_path) <= 200),
   agent_checkout boolean not null default false,
   created_at timestamptz not null default now(),

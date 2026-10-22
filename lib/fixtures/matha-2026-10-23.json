@@ -1,0 +1,18 @@
+{
+  "note": "Real answers from matha.site (WooCommerce 11.2.1) read on 2026-10-23 through its WordPress REST API, with the same parameters AgentScope sends.",
+  "orders": [],
+  "guest_checkout": "yes",
+  "allowed_countries": "all",
+  "ship_to_countries": "",
+  "zones": [
+    { "id": 0, "name": "Locations not covered by your other zones", "locations": [], "methods": [] },
+    { "id": 1, "name": "Marrakech", "locations": [{ "code": "MA:MA-07", "type": "state" }], "methods": [{ "method_id": "flat_rate", "enabled": true }] },
+    { "id": 2, "name": "Morocco", "locations": [{ "code": "MA", "type": "country" }], "methods": [{ "method_id": "flat_rate", "enabled": true }] }
+  ],
+  "gateways": [
+    { "id": "bacs", "title": "Direct bank transfer", "enabled": false },
+    { "id": "cheque", "title": "Check payments", "enabled": false },
+    { "id": "cod", "title": "Cash on delivery", "enabled": true }
+  ],
+  "products": { "total": 13, "outOfStock": 0, "needShipping": 13 }
+}

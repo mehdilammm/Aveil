@@ -10,6 +10,8 @@ wp_clear_scheduled_hook('agsc_daily_purge');
 wp_clear_scheduled_hook('agsc_send_traffic');
 delete_transient('agsc_recent_bots');
 delete_transient('agsc_update_info');
+delete_option('agsc_update_info');
+wp_clear_scheduled_hook('agsc_check_update');
 $agsc_settings = get_option('agsc_settings', array());
 if (is_array($agsc_settings) && !empty($agsc_settings['delete_on_uninstall'])) {
     global $wpdb;

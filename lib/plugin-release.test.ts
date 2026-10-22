@@ -51,8 +51,9 @@ describe.skipIf(!hasPhp)("plugin update checker (PHP)", () => {
     expect(harness("parse", good.replace("/downloads/", "/evil/"), "app.test")).toBeNull();
   });
 
-  it("offers the update once a day, sends no store data, installs only a zip with the right SHA-256", () => {
+  it("asks only from WP-Cron (filters never call the network), sends no store data, installs only a zip with the right SHA-256", () => {
     const r = harness("flow", JSON.stringify(latestPluginInfo("https://agentscope-peach.vercel.app")), zip);
+    expect(r).toMatchObject({ requests_before_cron: 0, offered_before_cron: false });
     expect(r).toMatchObject({ update: PLUGIN_RELEASE.version, requests: 1, request_url: "https://agentscope-peach.vercel.app/api/plugin/latest", sent_body: false, installed: true, error: null });
     expect(r.user_agent).toMatch(/^AgentScope-Core\/[0-9.]+$/);
   });
