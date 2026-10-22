@@ -2,6 +2,7 @@
 // data AgentScope observed (scan findings, AI answers, plugin counts, WooCommerce orders). No estimates.
 import { areaOf } from "./categories";
 import type { Severity } from "./rules";
+import { aiOrdersLabel } from "./ai-orders";
 
 export type StageStatus = "ok" | "problem" | "unknown";
 export type Basis = "observed" | "heuristic" | "unavailable";
@@ -99,7 +100,7 @@ export function buildFunnel(input: FunnelInput): Stage[] {
           question: "Do people come from AI?",
           status: p.aiReferrals + orderReferrals === 0 ? "problem" : "ok",
           basis: "observed",
-          value: `${p.connected ? `${p.aiReferrals} visits from AI links in ${p.days} days` : "Plugin not connected"}${o.kind === "ok" ? ` · ${o.aiOrders} AI-referred orders` : ""}`,
+          value: `${p.connected ? `${p.aiReferrals} visits from AI links in ${p.days} days` : "Plugin not connected"}${o.kind === "ok" ? ` · ${aiOrdersLabel(o.aiOrders)}` : ""}`,
           detail: "Visits whose referrer is an AI assistant (plugin), and orders whose Order Attribution source is one.",
           reasons: [],
         },
@@ -118,8 +119,8 @@ export function buildFunnel(input: FunnelInput): Stage[] {
       question: "Do they buy?",
       status: o.aiOrders === 0 ? "problem" : "ok",
       basis: "observed",
-      value: o.aiOrders === 0 ? "No AI-referred orders yet" : `${o.aiOrders} AI-referred orders · ${money(o.revenue)}`,
-      detail: `Last ${o.days} days, ${o.scanned} orders read. Agent checkout: ${o.agentCheckouts ? `${o.agentCheckouts} orders show agent-checkout evidence` : "not measurable yet"}.`,
+      value: o.aiOrders === 0 ? "No AI-referred orders yet" : `${aiOrdersLabel(o.aiOrders)} · ${money(o.revenue)}`,
+      detail: `Last ${o.days} days, ${o.scanned} order${o.scanned === 1 ? "" : "s"} read. Agent checkout: ${o.agentCheckouts ? `${o.agentCheckouts} order${o.agentCheckouts === 1 ? " shows" : "s show"} agent-checkout evidence` : "not measurable yet"}.`,
       reasons: checkoutReasons,
     });
   }

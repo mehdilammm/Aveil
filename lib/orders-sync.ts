@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ATTRIBUTION_KEYS, attributionStatus, MAX_ORDERS, ORDER_WINDOW_DAYS, summarizeOrders } from "./ai-orders";
+import { ATTRIBUTION_KEYS, attributionStatus, MAX_ORDERS, ORDER_WINDOW_DAYS, reconcileFrom, staleOrderIds, summarizeOrders } from "./ai-orders";
 import { PLANS, type PlanId } from "./plans";
 import { fetchRecentOrders, type WooCredentials } from "./woo";
 
@@ -14,6 +14,8 @@ export async function planOf(admin: SupabaseClient, storeId: string): Promise<Pl
 }
 
 // Reads the last 90 days of orders, keeps the AI-referred ones (non-personal fields only) and records the result.
+// Each sync replaces what it covers: orders updated in place (status, total, refunds), and stored orders that
+// are no longer in the result removed, so revenue is recomputed rather than added to.
 export async function syncOrders(admin: SupabaseClient, store: Store, creds: WooCredentials): Promise<{ status: string; reason: string | null; aiOrders: number }> {
   const result = await fetchRecentOrders(store.url, creds, ORDER_WINDOW_DAYS, MAX_ORDERS, ATTRIBUTION_KEYS);
   const base = { store_id: store.id, owner_id: store.owner_id, synced_at: new Date().toISOString() };
@@ -28,6 +30,13 @@ export async function syncOrders(admin: SupabaseClient, store: Store, creds: Woo
       summary.aiOrders.map((o) => ({ ...o, store_id: store.id, owner_id: store.owner_id })),
       { onConflict: "store_id,order_id" },
     );
+    if (error) throw error;
+  }
+  const { data: stored, error: readError } = await admin.from("ai_orders").select("order_id").eq("store_id", store.id).gte("ordered_at", reconcileFrom(result.data));
+  if (readError) throw readError;
+  const stale = staleOrderIds((stored ?? []).map((r: { order_id: number | string }) => Number(r.order_id)), summary.aiOrders.map((o) => o.order_id));
+  for (let i = 0; i < stale.length; i += 200) {
+    const { error } = await admin.from("ai_orders").delete().eq("store_id", store.id).in("order_id", stale.slice(i, i + 200));
     if (error) throw error;
   }
   // Orders older than the window are dropped.

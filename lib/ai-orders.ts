@@ -5,6 +5,8 @@
 
 export const ORDER_WINDOW_DAYS = 90;
 export const MAX_ORDERS = 1000;
+// Order statuses that count as a sale. pending, cancelled, failed, refunded, draft and trash do not.
+export const COUNTED_STATUSES = ["processing", "completed", "on-hold"];
 export const ATTRIBUTION_PREFIX = "_wc_order_attribution_";
 // The attribution keys read from each order (the request asks for these only; never names, emails or addresses).
 // The plugin's fallback (agentscope-core 1.4+, opt-in): AI source noted in the WooCommerce session, saved on the order.
@@ -28,9 +30,9 @@ export const AI_REFERRAL_SOURCES: { source: string; domains: string[]; utm: stri
 // API was removed from core in WooCommerce 11.2). Matched against the order's created_via.
 export const AGENT_CHECKOUT_CREATED_VIA = /agentic|(^|[^a-z])acp([^a-z]|$)|instant[-_ ]?checkout|chatgpt|openai/i;
 
-export type WooOrder = { id: number; date_created_gmt?: string; total?: string; currency?: string; status?: string; created_via?: string; meta_data?: { key: string; value: unknown }[] };
+export type WooOrder = { id: number; date_created_gmt?: string; total?: string; currency?: string; status?: string; created_via?: string; meta_data?: { key: string; value: unknown }[]; refunds?: { total?: string | number }[] };
 export type AiMatch = { source: string; via: "utm_source" | "referrer" | "session_entry" | "plugin" };
-export type AiOrder = { order_id: number; ordered_at: string; total: number; currency: string; source: string; via: AiMatch["via"]; entry_path: string | null; agent_checkout: boolean };
+export type AiOrder = { order_id: number; ordered_at: string; total: number; currency: string; source: string; via: AiMatch["via"]; entry_path: string | null; agent_checkout: boolean; refunded: number };
 
 function hostOf(url: string): string | null {
   try {
@@ -97,6 +99,16 @@ export function entryPath(sessionEntry: string | undefined): string | null {
   }
 }
 
+const money2 = (n: number) => Math.round(n * 100) / 100;
+
+// Sum of the order's refunds (WooCommerce lists them with negative totals).
+export function refundedOf(order: WooOrder): number {
+  return money2((order.refunds ?? []).reduce((sum, r) => {
+    const v = Math.abs(Number(r?.total));
+    return Number.isFinite(v) ? sum + v : sum;
+  }, 0));
+}
+
 export type OrdersSummary = {
   scanned: number;
   withAttribution: number;
@@ -109,6 +121,7 @@ export function summarizeOrders(orders: WooOrder[]): OrdersSummary {
   let agentCheckouts = 0;
   const aiOrders: AiOrder[] = [];
   for (const o of orders) {
+    if (!COUNTED_STATUSES.includes(o.status ?? "")) continue;
     const a = attributionOf(o);
     if (a.source_type || metaValue(o, PLUGIN_KEYS.source)) withAttribution++;
     const agent = AGENT_CHECKOUT_CREATED_VIA.test(o.created_via ?? "");
@@ -117,10 +130,14 @@ export function summarizeOrders(orders: WooOrder[]): OrdersSummary {
     const match = classifyAttribution(a) ?? plugin;
     if (!match) continue;
     const total = Number(o.total);
+    const gross = Number.isFinite(total) ? money2(total) : 0;
+    const refunded = Math.min(refundedOf(o), gross);
+    if (gross > 0 && refunded >= gross) continue; // fully refunded: not a sale
     aiOrders.push({
       order_id: o.id,
       ordered_at: o.date_created_gmt ? new Date(`${o.date_created_gmt.replace(/Z$/, "")}Z`).toISOString() : new Date(0).toISOString(),
-      total: Number.isFinite(total) ? Math.round(total * 100) / 100 : 0,
+      total: gross,
+      refunded,
       currency: /^[A-Z]{3}$/.test(o.currency ?? "") ? o.currency! : "",
       source: match.source,
       via: match.via,
@@ -144,13 +161,35 @@ export function attributionStatus(s: OrdersSummary): SyncStatus {
   return { status: "ok", reason: null };
 }
 
-export function revenueByCurrency(orders: Pick<AiOrder, "total" | "currency">[]): { currency: string; total: number; orders: number }[] {
+// Net revenue: order totals minus what was refunded. Always computed from the stored orders, never accumulated.
+export function revenueByCurrency(orders: (Pick<AiOrder, "total" | "currency"> & { refunded?: number })[]): { currency: string; total: number; orders: number }[] {
   const m = new Map<string, { total: number; orders: number }>();
   for (const o of orders) {
     const e = m.get(o.currency) ?? { total: 0, orders: 0 };
-    e.total = Math.round((e.total + o.total) * 100) / 100;
+    e.total = money2(e.total + o.total - (o.refunded ?? 0));
     e.orders++;
     m.set(o.currency, e);
   }
   return [...m.entries()].map(([currency, v]) => ({ currency, ...v })).sort((a, b) => b.total - a.total);
+}
+
+// "1 AI-referred order", "2 AI-referred orders".
+export function aiOrdersLabel(n: number): string {
+  return `${n} AI-referred order${n === 1 ? "" : "s"}`;
+}
+
+// Reconcile: stored AI orders inside the range this sync fully covered that are no longer in its result
+// (cancelled, failed, refunded, trashed, deleted, or no longer AI-referred) are removed.
+export function staleOrderIds(stored: number[], current: number[]): number[] {
+  const keep = new Set(current);
+  return stored.filter((id) => !keep.has(id));
+}
+
+// Start of the range the sync covered: the whole window, or (when the read stopped at MAX_ORDERS) from the
+// oldest order it read, so orders it did not reach are left alone.
+export function reconcileFrom(orders: WooOrder[], now = Date.now()): string {
+  const windowStart = new Date(now - ORDER_WINDOW_DAYS * 86_400_000).toISOString();
+  if (orders.length < MAX_ORDERS) return windowStart;
+  const dates = orders.map((o) => (o.date_created_gmt ? Date.parse(`${o.date_created_gmt.replace(/Z$/, "")}Z`) : NaN)).filter(Number.isFinite);
+  return dates.length ? new Date(Math.min(...dates)).toISOString() : new Date(now).toISOString();
 }
