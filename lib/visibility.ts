@@ -2,7 +2,7 @@
 // "Mentioned" is a text match in the answer. Other shop names come from a structured-output request
 // (with a type per name) or, as a fallback, from the answer's list items; both are filtered.
 
-export const MAX_PROMPTS = 15;
+export const MAX_PROMPTS = 25; // highest plan limit; each plan has its own (PLANS[plan].visibilityQuestions)
 
 export type EngineId = "gemini" | "mistral";
 export const ENGINES: EngineId[] = ["gemini", "mistral"];

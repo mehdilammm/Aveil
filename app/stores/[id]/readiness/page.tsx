@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatDate } from "@/components/badges";
-import { deltasForScans, getStore, listScans } from "@/lib/data";
+import { deltasForScans, getStore, listScans, openJobId } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "../run-scan-button";
 
@@ -10,6 +10,7 @@ export default async function ReadinessPage({ params }: { params: Promise<{ id: 
   const { supabase } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
+  const scanJobId = await openJobId(supabase, store.id, "scan");
 
   const scans = await listScans(supabase, id, 30);
   const deltas = await deltasForScans(supabase, scans);
@@ -20,7 +21,7 @@ export default async function ReadinessPage({ params }: { params: Promise<{ id: 
         <h1>Store Readiness</h1>
         <p className="sub">Every scan compared with the one before it.</p>
       </div>
-      <RunScanButton storeId={store.id} />
+      <RunScanButton storeId={store.id} openJobId={scanJobId} />
       <h2>Scan history</h2>
       {scans.length === 0 ? (
         <p className="muted">No scans yet.</p>

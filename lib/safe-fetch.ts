@@ -1,4 +1,5 @@
 import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { lookup } from "node:dns";
 import { isIP } from "node:net";
 import { Agent, fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
@@ -46,11 +47,21 @@ export function urlProblem(u: URL, allowHttp = false): string | null {
 
 export class BlockedUrlError extends Error {}
 
+// Counts the outbound requests made inside countRequests(...), e.g. one scan step (per-scan cost log).
+const counter = new AsyncLocalStorage<{ requests: number }>();
+export async function countRequests<T>(run: () => Promise<T>): Promise<{ result: T; requests: number }> {
+  const box = { requests: 0 };
+  const result = await counter.run(box, run);
+  return { result, requests: box.requests };
+}
+
 // One request (no redirect following) through the guarded client. Throws BlockedUrlError for refused targets.
 export async function guardedFetch(url: URL, init: Omit<UndiciRequestInit, "dispatcher" | "redirect"> & { timeoutMs?: number } = {}) {
   const problem = urlProblem(url);
   if (problem) throw new BlockedUrlError(problem);
   const { timeoutMs, ...rest } = init;
+  const box = counter.getStore();
+  if (box) box.requests++;
   try {
     return await undiciFetch(url, { ...rest, dispatcher: defaultAgent, redirect: "manual", signal: rest.signal ?? AbortSignal.timeout(timeoutMs ?? TIMEOUT_MS) });
   } catch (err) {

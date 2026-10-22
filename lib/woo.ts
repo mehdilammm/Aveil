@@ -88,6 +88,12 @@ async function getAll<T>(baseUrl: string, path: string, params: Record<string, s
   return { items, total, totalPages, truncated: totalPages > MAX_PAGES };
 }
 
+// One page (100) of published products, for scans that run page by page.
+export function fetchPublishedProductsPage(baseUrl: string, creds: WooCredentials, page: number) {
+  return getPage<WooProduct>(baseUrl, "/products", { status: "publish", orderby: "id", order: "asc", per_page: String(PER_PAGE), page: String(page) }, creds);
+}
+export const MAX_PRODUCT_PAGES = MAX_PAGES;
+
 export function fetchPublishedProducts(baseUrl: string, creds: WooCredentials) {
   return getAll<WooProduct>(baseUrl, "/products", { status: "publish", orderby: "id", order: "asc" }, creds);
 }

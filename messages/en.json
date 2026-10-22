@@ -1,5 +1,9 @@
 {
-  "language": { "label": "Language", "en": "English", "ar": "العربية" },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "ar": "العربية"
+  },
   "footer": {
     "check": "Free check",
     "pricing": "Pricing",
@@ -7,5 +11,48 @@
     "terms": "Terms",
     "privacy": "Privacy",
     "note": "© {year} {name}. Read-only checks; no promise of AI visibility or sales."
+  },
+  "scan": {
+    "run": "Run scan",
+    "running": "Scanning in the background…",
+    "queued": "Queued: starting within a minute.",
+    "stepProducts": "Reading products (page {page})…",
+    "stepStore": "Checking store pages, bot access and checkout…",
+    "stepPages": "Checking product pages ({checked} of {of})…",
+    "stepDone": "Done.",
+    "retry": "attempt {attempt} of {max}",
+    "failed": "The scan failed.",
+    "network": "Network error. Please try again.",
+    "leave": "You can leave this page: the scan keeps running."
+  },
+  "visibilityRun": {
+    "run": "Run questions now",
+    "running": "Asking the AI engines in the background…",
+    "queued": "Queued: starting within a minute.",
+    "asking": "Asking the questions, one at a time.",
+    "leave": "You can leave this page: the run keeps going.",
+    "failed": "The run failed.",
+    "network": "Network error. Please try again.",
+    "testRun": "Re-run with citations (test)",
+    "testRunning": "Running with Google Search…",
+    "testNote": "Owner only. Skips the weekly wait (at most 3 runs a day); grounding limits still apply (50 a day, 1000 a month).",
+    "testDone": "Done. See Citations."
+  },
+  "scanDetail": {
+    "cost": "This scan made {requests} requests to the store and its public pages. AI cost: {cost} USD (no AI service is called by a scan).",
+    "sampleSales": "Product pages checked one by one: {n}, best sellers first.",
+    "sampleCategories": "Product pages checked one by one: {n}, one per category in turn (no sales recorded yet).",
+    "schemaTitle": "Who writes the structured data on each product page",
+    "page": "Page",
+    "source": "Source",
+    "productId": "Product @id",
+    "unavailable": "Unavailable: {reason}",
+    "duplicate": "two Product nodes",
+    "noProduct": "No Product node",
+    "src_woocommerce": "WooCommerce",
+    "src_yoast": "Yoast SEO",
+    "src_rank_math": "Rank Math",
+    "src_theme_or_other": "Theme or another plugin",
+    "schemaNote": "Fixes will extend this Product (its @id) instead of adding a second one."
   }
 }

@@ -3,12 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { planOf } from "@/lib/orders-sync";
+import { PLANS } from "@/lib/plans";
 import { getUser } from "@/lib/supabase/server";
 import { canEdit, storeAccess } from "@/lib/workspace";
 import { QUESTION_LANGUAGES, QUESTIONS_GEMINI_SCHEMA, QUESTIONS_JSON_SCHEMA, questionsPrompt, validateQuestions, type QuestionLanguage } from "@/lib/question-suggest";
 import { runTask } from "@/lib/task-models";
 import { recordUsage } from "@/lib/usage-store";
-import { brandTerms, MAX_PROMPTS, suggestPrompts } from "@/lib/visibility";
+import { brandTerms, suggestPrompts } from "@/lib/visibility";
 import { fetchProductSample, fetchSettings, fetchTopCategories } from "@/lib/woo";
 
 // basis: "observed" when written from the store's products by a helper model, "heuristic" for the template fallback.
@@ -35,7 +37,8 @@ export async function addPrompts(_: PromptState, form: FormData): Promise<Prompt
   if (texts.some((t) => t.length < 3 || t.length > 300)) return { error: "Each question must be 3 to 300 characters." };
 
   const { count } = await supabase.from("visibility_prompts").select("id", { count: "exact", head: true }).eq("store_id", store.id);
-  if ((count ?? 0) + texts.length > MAX_PROMPTS) return { error: `A store can have at most ${MAX_PROMPTS} questions.` };
+  const limit = PLANS[await planOf(createAdminClient(), store.id)].visibilityQuestions;
+  if ((count ?? 0) + texts.length > limit) return { error: `This plan allows ${limit} questions per store.` };
 
   const { error } = await supabase.from("visibility_prompts").insert(texts.map((prompt) => ({ store_id: store.id, owner_id: user.id, prompt })));
   if (error) return { error: error.code === "23505" ? "That question is already in the list." : "Could not save the question." };

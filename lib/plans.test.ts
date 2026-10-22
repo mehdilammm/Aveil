@@ -8,8 +8,8 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: () =>
 describe("plans", () => {
   it("prices and limits come from one config", () => {
     expect(PLAN_ORDER.map((id) => [id, PLANS[id].priceUsdPerMonth, PLANS[id].stores])).toEqual([["free", 0, 1], ["pro", 29, 3], ["agency", 49, 10]]);
-    expect(PLANS.free).toMatchObject({ scanEvery: "month", visibilityQuestions: 5, visibilityPer: "month", cta: "signup" });
-    expect(PLANS.pro).toMatchObject({ scanEvery: "week", visibilityQuestions: 15, visibilityPer: "week", cta: "waitlist" });
+    expect(PLANS.free).toMatchObject({ scanEvery: "month", visibilityQuestions: 5, visibilityPer: "month", sampleProducts: 5, cta: "signup" });
+    expect(PLANS.pro).toMatchObject({ scanEvery: "week", visibilityQuestions: 25, visibilityPer: "week", sampleProducts: 50, cta: "waitlist" });
     expect(PLANS.agency).toMatchObject({ workspaceMembers: true, cta: "waitlist" });
     expect([isPaidPlan("pro"), isPaidPlan("agency"), isPaidPlan("free")]).toEqual([true, true, false]);
   });

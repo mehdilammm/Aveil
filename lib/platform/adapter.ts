@@ -33,6 +33,8 @@ export interface StorePlatformAdapter {
   readonly platform: Platform;
   readonly storeUrl: string;
   fetchProducts(): Promise<ProductList>;
+  // One page of the catalog (1-based) with the platform's page count, for scans that run page by page.
+  fetchProductsPage(page: number): Promise<{ items: WooProduct[]; total: number; totalPages: number }>;
   fetchVariations(productId: number): Promise<WooVariation[]>;
   fetchCategories(): Promise<Source<Category[]>>;
   fetchAttributes(): Promise<Source<Attribute[]>>;

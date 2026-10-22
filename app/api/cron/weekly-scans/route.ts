@@ -1,6 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { runScan } from "@/lib/scan";
+import { JOB_HANDLERS } from "@/lib/job-handlers";
+import { tick } from "@/lib/jobs";
+import { enqueueScan } from "@/lib/scan";
 import { dueForWeeklyScan } from "@/lib/schedule";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -19,7 +21,8 @@ function authorized(header: string | null): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// Called daily by Vercel Cron (see vercel.json). Scans each store whose last complete scan is 7+ days old.
+// Called daily by Vercel Cron (see vercel.json). Queues a scan job for each store whose last complete scan is
+// 7+ days old, then runs the queue for the rest of its time (pg_cron's minute tick does the same all day).
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) return NextResponse.json({ error: "CRON_SECRET is not set; scheduled scans are off." }, { status: 503 });
   if (!authorized(request.headers.get("authorization"))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -27,15 +30,11 @@ export async function GET(request: Request) {
   const started = Date.now();
   const now = new Date();
   const admin = createAdminClient();
-  const { data: stores, error } = await admin.from("stores").select("id, owner_id, url").order("created_at");
+  const { data: stores, error } = await admin.from("stores").select("id, owner_id, url, workspace_id").order("created_at");
   if (error) return NextResponse.json({ error: "Could not list stores" }, { status: 500 });
 
-  const results: { storeId: string; scanId?: string; error?: string; skipped?: string }[] = [];
+  const results: { storeId: string; jobId?: string; error?: string }[] = [];
   for (const store of stores ?? []) {
-    if (Date.now() - started > TIME_BUDGET_MS) {
-      results.push({ storeId: store.id, skipped: "time budget used; next run" });
-      continue;
-    }
     const { data: scans } = await admin
       .from("scans")
       .select("status, trigger, created_at, finished_at")
@@ -51,12 +50,12 @@ export async function GET(request: Request) {
     };
     if (!dueForWeeklyScan(state, now)) continue;
     try {
-      const r = await runScan(admin, store, "scheduled");
-      results.push({ storeId: store.id, ...r });
+      results.push({ storeId: store.id, ...(await enqueueScan(admin, store, "scheduled", null)) });
     } catch (err) {
-      console.error("scheduled scan failed", store.id, err instanceof Error ? err.message : "unknown");
-      results.push({ storeId: store.id, error: "scan failed" });
+      console.error("scheduled scan could not be queued", store.id, err instanceof Error ? err.message : "unknown");
+      results.push({ storeId: store.id, error: "could not queue" });
     }
   }
-  return NextResponse.json({ ran: results.filter((r) => r.scanId).length, results });
+  const ticked = await tick(admin, JOB_HANDLERS, Math.max(0, TIME_BUDGET_MS - (Date.now() - started))).catch(() => ({ ran: 0, results: [] }));
+  return NextResponse.json({ queued: results.filter((r) => r.jobId && !r.error).length, results, ran: ticked.ran });
 }

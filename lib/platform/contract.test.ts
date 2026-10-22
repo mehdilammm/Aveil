@@ -16,6 +16,9 @@ function contract(name: string, make: (opts: { failing?: boolean }) => StorePlat
       expect(r.items.length).toBeGreaterThan(0);
       for (const p of r.items) expect(typeof p.id === "number" && typeof p.name === "string").toBe(true);
       if (!r.truncated) expect(r.total).toBe(r.items.length);
+      const page = await make({}).fetchProductsPage(1);
+      expect(page.totalPages).toBeGreaterThanOrEqual(1);
+      expect(page.items.length).toBeLessThanOrEqual(100);
     });
 
     it("categories and attributes come back as a Source: data, or a reason", async () => {
@@ -55,6 +58,7 @@ function contract(name: string, make: (opts: { failing?: boolean }) => StorePlat
 function wooDeps(failing: boolean): WooDeps {
   const deps = {
     fetchPublishedProducts: async () => ({ items: catalog.products as never[], total: catalog.products.length, totalPages: 1, truncated: false }),
+    fetchPublishedProductsPage: async () => ({ items: catalog.products as never[], total: catalog.products.length, totalPages: 1 }),
     fetchPublishedVariations: async () => [],
     fetchCategories: async () => (failing ? { ok: false as const, reason: "Product categories could not be read: HTTP 500." } : { ok: true as const, data: catalog.categories }),
     fetchAttributes: async () => ({ ok: true as const, data: catalog.attributes }),
