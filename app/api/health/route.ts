@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
+import { GROUNDING_DAILY_LIMIT, GROUNDING_MODEL, GROUNDING_MONTHLY_LIMIT, groundingFlag } from "@/lib/grounding";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ function isHttpsUrl(v: string) {
 
 const looksLikeKey = (v: string) => /^sb_(publishable|secret)_/.test(v) || v.split(".").length === 3;
 
-// Shows whether configuration is present and working. Never returns values.
+// Shows whether configuration is present and working. Never returns secret values (the grounding on/off flag is shown).
 // Signed-in users only; if ADMIN_EMAILS (comma separated) is set, only those users.
 export async function GET() {
   const { user } = await getUser().catch(() => ({ user: null }));
@@ -66,5 +67,18 @@ export async function GET() {
 
   const ok = Object.values(env).every((c) => c.ok) && serviceRole.ok;
   const optional = { CRON_SECRET: envCheck("CRON_SECRET", (v) => v.length >= 16), GEMINI_API_KEY: envCheck("GEMINI_API_KEY"), MISTRAL_API_KEY: envCheck("MISTRAL_API_KEY"), GROQ_API_KEY: envCheck("GROQ_API_KEY"), NVIDIA_API_KEY: envCheck("NVIDIA_API_KEY") };
-  return NextResponse.json({ ok, env, serviceRole, optional }, { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } });
+  // Grounding as the server reads it now (the flag is not a secret), and today's / this month's usage.
+  const flag = groundingFlag();
+  const grounding: Record<string, unknown> = { enabled: flag.enabled, flag: flag.read, model: GROUNDING_MODEL, dailyLimit: GROUNDING_DAILY_LIMIT, monthlyLimit: GROUNDING_MONTHLY_LIMIT };
+  if (serviceRole.ok) {
+    const now = new Date().toISOString();
+    const admin = createAdminClient();
+    const [{ data: day }, { data: month }] = await Promise.all([
+      admin.from("grounding_usage_daily").select("count").eq("day", now.slice(0, 10)).maybeSingle(),
+      admin.from("grounding_usage").select("count").eq("month", `${now.slice(0, 7)}-01`).maybeSingle(),
+    ]);
+    grounding.usedToday = day?.count ?? 0;
+    grounding.usedThisMonth = month?.count ?? 0;
+  }
+  return NextResponse.json({ ok, env, serviceRole, optional, grounding }, { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } });
 }

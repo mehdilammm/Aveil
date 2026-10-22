@@ -188,3 +188,8 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
   word for word, Citations show UNAVAILABLE with it, and the question is asked again without grounding.
 - The old owner-only policies are turned off (`ALTER POLICY ... false`, migration 20261022141000); DROP needs an
   interactive confirmation the migration tool could not get.
+- Grounding is never silent: each Gemini answer stores "grounding skipped: <reason>" (flag off and how the server
+  read it, limit reached, model not configured) or Google's refusal. The flag accepts true / 1 / yes / on, quoted or
+  not. `/api/health` shows `grounding.enabled`, the flag as read, the model and today's / this month's usage.
+  "Re-run with citations (test)" (workspace owner, grounding on): skips the weekly wait, at most 3 runs per store a
+  day, grounding caps still apply, stored as a normal run.

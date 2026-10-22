@@ -14,7 +14,7 @@ export default async function CitationsPage({ params }: { params: Promise<{ id: 
   const store = await getStore(supabase, id);
   if (!store) notFound();
 
-  const { data: runs } = await supabase.from("visibility_runs").select("id, created_at").eq("store_id", id).eq("status", "complete").eq("grounding", true).order("created_at", { ascending: false }).limit(1);
+  const { data: runs } = await supabase.from("visibility_runs").select("id, created_at").eq("store_id", id).eq("status", "complete").order("created_at", { ascending: false }).limit(1);
   const run = runs?.[0];
   const { data: rows } = run
     ? await supabase.from("visibility_results").select("prompt, competitors, citations, grounded").eq("run_id", run.id).eq("engine", "gemini").not("answer", "is", null)
@@ -49,7 +49,7 @@ export default async function CitationsPage({ params }: { params: Promise<{ id: 
         <div className="card empty"><strong>No grounded answers yet</strong><p>{groundingEnabled() ? "Run the questions in AI Visibility." : "Turn grounding on, then run the questions."}</p></div>
       ) : (
         <>
-          <p className="muted small">Latest run with grounding: {formatDate(run.created_at)}. {summary.grounded} of {list.length} answers have sources.</p>
+          <p className="muted small">Latest run: {formatDate(run.created_at)}. {summary.grounded} of {list.length} answers have sources.</p>
           {list.filter((r) => r.citations && !isGrounding(r.citations)).length > 0 && (
             <div className="card">
               <p className="small"><BasisBadge basis="unavailable" /> Citations unavailable for {list.filter((r) => r.citations && !isGrounding(r.citations)).length} answers:</p>

@@ -36,6 +36,40 @@ export function RunVisibilityButton({ storeId, disabledReason }: { storeId: stri
   );
 }
 
+// Workspace owner only: re-run now with Google Search grounding (skips the weekly wait; grounding caps still apply).
+export function TestRunButton({ storeId }: { storeId: string }) {
+  const router = useRouter();
+  const running = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function run() {
+    if (running.current) return;
+    running.current = true;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/stores/${storeId}/visibility`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ test: true }) });
+      const body = await res.json().catch(() => ({}));
+      setMessage(body.error ?? "Done. See Citations.");
+      router.refresh();
+    } catch {
+      setMessage("Network error. Please try again.");
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <button className="secondary" onClick={run} disabled={busy} aria-busy={busy}>{busy ? "Running with Google Search…" : "Re-run with citations (test)"}</button>
+      <p className="muted small">Owner only. Skips the weekly wait (at most 3 runs a day); grounding limits still apply (50 a day, 1000 a month).</p>
+      {message && <p className="small">{message}</p>}
+    </div>
+  );
+}
+
 export function RereadButton({ storeId, count }: { storeId: string; count: number }) {
   const router = useRouter();
   const running = useRef(false);

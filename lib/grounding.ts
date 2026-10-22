@@ -16,8 +16,17 @@ export const GROUNDING_DAILY_LIMIT = 50;
 // Override with GEMINI_GROUNDING_MODEL. Every other request stays on GEMINI_MODEL.
 export const GROUNDING_MODEL = process.env.GEMINI_GROUNDING_MODEL?.trim() || "gemini-2.5-flash";
 
+// How the server reads GEMINI_GROUNDING_ENABLED right now. Tolerant: true / 1 / yes / on, with or without quotes.
+export type GroundingFlag = { enabled: boolean; read: string };
+export function groundingFlag(raw = process.env.GEMINI_GROUNDING_ENABLED): GroundingFlag {
+  if (raw === undefined) return { enabled: false, read: "not set on the server" };
+  const v = raw.trim().replace(/^["']|["']$/g, "").trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(v)) return { enabled: true, read: `"${raw.length > 20 ? `${raw.slice(0, 20)}…` : raw}" (on)` };
+  return { enabled: false, read: raw.trim() ? `"${raw.length > 20 ? `${raw.slice(0, 20)}…` : raw}" (not true)` : "set but empty" };
+}
+
 export function groundingEnabled(): boolean {
-  return process.env.GEMINI_GROUNDING_ENABLED?.trim().toLowerCase() === "true";
+  return groundingFlag().enabled;
 }
 
 export type Citation = { title: string; domain: string | null; uri: string };

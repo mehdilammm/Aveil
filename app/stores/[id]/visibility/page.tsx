@@ -9,7 +9,9 @@ import { getUser } from "@/lib/supabase/server";
 import { canRun, ENGINE_LABEL, ENGINE_NAME, ENGINES, MAX_PROMPTS, nextRunAt, TASK_BY_LABEL, type EngineId, type TaskById } from "@/lib/visibility";
 import { deletePrompt } from "./actions";
 import { PromptsForm } from "./prompts-form";
-import { RereadButton, RunVisibilityButton } from "./run-button";
+import { RereadButton, RunVisibilityButton, TestRunButton } from "./run-button";
+import { storeAccess } from "@/lib/workspace";
+import { groundingEnabled } from "@/lib/grounding";
 
 type Run = { id: string; status: string; model: string; created_at: string; finished_at: string | null; requests_count: number; input_tokens: number; output_tokens: number; error: string | null };
 type Result = {
@@ -49,9 +51,10 @@ function Verdict({ r, engine }: { r: Result | undefined; engine: EngineId }) {
 
 export default async function AiVisibilityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase } = await getUser();
+  const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
+  const access = user ? await storeAccess(supabase, user.id, id) : null;
 
   const [{ data: promptRows }, { data: runRows }] = await Promise.all([
     supabase.from("visibility_prompts").select("id, prompt").eq("store_id", id).order("created_at"),
@@ -131,6 +134,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
       <h2>Run</h2>
       <div className="card">
         <RunVisibilityButton storeId={store.id} disabledReason={disabledReason} />
+        {access?.role === "owner" && groundingEnabled() && engineConfigured("gemini") && prompts.length > 0 && !running && <TestRunButton storeId={store.id} />}
         {engineConfigured("gemini") && results.filter((r) => r.engine === "gemini" && r.answer && !r.extraction).length > 0 && (
           <RereadButton storeId={store.id} count={results.filter((r) => r.engine === "gemini" && r.answer && !r.extraction).length} />
         )}

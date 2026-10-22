@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { emptyUsage, countUsage, ENGINE_MODEL, engineConfigured, askEngine, extractNames, profileAnswer, USAGE_KEYS } from "./engines";
 import { geminiConfigured } from "./gemini";
 import { askVisibilityQuestion } from "./grounded-question";
+import { GROUNDING_MODEL } from "./grounding";
 import { taskModelEnabled } from "./task-models";
 import { brandTerms, canRun, ENGINE_NAME, ENGINES, MAX_PROMPTS, nextRunAt, type EngineId } from "./visibility";
 
@@ -22,9 +23,16 @@ function isFatal(error: string): boolean {
 // Asks every question of the store once to each configured engine (Gemini, Mistral). One run per store every
 // 7 days; failed runs do not count. Each engine runs in its own lane, one request at a time, so the free plans'
 // rate limits are respected while both engines progress side by side.
-export async function runVisibility(admin: SupabaseClient, store: Store): Promise<{ runId?: string; error?: string }> {
+// options.test: "Re-run with citations (test)" for the workspace owner: skips the weekly wait (at most
+// TEST_RUNS_PER_DAY runs per store in 24 h), keeps the grounding caps, and is stored as a normal run.
+export const TEST_RUNS_PER_DAY = 3;
+export async function runVisibility(admin: SupabaseClient, store: Store, options: { test?: boolean } = {}): Promise<{ runId?: string; error?: string }> {
   const engines = ENGINES.filter(engineConfigured);
   if (!engines.length) return { error: "AI Visibility is not set up on the server (no AI engine key)." };
+  if (options.test) {
+    const { count } = await admin.from("visibility_runs").select("id", { count: "exact", head: true }).eq("store_id", store.id).gte("created_at", new Date(Date.now() - 86_400_000).toISOString());
+    if ((count ?? 0) >= TEST_RUNS_PER_DAY) return { error: `At most ${TEST_RUNS_PER_DAY} runs per store in 24 hours.` };
+  }
 
   const { data: recent } = await admin
     .from("visibility_runs")
@@ -35,7 +43,7 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
     .limit(1);
   const last = recent?.[0];
   if (last?.status === "running" && Date.now() - Date.parse(last.created_at) < STALE_RUN_MS) return { runId: last.id, error: "A run is already in progress." };
-  if (last && last.status === "complete" && !canRun(last.created_at, new Date())) {
+  if (!options.test && last && last.status === "complete" && !canRun(last.created_at, new Date())) {
     return { error: `Questions can be run once a week. Next run: ${nextRunAt(last.created_at)!.toUTCString()}.` };
   }
 
@@ -79,6 +87,8 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
       // Gemini questions: with Google Search grounding when enabled and within the caps (see grounded-question.ts).
       const q = engine === "gemini" ? await askVisibilityQuestion(admin, p.prompt) : null;
       const r = q ? q.result : await askEngine(engine, p.prompt);
+      const citations = q?.citations ?? null;
+      if (q?.grounded) row.model = GROUNDING_MODEL;
       const grounded = q?.grounded ?? false;
       if (q?.attempted && !usedGrounding) {
         usedGrounding = true;
@@ -94,6 +104,7 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
           input_tokens: usage[engine].input - before.input,
           output_tokens: usage[engine].output - before.output,
           requests: usage[engine].requests - before.requests,
+          citations,
           error,
         });
         await saveTotals();
@@ -130,7 +141,7 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
         extractor: x.extractor,
         profile: p2?.profile ?? null,
         grounded,
-        citations: q?.citations ?? null,
+        citations,
         profiler: p2?.profile ? p2.by : null,
       });
       await saveTotals();

@@ -28,7 +28,23 @@ describe("visibility question with grounding", () => {
     const q = await askVisibilityQuestion(admin, "best tea shop?");
     expect(askGemini).toHaveBeenCalledWith("best tea shop?");
     expect(calls).toEqual([]);
-    expect(q).toMatchObject({ citations: null, grounded: false, attempted: false });
+    expect(q).toMatchObject({ citations: { unavailable: "grounding skipped: flag off (GEMINI_GROUNDING_ENABLED is set but empty)" }, grounded: false, attempted: false });
+  });
+
+  it("flag not set, or a value that is not true: skipped with the exact reason", async () => {
+    vi.stubEnv("GEMINI_GROUNDING_ENABLED", "false");
+    const { askVisibilityQuestion } = await import("./grounded-question");
+    askGemini.mockResolvedValue(ok("answer"));
+    const q = await askVisibilityQuestion(fakeAdmin(true).admin, "q");
+    expect(q.citations).toEqual({ unavailable: 'grounding skipped: flag off (GEMINI_GROUNDING_ENABLED is "false" (not true))' });
+  });
+
+  it("flag values with quotes or 1/yes/on count as on", async () => {
+    const { groundingFlag } = await import("./grounding");
+    for (const v of ["true", " TRUE ", '"true"', "'true'", "1", "yes", "on"]) expect(groundingFlag(v).enabled).toBe(true);
+    for (const v of ["false", "0", "", "tru"]) expect(groundingFlag(v).enabled).toBe(false);
+    vi.stubEnv("GEMINI_GROUNDING_ENABLED", undefined);
+    expect(groundingFlag()).toEqual({ enabled: false, read: "not set on the server" });
   });
 
   it("on: grounding model with google_search and both caps (50/day, 1000/month)", async () => {
@@ -74,7 +90,7 @@ describe("visibility question with grounding", () => {
     const q = await askVisibilityQuestion(admin, "q");
     expect(askGemini).toHaveBeenCalledTimes(1);
     expect(askGemini).toHaveBeenCalledWith("q");
-    expect(q.citations).toEqual({ unavailable: "Grounding limit reached (50 per day, 1000 per month for the app); asked without Google Search." });
+    expect(q.citations).toEqual({ unavailable: "grounding skipped: limit reached (50 per day, 1000 per month for the app); asked without Google Search" });
   });
 
   it("grounded answer without sources is UNAVAILABLE, not an empty citation list", async () => {
