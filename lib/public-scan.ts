@@ -303,7 +303,7 @@ export type GeminiPart =
       competitors: string[];
       method: "model" | "heuristic" | "failed";
       extractionError?: string;
-      extractor?: "gemini" | "mistral" | null;
+      extractor?: "groq" | "nvidia" | "gemini" | "mistral" | null;
       note?: string; // e.g. how long we waited for the engine's rate limit
     }
   | { status: "unavailable"; reason: string; prompt: string; engine?: "gemini" | "mistral"; note?: string };
@@ -312,7 +312,16 @@ export type GeminiPart =
 // visibility: a general question about what the store sells, without its name. "Mentioned" there is the real signal.
 // knowledge: "Does Gemini know this store?", asked by domain. Its answer names the store by construction, so it is
 // shown for information and never counted as visibility.
-export type GeminiParts = { visibility: GeminiPart; knowledge: GeminiPart; visibilityMistral?: GeminiPart; topic?: Topic | null };
+export type GeminiParts = { visibility: GeminiPart; knowledge: GeminiPart; visibilityMistral?: GeminiPart; topic?: Topic | null; tasks?: TaskRecord[] };
+
+// Internal tasks (topic, reading names out of an answer): which model did it, and every attempt with its requests
+// and tokens. Groq and NVIDIA are internal helper models, never asked the visibility questions.
+export type TaskModel = "groq" | "nvidia" | "gemini";
+export type TaskRecord = {
+  task: string;
+  by: TaskModel | "heuristic";
+  attempts: { by: TaskModel; requests: number; input: number; output: number; problem: string | null }[];
+};
 
 export const GEMINI_DISCLAIMER = "This is what the AI model says. Facts like prices, warranties or history were not verified by AgentScope.";
 
@@ -360,7 +369,7 @@ export function topicFromHome(html: string, brandKeys: string[]): string | null 
 
 // ---------- topic of the general question ----------
 
-export type TopicSource = "gemini" | "title" | "category links";
+export type TopicSource = "groq" | "nvidia" | "gemini" | "title" | "category links";
 export type Topic = { text: string; source: TopicSource };
 
 // Category link texts in full (WooCommerce /product-category/, Shopify /collections/, /category/), not slugs.

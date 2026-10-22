@@ -5,7 +5,7 @@ import { BasisBadge, formatDate, SeverityBadge } from "@/components/badges";
 import { PublicHeader } from "@/components/public-header";
 import { ACCESS_NOTE, GEMINI_DISCLAIMER, GEMINI_LABEL, type GeminiPart, type GeminiParts, type PublicReport } from "@/lib/public-scan";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ENGINE_LABEL } from "@/lib/visibility";
+import { ENGINE_LABEL, TASK_BY_LABEL } from "@/lib/visibility";
 import { ShareLink } from "./share-link";
 import { WaitlistForm } from "./waitlist-form";
 
@@ -190,7 +190,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         <h2>AI visibility</h2>
         {gemini.topic && (
           <p className="muted small">
-            Topic of the general question: &ldquo;{gemini.topic.text}&rdquo; ({gemini.topic.source === "gemini" ? "summarized by Gemini from the home page title, description and categories" : gemini.topic.source === "title" ? "from the home page title" : "from category links on the home page"}).
+            Topic of the general question: &ldquo;{gemini.topic.text}&rdquo; ({gemini.topic.source === "title" ? "heuristic: the home page title without the brand" : gemini.topic.source === "category links" ? "heuristic: category links on the home page" : `summarized by an ${gemini.topic.source === "gemini" ? "internal request to Gemini" : TASK_BY_LABEL[gemini.topic.source]} from the home page title, description and categories`}).
           </p>
         )}
         {gemini.visibilityMistral && (
@@ -218,7 +218,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           namesLabel="Stores recommended instead"
         />
 
-        {gemini.visibilityMistral && (
+        {gemini.visibilityMistral?.status === "ok" && (
           <GeminiBlock
             part={gemini.visibilityMistral}
             empty="No general question was asked."
@@ -236,6 +236,29 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           note="This question names your domain, so the answer always mentions it. It shows what the model says about the store, not whether it recommends it."
           namesLabel="Similar stores named"
         />
+
+        {gemini.tasks && gemini.tasks.length > 0 && (
+          <>
+            <h2>Internal tasks</h2>
+            <div className="card table-wrap">
+              <p className="muted small">Small helper requests made by AgentScope (topic, reading names out of answers). Groq and NVIDIA are internal helper models here, not AI search engines; the visibility questions go to Gemini only.</p>
+              <table>
+                <thead><tr><th>Task</th><th>Done by</th><th>Requests</th><th>Tokens (in / out)</th><th>Tried before</th></tr></thead>
+                <tbody>
+                  {gemini.tasks.map((t, i) => (
+                    <tr key={i}>
+                      <td>{t.task}</td>
+                      <td>{t.by}</td>
+                      <td>{t.attempts.reduce((n, a) => n + a.requests, 0)}</td>
+                      <td>{t.attempts.reduce((n, a) => n + a.input, 0)} / {t.attempts.reduce((n, a) => n + a.output, 0)}</td>
+                      <td style={{ whiteSpace: "normal" }} className="muted small">{t.attempts.filter((a) => a.problem).map((a) => `${a.by}: ${a.problem}`).join("; ") || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
 
         {r.requestLog && r.requestLog.length > 0 && (
           <>
@@ -296,7 +319,7 @@ function GeminiBlock({ part, empty, note, verdict, namesLabel }: { part: GeminiP
             part.competitors.length > 0 && <p className="small"><strong>{namesLabel}:</strong> {part.competitors.join(", ")}</p>
           )}
           <details>
-            <summary className="muted small">What {part.engine === "mistral" ? "Mistral" : "Gemini"} said ({part.model}, no web search){part.extractor ? ` · names read by ${part.extractor === "mistral" ? "Mistral" : "Gemini"}` : ""}</summary>
+            <summary className="muted small">What {part.engine === "mistral" ? "Mistral" : "Gemini"} said ({part.model}, no web search){part.extractor ? ` · names read by ${part.extractor === "mistral" ? "Mistral" : TASK_BY_LABEL[part.extractor]}` : ""}</summary>
             <blockquote style={{ borderLeft: "3px solid var(--border)", margin: "8px 0", paddingLeft: 12 }}>
               <pre style={{ whiteSpace: "pre-wrap", font: "inherit", fontSize: 14, margin: 0 }}>{part.answer}</pre>
             </blockquote>

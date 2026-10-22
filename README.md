@@ -140,3 +140,16 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
 - WooCommerce stores whose home page links no `/product/` page: one request to the public Store API
   `/wp-json/wc/store/v1/products?per_page=10` (price 0, sale not lower, no images, short description). The first
   permalink is checked for JSON-LD and its price compared with the Store API. 401/404 = not available, no finding.
+
+## v0.8: Mistral off, Groq and NVIDIA for internal tasks
+
+- Mistral is off unless `MISTRAL_ENABLED=true` (the free plan does not activate API keys). The UI says
+  "Not connected: requires a paid Mistral plan" and no request is sent.
+- `lib/task-models.ts`: internal tasks only (reading names out of answers, the topic of the general question in /check).
+  Chain: Groq (`openai/gpt-oss-20b`, `GROQ_MODEL`) → NVIDIA build.nvidia.com (`meta/llama-3.1-8b-instruct`,
+  `NVIDIA_MODEL`, testing-use key, fallback only) → Gemini → heuristic. Each: 20 s timeout, one retry on 429 with
+  Retry-After, invalid JSON or failed validation moves on. `GROQ_ENABLED` / `NVIDIA_ENABLED` (default true) turn
+  each off; turn NVIDIA off before paying customers.
+- Visibility (mentioned / names) is asked to Gemini only. Groq and NVIDIA are shown only as "internal helper model".
+  The /check report has an "Internal tasks" table (who did each task, requests, tokens, failed attempts);
+  `visibility_results.extractor` accepts `groq` and `nvidia` (migration `20261022090000_task_model_extractor.sql`).

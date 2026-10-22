@@ -13,11 +13,21 @@ describe("Mistral queue and 429", () => {
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
     vi.stubEnv("MISTRAL_API_KEY", "test-key");
+    vi.stubEnv("MISTRAL_ENABLED", "true");
   });
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+  });
+
+  it("is off without MISTRAL_ENABLED=true and sends no request", async () => {
+    vi.stubEnv("MISTRAL_ENABLED", "");
+    const { askMistral, mistralConfigured, MISTRAL_OFF_REASON } = await import("./mistral");
+    expect(mistralConfigured()).toBe(false);
+    const r = await askMistral("q");
+    expect(r).toEqual({ ok: false, error: MISTRAL_OFF_REASON, requests: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("reads Retry-After in seconds or as a date, 2 s by default, at most 10 s", async () => {

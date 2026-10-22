@@ -3,87 +3,95 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AI_BOTS } from "./access";
 import { emptyUsage, extractNames } from "./engines";
 import { askGemini, GEMINI_MODEL, geminiConfigured } from "./gemini";
-import { askMistral, MISTRAL_MODEL, mistralConfigured } from "./mistral";
+import { askMistral, MISTRAL_MODEL, MISTRAL_OFF_REASON, mistralConfigured } from "./mistral";
+import { runTask, type TaskAttempt } from "./task-models";
 import { PublicFetcher } from "./public-fetch";
 import { checkShopifyProducts, detectShopify, SHOPIFY_PRODUCTS_LIMIT, shopifyProductLinks, shopifyProductSitemap } from "./shopify";
 import { checkStoreApiProducts, STORE_API_PATH } from "./woo-store-api";
 import {
-  ACCESS_BOTS, detectPlatform, knowledgeQuestion, titleTopic, topicPrompt, trustedHomeHtml, topicFromHome, validateTopic, visibilityQuestion, type GeminiParts, type Topic, agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, LIMITS, productLinks, productSitemapUrl, PUBLIC_UA,
+  ACCESS_BOTS, detectPlatform, knowledgeQuestion, titleTopic, topicPrompt, trustedHomeHtml, topicFromHome, validateTopic, visibilityQuestion, type GeminiParts, type TaskRecord, type Topic, agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, LIMITS, productLinks, productSitemapUrl, PUBLIC_UA,
   robotsFrom, sitemapProductUrls, type GeminiPart, type PublicReport, type PublicScanInput,
 } from "./public-scan";
-import { brandTerms, combineAnalysis, EXTRACTION_MAX_TOKENS, EXTRACTION_SCHEMA, extractionPrompt, extractionProblem, parseExtraction, registrableDomain } from "./visibility";
+import { brandTerms, registrableDomain } from "./visibility";
 
 const UA = Object.fromEntries(AI_BOTS.map((b) => [b.name, b.ua])) as Record<string, string>;
 
-type Usage = { geminiRequests: number; input: number; output: number; mistral: { requests: number; input: number; output: number } };
+type Use = { requests: number; input: number; output: number };
+type Usage = { geminiRequests: number; input: number; output: number; mistral: Use; groq: Use; nvidia: Use };
 
 const LIMIT_REASON = "Daily limit reached for free Gemini checks. Try again tomorrow.";
 
-// One question and its extraction. Both requests are reserved together in the app-wide daily budget,
-// so an asked question always gets its extraction; retries beyond those two are recorded too.
-async function ask(admin: SupabaseClient, usage: Usage, prompt: string, terms: ReturnType<typeof brandTerms>, label: string): Promise<GeminiPart> {
-  const { data: reserved } = await admin.rpc("public_gemini_reserve_n", { p_limit: LIMITS.geminiPerDay, p_n: 2 });
+// Gemini requests are counted in the app-wide daily budget; one is reserved before each Gemini step, retries are
+// recorded after. Groq and NVIDIA attempts go to their own usage counters.
+async function recordAttempts(admin: SupabaseClient, usage: Usage, attempts: TaskAttempt[]) {
+  for (const a of attempts) {
+    if (a.by === "gemini") {
+      usage.geminiRequests += a.requests;
+      usage.input += a.input;
+      usage.output += a.output;
+      if (a.requests > 1) await admin.rpc("public_gemini_record", { p_n: a.requests - 1 });
+    } else {
+      usage[a.by].requests += a.requests;
+      usage[a.by].input += a.input;
+      usage[a.by].output += a.output;
+    }
+  }
+}
+
+const reserveGemini = (admin: SupabaseClient) => async () => {
+  const { data } = await admin.rpc("public_gemini_reserve_n", { p_limit: LIMITS.geminiPerDay, p_n: 1 });
+  return Boolean(data);
+};
+
+const taskRecord = (task: string, by: TaskRecord["by"], attempts: TaskAttempt[]): TaskRecord => ({ task, by, attempts });
+
+// Reads the names out of an answer with the task chain (Groq → NVIDIA → Gemini → none).
+async function readNames(admin: SupabaseClient, usage: Usage, tasks: TaskRecord[], task: string, answer: string, terms: ReturnType<typeof brandTerms>, label: string) {
+  const x = await extractNames(answer, terms, label, emptyUsage(), reserveGemini(admin));
+  await recordAttempts(admin, usage, x.attempts);
+  tasks.push(taskRecord(task, x.extractor ?? "heuristic", x.attempts));
+  return x;
+}
+
+// One Gemini question (1 request reserved in the app-wide daily budget; retries are recorded too), then its names.
+async function ask(admin: SupabaseClient, usage: Usage, tasks: TaskRecord[], task: string, prompt: string, terms: ReturnType<typeof brandTerms>, label: string): Promise<GeminiPart> {
+  const { data: reserved } = await admin.rpc("public_gemini_reserve_n", { p_limit: LIMITS.geminiPerDay, p_n: 1 });
   if (!reserved) return { status: "unavailable", reason: LIMIT_REASON, prompt };
 
   const r = await askGemini(prompt);
-  let requests = r.requests;
-  const finish = async () => {
-    usage.geminiRequests += requests;
-    if (requests > 2) await admin.rpc("public_gemini_record", { p_n: requests - 2 });
-  };
+  usage.geminiRequests += r.requests;
+  if (r.requests > 1) await admin.rpc("public_gemini_record", { p_n: r.requests - 1 });
   if (r.ok) {
     usage.input += r.inputTokens;
     usage.output += r.outputTokens;
   }
   if (!r.ok || !r.text) {
-    await finish();
     return { status: "unavailable", reason: r.ok ? (r.blocked ? `Gemini blocked the question (${r.blocked}).` : "Gemini gave an empty answer.") : r.error, prompt };
   }
-
-  const x = await askGemini(extractionPrompt(r.text, label, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: EXTRACTION_MAX_TOKENS });
-  requests += x.requests;
-  if (x.ok) {
-    usage.input += x.inputTokens;
-    usage.output += x.outputTokens;
-  }
-  await finish();
-  const a = combineAnalysis(r.text, terms, x.ok ? parseExtraction(x.text) : null);
-  const problem = a.method === "failed" ? extractionProblem(x.ok ? { ok: true, text: x.text, finishReason: x.finishReason } : { ok: false, error: x.error }) : null;
-  return { status: "ok", model: GEMINI_MODEL, prompt, answer: r.text, mentioned: a.mentioned, competitors: a.competitors, method: a.method, ...(problem ? { extractionError: problem } : {}) };
+  const x = await readNames(admin, usage, tasks, task, r.text, terms, label);
+  const a = x.analysis;
+  return { status: "ok", model: GEMINI_MODEL, prompt, answer: r.text, mentioned: a.mentioned, competitors: a.competitors, method: a.method, extractor: x.extractor, ...(a.method === "failed" && x.problem ? { extractionError: x.problem } : {}) };
 }
 
 const MISTRAL_LIMIT_REASON = "Daily limit reached for free Mistral checks. Try again tomorrow.";
 
-// The general question to Mistral: 2 requests reserved in the app-wide daily Mistral budget (question + extraction).
-// Mistral extracts names from its own answer (json_schema); if that fails, Gemini does (recorded as extractor).
-async function askMistralPart(admin: SupabaseClient, usage: Usage, prompt: string, terms: ReturnType<typeof brandTerms>, label: string): Promise<GeminiPart> {
-  if (!mistralConfigured()) return { status: "unavailable", reason: "The Mistral check is not set up on this server.", prompt, engine: "mistral" };
-  const { data: reserved } = await admin.rpc("public_mistral_reserve_n", { p_limit: LIMITS.geminiPerDay, p_n: 2 });
+// The general question to Mistral (only with MISTRAL_ENABLED=true): 1 request reserved in the daily Mistral budget.
+async function askMistralPart(admin: SupabaseClient, usage: Usage, tasks: TaskRecord[], prompt: string, terms: ReturnType<typeof brandTerms>, label: string): Promise<GeminiPart> {
+  if (!mistralConfigured()) return { status: "unavailable", reason: `${MISTRAL_OFF_REASON}.`, prompt, engine: "mistral" };
+  const { data: reserved } = await admin.rpc("public_mistral_reserve_n", { p_limit: LIMITS.geminiPerDay, p_n: 1 });
   if (!reserved) return { status: "unavailable", reason: MISTRAL_LIMIT_REASON, prompt, engine: "mistral" };
 
   const r = await askMistral(prompt);
   usage.mistral.requests += r.requests;
+  if (r.requests > 1) await admin.rpc("public_mistral_record", { p_n: r.requests - 1 });
   if (r.ok) {
     usage.mistral.input += r.inputTokens;
     usage.mistral.output += r.outputTokens;
   }
-  const waitNote = (ms: number) => (ms > 0 ? `Waited ${(ms / 1000).toFixed(1)} s for Mistral's rate limit.` : undefined);
-  if (!r.ok || !r.text) {
-    if (r.requests > 2) await admin.rpc("public_mistral_record", { p_n: r.requests - 2 });
-    return { status: "unavailable", reason: r.ok ? "Mistral gave an empty answer." : r.error, prompt, engine: "mistral", note: waitNote(r.waitedMs ?? 0) };
-  }
-  const x = emptyUsage();
-  const extracted = await extractNames("mistral", r.text, terms, label, x);
-  usage.mistral.requests += x.mistral.requests;
-  usage.mistral.input += x.mistral.input;
-  usage.mistral.output += x.mistral.output;
-  usage.geminiRequests += x.gemini.requests;
-  usage.input += x.gemini.input;
-  usage.output += x.gemini.output;
-  const extra = r.requests + x.mistral.requests - 2;
-  if (extra > 0) await admin.rpc("public_mistral_record", { p_n: extra });
-  if (x.gemini.requests) await admin.rpc("public_gemini_record", { p_n: x.gemini.requests });
-  const a = extracted.analysis;
+  const note = r.waitedMs ? `Waited ${(r.waitedMs / 1000).toFixed(1)} s for Mistral's rate limit.` : undefined;
+  if (!r.ok || !r.text) return { status: "unavailable", reason: r.ok ? "Mistral gave an empty answer." : r.error, prompt, engine: "mistral", note };
+  const x = await readNames(admin, usage, tasks, "names in Mistral's answer", r.text, terms, label);
+  const a = x.analysis;
   return {
     status: "ok",
     engine: "mistral",
@@ -93,30 +101,28 @@ async function askMistralPart(admin: SupabaseClient, usage: Usage, prompt: strin
     mentioned: a.mentioned,
     competitors: a.competitors,
     method: a.method,
-    extractor: extracted.extractor,
-    note: waitNote((r.waitedMs ?? 0) + (x.mistral.waitedMs ?? 0)),
-    ...(extracted.problem && a.method === "failed" ? { extractionError: extracted.problem } : {}),
+    extractor: x.extractor,
+    note,
+    ...(x.problem && a.method === "failed" ? { extractionError: x.problem } : {}),
   };
 }
 
-// What the store sells, for the general question: a short phrase from Gemini (title, description and full category
-// names as input), checked to be 2-8 words without the brand; else the title without the brand; else category links.
-async function buildTopic(admin: SupabaseClient, html: string, brandKeys: string[], usage: Usage): Promise<Topic | null> {
+// What the store sells, for the general question: a short phrase from the task chain (Groq → NVIDIA → Gemini; title,
+// description and full category names as input), checked to be 2-8 words without the brand; else the heuristic:
+// the title without the brand, then category links.
+async function buildTopic(admin: SupabaseClient, html: string, brandKeys: string[], usage: Usage, tasks: TaskRecord[]): Promise<Topic | null> {
   const prompt = topicPrompt(html);
-  if (prompt && geminiConfigured()) {
-    const { data: reserved } = await admin.rpc("public_gemini_reserve_n", { p_limit: LIMITS.geminiPerDay, p_n: 1 });
-    if (reserved) {
-      const r = await askGemini(prompt, { maxOutputTokens: 60 });
-      usage.geminiRequests += r.requests;
-      if (r.requests > 1) await admin.rpc("public_gemini_record", { p_n: r.requests - 1 });
-      if (r.ok) {
-        usage.input += r.inputTokens;
-        usage.output += r.outputTokens;
-        const text = validateTopic(r.text, brandKeys);
-        if (text) return { text, source: "gemini" };
-      }
+  let attempts: TaskAttempt[] = [];
+  if (prompt) {
+    const t = await runTask({ prompt, maxOutputTokens: 60, validate: (text) => validateTopic(text, brandKeys), allowGemini: reserveGemini(admin) });
+    attempts = t.attempts;
+    await recordAttempts(admin, usage, attempts);
+    if (t.value && t.by) {
+      tasks.push(taskRecord("topic of the general question", t.by, attempts));
+      return { text: t.value, source: t.by };
     }
   }
+  tasks.push(taskRecord("topic of the general question", "heuristic", attempts));
   const fromTitle = titleTopic(html, brandKeys);
   if (fromTitle) return { text: fromTitle, source: "title" };
   const fromLinks = topicFromHome(html, brandKeys);
@@ -127,18 +133,19 @@ async function buildTopic(admin: SupabaseClient, html: string, brandKeys: string
 // without its name, and "Does Gemini know this store?" by domain. Once per domain per 24 h.
 async function geminiParts(admin: SupabaseClient, origin: string, host: string, homeHtml: string | null, usage: Usage): Promise<GeminiParts> {
   const terms = brandTerms(registrableDomain(host).split(".")[0], origin);
-  const topicInfo = homeHtml ? await buildTopic(admin, homeHtml, terms.keys ?? [], usage) : null;
+  const tasks: TaskRecord[] = [];
+  const topicInfo = homeHtml ? await buildTopic(admin, homeHtml, terms.keys ?? [], usage, tasks) : null;
   const topic = topicInfo?.text ?? null;
   const visPrompt = topic ? visibilityQuestion(topic) : "";
   const knowPrompt = knowledgeQuestion(host);
-  const off = (reason: string): GeminiParts => ({ visibility: { status: "unavailable", reason, prompt: visPrompt }, knowledge: { status: "unavailable", reason, prompt: knowPrompt } });
+  const off = (reason: string): GeminiParts => ({ visibility: { status: "unavailable", reason, prompt: visPrompt }, knowledge: { status: "unavailable", reason, prompt: knowPrompt }, topic: topicInfo, tasks });
 
   if (!geminiConfigured()) return off("The Gemini check is not set up on this server.");
   const { data: recent } = await admin.from("public_reports").select("created_at").eq("host", host).gt("gemini_requests", 0).order("created_at", { ascending: false }).limit(1);
   if (!geminiAllowedForDomain(recent?.[0]?.created_at ?? null, new Date())) return off("Gemini was already asked about this domain in the last 24 hours.");
 
   const visibility: GeminiPart = topic
-    ? await ask(admin, usage, visPrompt, terms, host)
+    ? await ask(admin, usage, tasks, "names in Gemini's answer (general question)", visPrompt, terms, host)
     : {
         status: "unavailable",
         reason: homeHtml
@@ -146,7 +153,7 @@ async function geminiParts(admin: SupabaseClient, origin: string, host: string, 
           : "The home page could not be read (bot protection, error or placeholder page), so there is no reliable topic and no general question was asked.",
         prompt: "",
       };
-  const knowledge = await ask(admin, usage, knowPrompt, terms, host);
+  const knowledge = await ask(admin, usage, tasks, "names in Gemini's answer (store question)", knowPrompt, terms, host);
 
   // Mistral gets the general question only (the visibility signal), once per domain per 24 h.
   let visibilityMistral: GeminiPart;
@@ -154,10 +161,10 @@ async function geminiParts(admin: SupabaseClient, origin: string, host: string, 
   else {
     const { data: recentMistral } = await admin.from("public_reports").select("created_at").eq("host", host).gt("mistral_requests", 0).order("created_at", { ascending: false }).limit(1);
     visibilityMistral = geminiAllowedForDomain(recentMistral?.[0]?.created_at ?? null, new Date())
-      ? await askMistralPart(admin, usage, visPrompt, terms, host)
+      ? await askMistralPart(admin, usage, tasks, visPrompt, terms, host)
       : { status: "unavailable", reason: "Mistral was already asked about this domain in the last 24 hours.", prompt: visPrompt, engine: "mistral" };
   }
-  return { visibility, knowledge, visibilityMistral, topic: topicInfo };
+  return { visibility, knowledge, visibilityMistral, topic: topicInfo, tasks };
 }
 
 // Runs one public check: at most 10 HTTP requests to the store, plus up to 2 Gemini requests.
@@ -167,7 +174,8 @@ export async function runPublicScan(
   host: string,
   fetcher: PublicFetcher = new PublicFetcher(),
 ): Promise<{ report: PublicReport; usage: Usage; requests: number }> {
-  const usage: Usage = { geminiRequests: 0, input: 0, output: 0, mistral: { requests: 0, input: 0, output: 0 } };
+  const zero = () => ({ requests: 0, input: 0, output: 0 });
+  const usage: Usage = { geminiRequests: 0, input: 0, output: 0, mistral: zero(), groq: zero(), nvidia: zero() };
 
   // Order by importance, so the request limit only ever drops the least useful checks:
   // robots.txt (read first so a block on AgentScopeBot is obeyed before any page is loaded) → home page →

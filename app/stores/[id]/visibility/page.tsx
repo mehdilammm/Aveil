@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import { formatDate } from "@/components/badges";
 import { getStore } from "@/lib/data";
 import { ENGINE_MODEL, engineConfigured } from "@/lib/engines";
+import { MISTRAL_OFF_REASON } from "@/lib/mistral";
 import { GEMINI_DISCLAIMER } from "@/lib/public-scan";
 import { getUser } from "@/lib/supabase/server";
-import { canRun, ENGINE_LABEL, ENGINE_NAME, ENGINES, MAX_PROMPTS, nextRunAt, type EngineId } from "@/lib/visibility";
+import { canRun, ENGINE_LABEL, ENGINE_NAME, ENGINES, MAX_PROMPTS, nextRunAt, TASK_BY_LABEL, type EngineId, type TaskById } from "@/lib/visibility";
 import { deletePrompt } from "./actions";
 import { PromptsForm } from "./prompts-form";
 import { RereadButton, RunVisibilityButton } from "./run-button";
@@ -23,15 +24,15 @@ type Result = {
   urls: string[];
   error: string | null;
   extraction: "model" | "heuristic" | "failed" | null;
-  extractor: EngineId | null;
+  extractor: TaskById | "mistral" | null;
   requests: number;
   input_tokens: number;
   output_tokens: number;
   created_at: string;
 };
 
-function Verdict({ r }: { r: Result | undefined }) {
-  if (!r) return <span className="muted">not asked</span>;
+function Verdict({ r, engine }: { r: Result | undefined; engine: EngineId }) {
+  if (!r) return <span className="muted">{engine === "mistral" && !engineConfigured("mistral") ? MISTRAL_OFF_REASON : "not asked"}</span>;
   if (r.error) return <span className="muted" title={r.error}>unavailable</span>;
   return (
     <>
@@ -104,9 +105,9 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
           <span key={e} className="badge basis-observed" style={{ marginRight: 6 }}>{ENGINE_LABEL[e]}</span>
         ))}
         <p className="muted small">
-          Each question is sent once to each engine ({ENGINES.map((e) => `${ENGINE_NAME[e]}: ${ENGINE_MODEL[e]}${engineConfigured(e) ? "" : " – not set up"}`).join("; ")}), without web search,
+          Each question is sent once to each engine ({ENGINES.map((e) => `${ENGINE_NAME[e]}: ${ENGINE_MODEL[e]}${engineConfigured(e) ? "" : e === "mistral" ? ` – ${MISTRAL_OFF_REASON}` : " – not set up"}`).join("; ")}), without web search,
           as a plain question. The apps and other runs can answer differently. A mention here is what this answer said, not proof that AI recommends your store.
-          Other store names are read from each answer by a small structured-output request and filtered; they can still be wrong. No score is computed.
+          Other store names are read from each answer by a small internal helper model (structured output) and filtered; they can still be wrong. No score is computed.
         </p>
       </div>
 
@@ -155,7 +156,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                   <tr key={p.id}>
                     <td style={{ whiteSpace: "normal", minWidth: 160 }}>{p.prompt}</td>
                     {ENGINES.map((e) => (
-                      <td key={e} style={{ whiteSpace: "normal", minWidth: 140 }}><Verdict r={resultFor(p.id, latestRun.id, e)} /></td>
+                      <td key={e} style={{ whiteSpace: "normal", minWidth: 140 }}><Verdict r={resultFor(p.id, latestRun.id, e)} engine={e} /></td>
                     ))}
                   </tr>
                 ))}
@@ -182,7 +183,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                           </p>
                         )}
                         <details>
-                          <summary className="muted small">What {ENGINE_NAME[r.engine]} said ({r.model ?? ENGINE_MODEL[r.engine]}){r.extractor ? ` · names read by ${ENGINE_NAME[r.extractor]}` : ""}</summary>
+                          <summary className="muted small">What {ENGINE_NAME[r.engine]} said ({r.model ?? ENGINE_MODEL[r.engine]}){r.extractor ? ` · names read by ${r.extractor === "mistral" ? "Mistral" : TASK_BY_LABEL[r.extractor]}` : ""}</summary>
                           <pre style={{ whiteSpace: "pre-wrap", font: "inherit", fontSize: 14 }}>{r.answer}</pre>
                         </details>
                       </>

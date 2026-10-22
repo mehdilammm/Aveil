@@ -1,8 +1,9 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emptyUsage, countUsage, ENGINE_MODEL, engineConfigured, askEngine, extractNames } from "./engines";
-import { askGemini, geminiConfigured } from "./gemini";
-import { brandTerms, canRun, combineAnalysis, ENGINE_NAME, ENGINES, EXTRACTION_MAX_TOKENS, EXTRACTION_SCHEMA, extractionPrompt, MAX_PROMPTS, nextRunAt, parseExtraction, type EngineId } from "./visibility";
+import { emptyUsage, countUsage, ENGINE_MODEL, engineConfigured, askEngine, extractNames, USAGE_KEYS } from "./engines";
+import { geminiConfigured } from "./gemini";
+import { taskModelEnabled } from "./task-models";
+import { brandTerms, canRun, ENGINE_NAME, ENGINES, MAX_PROMPTS, nextRunAt, type EngineId } from "./visibility";
 
 type Store = { id: string; owner_id: string; name: string; url: string };
 
@@ -59,7 +60,7 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
   const usage = emptyUsage();
   const answered: Record<EngineId, number> = { gemini: 0, mistral: 0 };
   const saveTotals = () => {
-    const all = ENGINES.reduce((t, e) => ({ requests: t.requests + usage[e].requests, input: t.input + usage[e].input, output: t.output + usage[e].output }), { requests: 0, input: 0, output: 0 });
+    const all = USAGE_KEYS.reduce((t, e) => ({ requests: t.requests + usage[e].requests, input: t.input + usage[e].input, output: t.output + usage[e].output }), { requests: 0, input: 0, output: 0 });
     return admin.from("visibility_runs").update({ requests_count: all.requests, input_tokens: all.input, output_tokens: all.output }).eq("id", run.id);
   };
 
@@ -91,8 +92,9 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
       }
       await sleep(GAP_MS);
       const all = emptyUsage();
-      const x = await extractNames(engine, r.text, terms, store.name, all);
-      for (const e of ENGINES) {
+      const x = await extractNames(r.text, terms, store.name, all);
+      const sum = USAGE_KEYS.reduce((t, e) => ({ requests: t.requests + all[e].requests, input: t.input + all[e].input, output: t.output + all[e].output }), { requests: 0, input: 0, output: 0 });
+      for (const e of USAGE_KEYS) {
         usage[e].requests += all[e].requests;
         usage[e].input += all[e].input;
         usage[e].output += all[e].output;
@@ -108,9 +110,9 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
         competitors: a.competitors,
         urls: a.urls,
         finish_reason: r.finishReason,
-        input_tokens: r.inputTokens + all.gemini.input + all.mistral.input,
-        output_tokens: r.outputTokens + all.gemini.output + all.mistral.output,
-        requests: r.requests + all.gemini.requests + all.mistral.requests,
+        input_tokens: r.inputTokens + sum.input,
+        output_tokens: r.outputTokens + sum.output,
+        requests: r.requests + sum.requests,
         extraction: a.method,
         extractor: x.extractor,
       });
@@ -137,7 +139,7 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
 // Runs only the structured extraction on answers stored before it existed (extraction is null).
 // One extraction request per answer; each answer is re-read at most once.
 export async function rereadStoredAnswers(admin: SupabaseClient, store: Store): Promise<{ updated: number; error?: string }> {
-  if (!geminiConfigured()) return { updated: 0, error: "AI Visibility is not set up on the server (GEMINI_API_KEY missing)." };
+  if (!geminiConfigured() && !taskModelEnabled("groq") && !taskModelEnabled("nvidia")) return { updated: 0, error: "No model is set up on the server to read the answers." };
   const { data: rows } = await admin
     .from("visibility_results")
     .select("id, run_id, answer, input_tokens, output_tokens")
@@ -155,15 +157,15 @@ export async function rereadStoredAnswers(admin: SupabaseClient, store: Store): 
   for (const [i, row] of rows.entries()) {
     if (Date.now() - started > TIME_BUDGET_MS) break;
     if (i > 0) await sleep(GAP_MS);
-    const x = await askGemini(extractionPrompt(row.answer!, store.name, terms.host), { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: EXTRACTION_MAX_TOKENS });
+    const u = emptyUsage();
+    const x = await extractNames(row.answer!, terms, store.name, u);
+    const used = USAGE_KEYS.reduce((t, e) => ({ requests: t.requests + u[e].requests, input: t.input + u[e].input, output: t.output + u[e].output }), { requests: 0, input: 0, output: 0 });
     const t = perRun.get(row.run_id) ?? { requests: 0, input: 0, output: 0 };
-    t.requests += x.requests;
-    if (x.ok) {
-      t.input += x.inputTokens;
-      t.output += x.outputTokens;
-    }
+    t.requests += used.requests;
+    t.input += used.input;
+    t.output += used.output;
     perRun.set(row.run_id, t);
-    const a = combineAnalysis(row.answer!, terms, x.ok ? parseExtraction(x.text) : null);
+    const a = x.analysis;
     await admin
       .from("visibility_results")
       .update({
@@ -173,9 +175,9 @@ export async function rereadStoredAnswers(admin: SupabaseClient, store: Store): 
         competitors: a.competitors,
         urls: a.urls,
         extraction: a.method,
-        extractor: a.method === "model" ? "gemini" : null,
-        input_tokens: row.input_tokens + (x.ok ? x.inputTokens : 0),
-        output_tokens: row.output_tokens + (x.ok ? x.outputTokens : 0),
+        extractor: x.extractor,
+        input_tokens: row.input_tokens + used.input,
+        output_tokens: row.output_tokens + used.output,
       })
       .eq("id", row.id);
     updated++;

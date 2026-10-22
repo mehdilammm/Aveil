@@ -13,6 +13,10 @@ export const ENGINE_LABEL: Record<EngineId, string> = {
 };
 export const RUN_INTERVAL_DAYS = 7;
 
+// Who read the names out of an answer. Groq and NVIDIA are internal helper models, not AI search engines.
+export type TaskById = "groq" | "nvidia" | "gemini";
+export const TASK_BY_LABEL: Record<TaskById, string> = { groq: "internal helper model (Groq)", nvidia: "internal helper model (NVIDIA)", gemini: "Gemini" };
+
 // host: the registrable domain (sa.made-in-china.com → made-in-china.com), so the parent brand counts as the store.
 // keys: normalized brand keys used to drop the store itself from competitor lists.
 export type BrandTerms = { names: string[]; host: string; keys?: string[] };

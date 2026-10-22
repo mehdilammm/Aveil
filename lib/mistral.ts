@@ -13,8 +13,15 @@ const ENDPOINT = "https://api.mistral.ai/v1/chat/completions";
 const TIMEOUT_MS = 30_000;
 const MAX_TOKENS = 1024;
 
+// Off unless MISTRAL_ENABLED=true: the free plan does not activate API keys ("Upgrade to activate your API keys").
+export function mistralEnabled(): boolean {
+  return process.env.MISTRAL_ENABLED?.trim().toLowerCase() === "true";
+}
+
+export const MISTRAL_OFF_REASON = "Not connected: requires a paid Mistral plan";
+
 export function mistralConfigured(): boolean {
-  return Boolean(process.env.MISTRAL_API_KEY?.trim());
+  return mistralEnabled() && Boolean(process.env.MISTRAL_API_KEY?.trim());
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -49,6 +56,7 @@ export function askMistral(prompt: string, options: AskOptions = {}): Promise<As
 }
 
 async function callMistral(prompt: string, options: AskOptions): Promise<AskResult> {
+  if (!mistralEnabled()) return { ok: false, error: MISTRAL_OFF_REASON, requests: 0 };
   const key = process.env.MISTRAL_API_KEY?.trim();
   if (!key) return { ok: false, error: "MISTRAL_API_KEY is not set", requests: 0 };
   let requests = 0;

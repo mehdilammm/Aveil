@@ -1,8 +1,9 @@
 import "server-only";
 import { askGemini, GEMINI_MODEL, geminiConfigured, type AskResult } from "./gemini";
 import { askMistral, MISTRAL_MODEL, mistralConfigured } from "./mistral";
+import { attemptsText, runTask, type TaskAttempt, type TaskBy } from "./task-models";
 import {
-  combineAnalysis, EXTRACTION_JSON_SCHEMA, EXTRACTION_MAX_TOKENS, EXTRACTION_SCHEMA, extractionPrompt, extractionProblem,
+  combineAnalysis, EXTRACTION_JSON_SCHEMA, EXTRACTION_MAX_TOKENS, EXTRACTION_SCHEMA, extractionPrompt,
   parseExtraction, type Analysis, type BrandTerms, type EngineId,
 } from "./visibility";
 
@@ -16,10 +17,18 @@ export function askEngine(id: EngineId, prompt: string): Promise<AskResult> {
   return id === "gemini" ? askGemini(prompt) : askMistral(prompt);
 }
 
-export type Usage = Record<EngineId, { requests: number; input: number; output: number; waitedMs?: number }>;
-export const emptyUsage = (): Usage => ({ gemini: { requests: 0, input: 0, output: 0, waitedMs: 0 }, mistral: { requests: 0, input: 0, output: 0, waitedMs: 0 } });
+// Requests and tokens per model: the visibility engines and the internal task models (groq, nvidia).
+export type UsageKey = EngineId | "groq" | "nvidia";
+export const USAGE_KEYS: UsageKey[] = ["gemini", "mistral", "groq", "nvidia"];
+export type Usage = Record<UsageKey, { requests: number; input: number; output: number; waitedMs?: number }>;
+export const emptyUsage = (): Usage => ({
+  gemini: { requests: 0, input: 0, output: 0, waitedMs: 0 },
+  mistral: { requests: 0, input: 0, output: 0, waitedMs: 0 },
+  groq: { requests: 0, input: 0, output: 0, waitedMs: 0 },
+  nvidia: { requests: 0, input: 0, output: 0, waitedMs: 0 },
+});
 
-function count(usage: Usage, id: EngineId, r: AskResult) {
+function count(usage: Usage, id: UsageKey, r: AskResult) {
   usage[id].requests += r.requests;
   usage[id].waitedMs = (usage[id].waitedMs ?? 0) + (r.waitedMs ?? 0);
   if (r.ok) {
@@ -28,28 +37,34 @@ function count(usage: Usage, id: EngineId, r: AskResult) {
   }
 }
 
-export type Extracted = { analysis: Analysis & { method: "model" | "failed" }; extractor: EngineId | null; problem: string | null };
+export function countAttempts(usage: Usage, attempts: TaskAttempt[]) {
+  for (const a of attempts) {
+    usage[a.by].requests += a.requests;
+    usage[a.by].input += a.input;
+    usage[a.by].output += a.output;
+  }
+}
 
-// Reads the shop names from an answer. Mistral answers are extracted by Mistral (json_schema); if that fails,
-// Gemini extracts them. Gemini answers are extracted by Gemini. The extractor used is returned.
-export async function extractNames(engine: EngineId, answer: string, terms: BrandTerms, label: string, usage: Usage): Promise<Extracted> {
-  const prompt = extractionPrompt(answer, label, terms.host);
-  let problem: string | null = null;
-  if (engine === "mistral" && mistralConfigured()) {
-    const x = await askMistral(prompt, { jsonSchema: EXTRACTION_JSON_SCHEMA, maxOutputTokens: EXTRACTION_MAX_TOKENS });
-    count(usage, "mistral", x);
-    const parsed = x.ok ? parseExtraction(x.text) : null;
-    if (parsed) return { analysis: combineAnalysis(answer, terms, parsed), extractor: "mistral", problem: null };
-    problem = `Mistral extraction: ${extractionProblem(x.ok ? { ok: true, text: x.text, finishReason: x.finishReason } : { ok: false, error: x.error })}`;
-  }
-  if (geminiConfigured()) {
-    const x = await askGemini(prompt, { jsonSchema: EXTRACTION_SCHEMA, maxOutputTokens: EXTRACTION_MAX_TOKENS });
-    count(usage, "gemini", x);
-    const parsed = x.ok ? parseExtraction(x.text) : null;
-    if (parsed) return { analysis: combineAnalysis(answer, terms, parsed), extractor: "gemini", problem: null };
-    problem = [problem, `Gemini extraction: ${extractionProblem(x.ok ? { ok: true, text: x.text, finishReason: x.finishReason } : { ok: false, error: x.error })}`].filter(Boolean).join("; ");
-  }
-  return { analysis: combineAnalysis(answer, terms, null), extractor: null, problem: problem ?? "no extraction engine available" };
+export type Extracted = { analysis: Analysis & { method: "model" | "failed" }; extractor: TaskBy | null; problem: string | null; attempts: TaskAttempt[] };
+
+// Reads the shop names from an answer with the internal task chain: Groq → NVIDIA → Gemini → none (the text match
+// still decides "mentioned"; no names are shown). The extractor used and every attempt are returned.
+export async function extractNames(answer: string, terms: BrandTerms, label: string, usage: Usage, allowGemini?: () => Promise<boolean>): Promise<Extracted> {
+  const t = await runTask({
+    prompt: extractionPrompt(answer, label, terms.host),
+    jsonSchema: EXTRACTION_JSON_SCHEMA,
+    geminiSchema: EXTRACTION_SCHEMA,
+    maxOutputTokens: EXTRACTION_MAX_TOKENS,
+    validate: parseExtraction,
+    allowGemini,
+  });
+  countAttempts(usage, t.attempts);
+  return {
+    analysis: combineAnalysis(answer, terms, t.value),
+    extractor: t.by,
+    problem: t.value ? null : attemptsText(t.attempts) ?? "no extraction model available",
+    attempts: t.attempts,
+  };
 }
 
 export { count as countUsage };
