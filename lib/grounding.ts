@@ -1,12 +1,20 @@
 // Gemini grounding with Google Search: the sources an answer relied on (groundingMetadata), and the app-wide cap.
 // Docs: https://ai.google.dev/gemini-api/docs/google-search
-// Pricing: https://ai.google.dev/gemini-api/docs/pricing — Gemini 3 models: 5,000 grounded prompts per month free
-// (shared across Gemini 3 models, paid tier; not in the free tier), then $14 per 1,000. AgentScope stops itself at
-// GROUNDING_MONTHLY_LIMIT, far below the free 5,000, so grounding never costs money. Off unless
-// GEMINI_GROUNDING_ENABLED=true.
+// Pricing: https://ai.google.dev/gemini-api/docs/pricing — grounding allowances differ per model and tier (Gemini 3:
+// 5,000 per month on the paid tier only; Gemini 2.5 Flash: 500 per day on the free tier). AgentScope stops itself at
+// GROUNDING_MONTHLY_LIMIT and GROUNDING_DAILY_LIMIT. Off unless GEMINI_GROUNDING_ENABLED=true. When Google refuses a
+// grounded request (free tier, 400, 403, 429), its reason is stored word for word, Citations are UNAVAILABLE, and the
+// question is asked again without grounding on GEMINI_MODEL so the answer is not lost.
 import { normalizeName, registrableDomain } from "./visibility";
 
 export const GROUNDING_MONTHLY_LIMIT = 1000;
+// Also a small daily cap, so the free tier's daily grounding limit is never reached.
+export const GROUNDING_DAILY_LIMIT = 50;
+
+// Grounded questions use their own model: Flash-Lite has no grounding on the free tier. Gemini 2.5 Flash has
+// Google Search grounding on the free tier (500 requests per day, shared with Flash-Lite, per the pricing page).
+// Override with GEMINI_GROUNDING_MODEL. Every other request stays on GEMINI_MODEL.
+export const GROUNDING_MODEL = process.env.GEMINI_GROUNDING_MODEL?.trim() || "gemini-2.5-flash";
 
 export function groundingEnabled(): boolean {
   return process.env.GEMINI_GROUNDING_ENABLED?.trim().toLowerCase() === "true";
@@ -58,7 +66,11 @@ export function parseGrounding(metadata: unknown): Grounding | null {
 
 // ---------- the Citations page ----------
 
-export type CitationRow = { prompt: string; competitors: string[]; citations: Grounding | null };
+// What is stored per answer: the sources, or why there are none (Google's own words).
+export type CitationRecord = Grounding | { unavailable: string };
+export const isGrounding = (c: CitationRecord | null | undefined): c is Grounding => !!c && !("unavailable" in c);
+
+export type CitationRow = { prompt: string; competitors: string[]; citations: CitationRecord | null };
 export type DomainCount = { domain: string; answers: number; isStore: boolean; competitor: string | null; examples: string[] };
 
 // Domains the grounded answers relied on, counted once per answer, with the store and named competitors marked.
@@ -68,7 +80,7 @@ export function citedDomains(storeHost: string, rows: CitationRow[]): { grounded
   let grounded = 0;
   let storeCited = 0;
   for (const r of rows) {
-    if (!r.citations) continue;
+    if (!isGrounding(r.citations)) continue;
     grounded++;
     const compByKey = new Map(r.competitors.map((c) => [normalizeName(c), c]));
     const seen = new Set<string>();

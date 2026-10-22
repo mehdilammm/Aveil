@@ -1,8 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emptyUsage, countUsage, ENGINE_MODEL, engineConfigured, askEngine, extractNames, profileAnswer, USAGE_KEYS } from "./engines";
-import { askGemini, geminiConfigured } from "./gemini";
-import { GROUNDING_MONTHLY_LIMIT, groundingEnabled } from "./grounding";
+import { geminiConfigured } from "./gemini";
+import { askVisibilityQuestion } from "./grounded-question";
 import { taskModelEnabled } from "./task-models";
 import { brandTerms, canRun, ENGINE_NAME, ENGINES, MAX_PROMPTS, nextRunAt, type EngineId } from "./visibility";
 
@@ -76,19 +76,14 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
       }
       if (i > 0) await sleep(GAP_MS);
       const before = { ...usage[engine] };
-      // Gemini with Google Search grounding when enabled and the app-wide monthly cap allows it; else a plain question.
-      // The Citations page shows how many answers were grounded and the month's usage against the cap.
-      let grounded = false;
-      if (engine === "gemini" && groundingEnabled()) {
-        const { data: ok } = await admin.rpc("grounding_reserve", { p_limit: GROUNDING_MONTHLY_LIMIT });
-        grounded = Boolean(ok);
-        if (grounded && !usedGrounding) {
-          usedGrounding = true;
-          await admin.from("visibility_runs").update({ grounding: true }).eq("id", run.id);
-        }
+      // Gemini questions: with Google Search grounding when enabled and within the caps (see grounded-question.ts).
+      const q = engine === "gemini" ? await askVisibilityQuestion(admin, p.prompt) : null;
+      const r = q ? q.result : await askEngine(engine, p.prompt);
+      const grounded = q?.grounded ?? false;
+      if (q?.attempted && !usedGrounding) {
+        usedGrounding = true;
+        await admin.from("visibility_runs").update({ grounding: true }).eq("id", run.id);
       }
-      const r = grounded ? await askGemini(p.prompt, { grounding: true }) : await askEngine(engine, p.prompt);
-      if (grounded && r.requests > 1) await admin.rpc("grounding_record", { p_n: r.requests - 1 });
       countUsage(usage, engine, r);
       if (!r.ok || r.blocked || !r.text) {
         const error = !r.ok ? r.error : r.blocked ? `Blocked by ${ENGINE_NAME[engine]}: ${r.blocked}` : "Empty answer";
@@ -135,7 +130,7 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
         extractor: x.extractor,
         profile: p2?.profile ?? null,
         grounded,
-        citations: r.grounding ?? null,
+        citations: q?.citations ?? null,
         profiler: p2?.profile ? p2.by : null,
       });
       await saveTotals();

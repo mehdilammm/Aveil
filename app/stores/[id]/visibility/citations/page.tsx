@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { BasisBadge, formatDate } from "@/components/badges";
 import { VisibilityTabs } from "@/components/visibility-tabs";
 import { getStore } from "@/lib/data";
-import { citedDomains, GROUNDING_MONTHLY_LIMIT, groundingEnabled, type Grounding } from "@/lib/grounding";
+import { citedDomains, GROUNDING_DAILY_LIMIT, GROUNDING_MODEL, GROUNDING_MONTHLY_LIMIT, groundingEnabled, isGrounding, type CitationRecord } from "@/lib/grounding";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 
@@ -19,7 +19,7 @@ export default async function CitationsPage({ params }: { params: Promise<{ id: 
   const { data: rows } = run
     ? await supabase.from("visibility_results").select("prompt, competitors, citations, grounded").eq("run_id", run.id).eq("engine", "gemini").not("answer", "is", null)
     : { data: [] };
-  const list = (rows ?? []).map((r) => ({ prompt: r.prompt, competitors: (r.competitors as string[]) ?? [], citations: r.citations as Grounding | null, grounded: r.grounded as boolean }));
+  const list = (rows ?? []).map((r) => ({ prompt: r.prompt, competitors: (r.competitors as string[]) ?? [], citations: r.citations as CitationRecord | null, grounded: r.grounded as boolean }));
   const host = new URL(store.url).hostname;
   const summary = citedDomains(host, list);
 
@@ -41,15 +41,23 @@ export default async function CitationsPage({ params }: { params: Promise<{ id: 
       <VisibilityTabs storeId={id} active="/citations" />
       <div className="card">
         <p className="muted small">
-          {groundingEnabled() ? "Questions are sent to Gemini with Google Search grounding; each answer lists the sources it relied on." : "Google Search grounding is off on this server (GEMINI_GROUNDING_ENABLED is not true), so answers have no sources."}{" "}
-          App-wide cap: {GROUNDING_MONTHLY_LIMIT} grounded requests per month{monthUsed !== null ? `, ${monthUsed} used this month` : ""}; above it questions are asked without Google Search.
+          {groundingEnabled() ? `Questions are sent to Gemini (${GROUNDING_MODEL}) with Google Search grounding; each answer lists the sources it relied on.` : "Google Search grounding is off on this server (GEMINI_GROUNDING_ENABLED is not true), so answers have no sources."}{" "}
+          App-wide caps: {GROUNDING_DAILY_LIMIT} grounded requests per day and {GROUNDING_MONTHLY_LIMIT} per month{monthUsed !== null ? ` (${monthUsed} used this month)` : ""}; above them, or when Google refuses grounding, questions are asked without Google Search.
         </p>
       </div>
       {!run ? (
         <div className="card empty"><strong>No grounded answers yet</strong><p>{groundingEnabled() ? "Run the questions in AI Visibility." : "Turn grounding on, then run the questions."}</p></div>
       ) : (
         <>
-          <p className="muted small">Latest grounded run: {formatDate(run.created_at)}. {summary.grounded} of {list.length} answers have sources.</p>
+          <p className="muted small">Latest run with grounding: {formatDate(run.created_at)}. {summary.grounded} of {list.length} answers have sources.</p>
+          {list.filter((r) => r.citations && !isGrounding(r.citations)).length > 0 && (
+            <div className="card">
+              <p className="small"><BasisBadge basis="unavailable" /> Citations unavailable for {list.filter((r) => r.citations && !isGrounding(r.citations)).length} answers:</p>
+              <ul className="small">
+                {[...new Set(list.map((r) => (r.citations && !isGrounding(r.citations) ? r.citations.unavailable : null)).filter((x): x is string => !!x))].map((reason) => <li key={reason}>{reason}</li>)}
+              </ul>
+            </div>
+          )}
           <div className="card">
             <p><BasisBadge basis="observed" /> Your site ({host}) is cited in <strong>{summary.storeCited} of {summary.grounded}</strong> answers with sources.</p>
           </div>
@@ -74,14 +82,14 @@ export default async function CitationsPage({ params }: { params: Promise<{ id: 
             </div>
           )}
           <h2>Answers and their sources</h2>
-          {list.filter((r) => r.citations).map((r, i) => (
+          {list.flatMap((r) => (isGrounding(r.citations) ? [{ ...r, citations: r.citations }] : [])).map((r, i) => (
             <div key={i} className="card finding">
               <h3>{r.prompt}</h3>
-              <p className="small">{r.citations!.sources.map((s) => s.domain ?? s.title).filter(Boolean).join(", ") || "no website"}</p>
-              {r.citations!.queries.length > 0 && <p className="muted small">Google searches: {r.citations!.queries.join(" · ")}</p>}
-              {r.citations!.entryPoint && (
+              <p className="small">{r.citations.sources.map((s) => s.domain ?? s.title).filter(Boolean).join(", ") || "no website"}</p>
+              {r.citations.queries.length > 0 && <p className="muted small">Google searches: {r.citations.queries.join(" · ")}</p>}
+              {r.citations.entryPoint && (
                 // Google Search suggestions, which must be shown with grounded answers. Sandboxed: Google's HTML, no scripts.
-                <iframe title="Google Search suggestions" sandbox="allow-popups allow-popups-to-escape-sandbox" srcDoc={r.citations!.entryPoint} style={{ width: "100%", height: 64, border: 0 }} />
+                <iframe title="Google Search suggestions" sandbox="allow-popups allow-popups-to-escape-sandbox" srcDoc={r.citations.entryPoint} style={{ width: "100%", height: 64, border: 0 }} />
               )}
             </div>
           ))}

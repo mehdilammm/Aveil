@@ -182,3 +182,9 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
   1000 grounded requests per month app-wide (`grounding_reserve`), far below the 5,000 free grounded prompts per month
   of Gemini 3 models (paid tier only; then $14 per 1,000: https://ai.google.dev/gemini-api/docs/pricing). Above the cap
   questions are asked without Google Search.
+- Grounding on the free tier: grounded questions use `GEMINI_GROUNDING_MODEL` (default `gemini-2.5-flash`; Flash-Lite
+  has no grounding on the free tier); everything else stays on `GEMINI_MODEL`. Caps: 50 per day and 1000 per month
+  app-wide (`grounding_reserve_capped`). If Google refuses grounding (free tier, 400, 403, 429), the reason is stored
+  word for word, Citations show UNAVAILABLE with it, and the question is asked again without grounding.
+- The old owner-only policies are turned off (`ALTER POLICY ... false`, migration 20261022141000); DROP needs an
+  interactive confirmation the migration tool could not get.

@@ -21,7 +21,7 @@ export type AskResult = ({ ok: true } & EngineAnswer & { requests: number; waite
 
 // grounding: adds the google_search tool (https://ai.google.dev/gemini-api/docs/google-search); the caller checks
 // GEMINI_GROUNDING_ENABLED and the monthly cap first.
-type AskOptions = { jsonSchema?: object; maxOutputTokens?: number; grounding?: boolean };
+type AskOptions = { jsonSchema?: object; maxOutputTokens?: number; grounding?: boolean; model?: string };
 
 // Sends one message as a plain user turn. Retries once on 429 or 5xx.
 // With jsonSchema, asks for structured output (responseMimeType application/json + responseSchema).
@@ -32,7 +32,7 @@ export async function askGemini(prompt: string, options: AskOptions = {}): Promi
   for (let attempt = 0; attempt < 2; attempt++) {
     requests++;
     try {
-      const res = await fetch(`${ENDPOINT}/${encodeURIComponent(GEMINI_MODEL)}:generateContent`, {
+      const res = await fetch(`${ENDPOINT}/${encodeURIComponent(options.model ?? GEMINI_MODEL)}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
