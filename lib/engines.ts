@@ -1,6 +1,7 @@
 import "server-only";
 import { askGemini, GEMINI_MODEL, geminiConfigured, type AskResult } from "./gemini";
 import { askMistral, MISTRAL_MODEL, mistralConfigured } from "./mistral";
+import { parseProfile, profilePrompt, PROFILE_GEMINI_SCHEMA, PROFILE_JSON_SCHEMA, type AnswerProfile } from "./profile";
 import { attemptsText, runTask, type TaskAttempt, type TaskBy } from "./task-models";
 import {
   combineAnalysis, EXTRACTION_JSON_SCHEMA, EXTRACTION_MAX_TOKENS, EXTRACTION_SCHEMA, extractionPrompt,
@@ -65,6 +66,22 @@ export async function extractNames(answer: string, terms: BrandTerms, label: str
     problem: t.value ? null : attemptsText(t.attempts) ?? "no extraction model available",
     attempts: t.attempts,
   };
+}
+
+export type Profiled = { profile: AnswerProfile | null; by: TaskBy | null; problem: string | null; attempts: TaskAttempt[] };
+
+// Sentiment, description and features of the store and of each named competitor, from one answer (task chain).
+export async function profileAnswer(answer: string, terms: BrandTerms, label: string, mentioned: boolean, competitors: string[], usage: Usage, allowGemini?: () => Promise<boolean>): Promise<Profiled> {
+  const t = await runTask({
+    prompt: profilePrompt(answer, label, terms.host, competitors),
+    jsonSchema: PROFILE_JSON_SCHEMA,
+    geminiSchema: PROFILE_GEMINI_SCHEMA,
+    maxOutputTokens: EXTRACTION_MAX_TOKENS,
+    validate: (text) => parseProfile(text, answer, mentioned, competitors),
+    allowGemini,
+  });
+  countAttempts(usage, t.attempts);
+  return { profile: t.value, by: t.by, problem: t.value ? null : attemptsText(t.attempts) ?? "no model available", attempts: t.attempts };
 }
 
 export { count as countUsage };

@@ -168,4 +168,15 @@ describe("internal task chain: Groq → NVIDIA → Gemini → heuristic", () => 
     await extractNames("text", terms, "Matha", emptyUsage());
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).model).toBe("nvidia/some-small-model");
   });
+  it("brand profile goes through the same chain (Groq first, checked against the answer)", async () => {
+    const { profileAnswer, emptyUsage } = await import("./engines");
+    const reply = JSON.stringify({ store: { sentiment: "positive", description: "A tea shop.", features: ["fresh mint tea"] }, competitors: [{ name: "Etsy", sentiment: "neutral", description: null, features: [] }] });
+    fetchMock.mockResolvedValueOnce(chat(reply));
+    const usage = emptyUsage();
+    const p = await profileAnswer("Matha sells fresh mint tea. Etsy too.", terms, "Matha", true, ["Etsy"], usage);
+    expect(p.by).toBe("groq");
+    expect(p.profile?.store.features).toEqual(["fresh mint tea"]);
+    expect(p.profile?.competitors[0]).toMatchObject({ name: "Etsy", sentiment: "neutral" });
+    expect(usage.groq.requests).toBe(1);
+  });
 });

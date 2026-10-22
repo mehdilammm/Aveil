@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emptyUsage, countUsage, ENGINE_MODEL, engineConfigured, askEngine, extractNames, USAGE_KEYS } from "./engines";
+import { emptyUsage, countUsage, ENGINE_MODEL, engineConfigured, askEngine, extractNames, profileAnswer, USAGE_KEYS } from "./engines";
 import { geminiConfigured } from "./gemini";
 import { taskModelEnabled } from "./task-models";
 import { brandTerms, canRun, ENGINE_NAME, ENGINES, MAX_PROMPTS, nextRunAt, type EngineId } from "./visibility";
@@ -93,6 +93,10 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
       await sleep(GAP_MS);
       const all = emptyUsage();
       const x = await extractNames(r.text, terms, store.name, all);
+      // Brand profile (Gemini answers only: visibility is Gemini's): only when someone is named.
+      const p2 = engine === "gemini" && (x.analysis.mentioned || x.analysis.competitors.length)
+        ? await profileAnswer(r.text, terms, store.name, x.analysis.mentioned, x.analysis.competitors, all)
+        : null;
       const sum = USAGE_KEYS.reduce((t, e) => ({ requests: t.requests + all[e].requests, input: t.input + all[e].input, output: t.output + all[e].output }), { requests: 0, input: 0, output: 0 });
       for (const e of USAGE_KEYS) {
         usage[e].requests += all[e].requests;
@@ -115,6 +119,8 @@ export async function runVisibility(admin: SupabaseClient, store: Store): Promis
         requests: r.requests + sum.requests,
         extraction: a.method,
         extractor: x.extractor,
+        profile: p2?.profile ?? null,
+        profiler: p2?.profile ? p2.by : null,
       });
       await saveTotals();
     }

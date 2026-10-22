@@ -3,6 +3,7 @@ import { formatDate } from "@/components/badges";
 import { getStore } from "@/lib/data";
 import { ENGINE_MODEL, engineConfigured } from "@/lib/engines";
 import { MISTRAL_OFF_REASON } from "@/lib/mistral";
+import { VisibilityTabs } from "@/components/visibility-tabs";
 import { GEMINI_DISCLAIMER } from "@/lib/public-scan";
 import { getUser } from "@/lib/supabase/server";
 import { canRun, ENGINE_LABEL, ENGINE_NAME, ENGINES, MAX_PROMPTS, nextRunAt, TASK_BY_LABEL, type EngineId, type TaskById } from "@/lib/visibility";
@@ -99,6 +100,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
         <h1>AI Visibility</h1>
         <p className="sub">Whether your store appears when people ask an AI assistant about what you sell.</p>
       </div>
+      <VisibilityTabs storeId={store.id} active="" />
 
       <div className="card">
         {ENGINES.map((e) => (

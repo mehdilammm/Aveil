@@ -156,3 +156,10 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
 - Groq `json_validate_failed` (gpt-oss sometimes drops a required field): the `failed_generation` text is checked by
   our own validation instead of being thrown away. A 404/410 model answer says "Set GROQ_MODEL/NVIDIA_MODEL" and the
   chain moves on.
+
+## v0.9: closing the gap with competitors
+
+- Brand profile (`lib/profile.ts`, AI Visibility → Brand profile): for each Gemini answer that names someone, the task
+  chain (Groq → NVIDIA → Gemini) reads the tone (positive / neutral / negative), a short description and the features
+  given to the store and to each named competitor. "Mentioned" stays the text match; competitors must be names the
+  extraction found; features are kept only when their words are in the answer. Stored in `visibility_results.profile`.
