@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       AgentScope Core
  * Description:       Read-only WooCommerce store readiness checks and opt-in, privacy-conscious AI traffic signals. User agents and referrers are recorded as unverified claims, never as proven identity.
- * Version:           1.3.0
+ * Version:           1.3.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            AgentScope
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('AGSC_VERSION', '1.3.0');
+define('AGSC_VERSION', '1.3.1');
 define('AGSC_DB_VERSION', '1');
 define('AGSC_FILE', __FILE__);
 define('AGSC_DIR', plugin_dir_path(__FILE__));

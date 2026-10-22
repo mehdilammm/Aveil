@@ -4,7 +4,7 @@ Tags: woocommerce, ai, chatgpt, structured data, analytics
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -80,6 +80,9 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 
 == Changelog ==
 
+= 1.3.1 =
+* Test release for the update checker: no functional change.
+
 = 1.3.0 =
 * Updates appear in WordPress like any plugin update, from the AgentScope app, checked once a day; the zip's SHA-256 is verified before it is installed.
 * readme.txt follows the WordPress.org format, with an External services section.
@@ -99,6 +102,9 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 * Clean rebuild: paginated scan, scan history, Emerald admin workspace.
 
 == Upgrade Notice ==
+
+= 1.3.1 =
+Test release for the update checker; nothing else changes.
 
 = 1.3.0 =
 Future updates show up in Plugins → Updates and are checked against a SHA-256 checksum.
