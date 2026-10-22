@@ -43,7 +43,7 @@ describe("AI-referred orders: attribution parsing", () => {
     const s = summarizeOrders(orders);
     expect(s.scanned).toBe(4);
     expect(s.aiOrders.map((o) => [o.order_id, o.source, o.via, o.entry_path])).toEqual([[1, "ChatGPT", "utm_source", "/p/a/"], [3, "Perplexity", "plugin", "/p/b/"]]);
-    expect(Object.keys(s.aiOrders[0]).sort()).toEqual(["agent_checkout", "currency", "entry_path", "order_id", "ordered_at", "source", "total", "via"]);
+    expect(Object.keys(s.aiOrders[0]).sort()).toEqual(["agent_checkout", "currency", "entry_path", "order_id", "ordered_at", "refunded", "source", "total", "via"]);
     expect(JSON.stringify(s.aiOrders)).not.toMatch(/email|phone|address|billing|@/i);
     expect(revenueByCurrency(s.aiOrders)).toEqual([{ currency: "MAD", total: 120.5, orders: 1 }, { currency: "EUR", total: 80, orders: 1 }]);
   });

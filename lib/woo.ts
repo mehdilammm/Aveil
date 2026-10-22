@@ -3,6 +3,7 @@ import type { PublicPage, Source } from "./pages";
 import type { WooProduct, WooVariation } from "./rules";
 import { CHECK_HEADER, checkHeaderValue } from "./check-header";
 import { BlockedUrlError, guardedFetch } from "./safe-fetch";
+import { COUNTED_STATUSES } from "./ai-orders";
 
 export type WooCredentials = { consumerKey: string; consumerSecret: string };
 
@@ -316,8 +317,8 @@ export async function fetchRecentOrders(baseUrl: string, creds: WooCredentials, 
         page: String(page),
         orderby: "date",
         order: "desc",
-        status: "processing,completed,on-hold",
-        _fields: "id,date_created_gmt,total,currency,status,created_via,meta_data",
+        status: COUNTED_STATUSES.join(","),
+        _fields: "id,date_created_gmt,total,currency,status,created_via,meta_data,refunds",
         include_meta: metaKeys.join(","),
       }, creds);
       orders.push(...res.items);

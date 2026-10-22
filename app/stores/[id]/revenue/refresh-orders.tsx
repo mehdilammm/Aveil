@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { aiOrdersLabel } from "@/lib/ai-orders";
 
 export function RefreshOrders({ storeId }: { storeId: string }) {
   const router = useRouter();
@@ -13,7 +14,7 @@ export function RefreshOrders({ storeId }: { storeId: string }) {
     try {
       const res = await fetch(`/api/stores/${storeId}/orders`, { method: "POST" });
       const body = await res.json().catch(() => ({}));
-      setMessage(body.error ?? (body.status === "ok" ? `Done: ${body.aiOrders} AI-referred orders.` : body.reason));
+      setMessage(body.error ?? (body.status === "ok" ? `Done: ${aiOrdersLabel(body.aiOrders)}.` : body.reason));
       router.refresh();
     } catch {
       setMessage("Network error. Please try again.");

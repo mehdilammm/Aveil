@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BasisBadge, formatDate, SeverityBadge } from "@/components/badges";
-import { ORDER_WINDOW_DAYS, revenueByCurrency } from "@/lib/ai-orders";
+import { aiOrdersLabel, ORDER_WINDOW_DAYS, revenueByCurrency } from "@/lib/ai-orders";
 import { findingsForScan, getStore, listScans } from "@/lib/data";
 import { buildFunnel, diagnose, type FunnelInput } from "@/lib/funnel";
 import { PLANS, type PlanId } from "@/lib/plans";
@@ -48,9 +48,9 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
 
   const [{ data: sync }, { data: orders }] = await Promise.all([
     supabase.from("order_syncs").select("synced_at, status, reason, orders_scanned, ai_orders, agent_checkouts").eq("store_id", id).maybeSingle(),
-    supabase.from("ai_orders").select("order_id, ordered_at, total, currency, source, via, entry_path, agent_checkout").eq("store_id", id).order("ordered_at", { ascending: false }).limit(200),
+    supabase.from("ai_orders").select("order_id, ordered_at, total, refunded, currency, source, via, entry_path, agent_checkout").eq("store_id", id).order("ordered_at", { ascending: false }).limit(200),
   ]);
-  const aiOrders = (orders ?? []).map((o) => ({ ...o, total: Number(o.total) }));
+  const aiOrders = (orders ?? []).map((o) => ({ ...o, total: Number(o.total), refunded: Number(o.refunded) }));
 
   let ordersInput: FunnelInput["orders"];
   if (!plan.aiRevenue) ordersInput = { kind: "locked" };
@@ -132,13 +132,13 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
         ) : sync.status !== "ok" ? (
           <p><BasisBadge basis="unavailable" /> {sync.reason}</p>
         ) : aiOrders.length === 0 ? (
-          <p><BasisBadge basis="observed" /> No AI-referred orders yet in the last {ORDER_WINDOW_DAYS} days ({sync.orders_scanned} orders read). This is a result, not an error.</p>
+          <p><BasisBadge basis="observed" /> No AI-referred orders yet in the last {ORDER_WINDOW_DAYS} days ({sync.orders_scanned} {sync.orders_scanned === 1 ? "order" : "orders"} read). This is a result, not an error.</p>
         ) : (
           <>
-            <p><BasisBadge basis="observed" /> {aiOrders.length} AI-referred orders in the last {ORDER_WINDOW_DAYS} days ({sync.orders_scanned} orders read).</p>
+            <p><BasisBadge basis="observed" /> {aiOrdersLabel(aiOrders.length)} in the last {ORDER_WINDOW_DAYS} days ({sync.orders_scanned} {sync.orders_scanned === 1 ? "order" : "orders"} read).</p>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Source</th><th className="num">Orders</th><th className="num">Revenue</th></tr></thead>
+                <thead><tr><th>Source</th><th className="num">Orders</th><th className="num">Net revenue</th></tr></thead>
                 <tbody>
                   {[...bySource.entries()].map(([s, v]) => (
                     <tr key={s}><td>{s}</td><td className="num">{v.orders}</td><td className="num">{v.revenue.map((r) => `${r.total.toFixed(2)} ${r.currency}`).join(" + ")}</td></tr>
@@ -150,10 +150,10 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
               <summary className="muted small">Orders (no personal data is stored)</summary>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Order</th><th>Date</th><th>Source</th><th>Matched by</th><th>Entry page</th><th className="num">Total</th></tr></thead>
+                  <thead><tr><th>Order</th><th>Date</th><th>Source</th><th>Matched by</th><th>Entry page</th><th className="num">Total</th><th className="num">Refunded</th></tr></thead>
                   <tbody>
                     {aiOrders.map((o) => (
-                      <tr key={o.order_id}><td>#{o.order_id}</td><td>{o.ordered_at.slice(0, 10)}</td><td>{o.source}{o.agent_checkout ? " (agent checkout)" : ""}</td><td>{o.via}</td><td>{o.entry_path ?? "—"}</td><td className="num">{o.total.toFixed(2)} {o.currency}</td></tr>
+                      <tr key={o.order_id}><td>#{o.order_id}</td><td>{o.ordered_at.slice(0, 10)}</td><td>{o.source}{o.agent_checkout ? " (agent checkout)" : ""}</td><td>{o.via}</td><td>{o.entry_path ?? "—"}</td><td className="num">{o.total.toFixed(2)} {o.currency}</td><td className="num">{o.refunded > 0 ? `${o.refunded.toFixed(2)} ${o.currency}` : "—"}</td></tr>
                     ))}
                   </tbody>
                 </table>
@@ -163,7 +163,7 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
         )}
         {plan.aiRevenue && (
           <>
-            <p className="muted small">Agent checkout (an AI agent buying on its own): {sync?.status === "ok" && sync.agent_checkouts > 0 ? `${sync.agent_checkouts} orders show evidence of it.` : "not measurable yet. WooCommerce does not mark such orders today; we will count them when there is evidence on the order."}</p>
+            <p className="muted small">Agent checkout (an AI agent buying on its own): {sync?.status === "ok" && sync.agent_checkouts > 0 ? `${sync.agent_checkouts} order${sync.agent_checkouts === 1 ? " shows" : "s show"} evidence of it.` : "not measurable yet. WooCommerce does not mark such orders today; we will count them when there is evidence on the order."}</p>
             {sync && <p className="muted small">Last read: {formatDate(sync.synced_at)}.</p>}
             {access && canEdit(access.role) && <RefreshOrders storeId={id} />}
           </>
