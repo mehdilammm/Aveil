@@ -10,6 +10,8 @@ export type Plan = {
   visibilityQuestions: number;
   visibilityPer: "month" | "week";
   workspaceMembers: boolean;
+  // AI-referred orders and revenue on the AI Revenue page (the funnel itself is in every plan).
+  aiRevenue: boolean;
   features: string[];
   // Until payments exist, paid plans only collect waitlist sign-ups.
   cta: "signup" | "waitlist";
@@ -25,7 +27,8 @@ export const PLANS: Record<PlanId, Plan> = {
     visibilityQuestions: 5,
     visibilityPer: "month",
     workspaceMembers: false,
-    features: ["Public check of any store", "1 store", "Full scan once a month", "AI visibility: 5 questions a month"],
+    aiRevenue: false,
+    features: ["Public check of any store", "1 store", "Full scan once a month", "AI visibility: 5 questions a month", "AI Revenue funnel and \"why agents aren't buying\" (without orders)"],
     cta: "signup",
   },
   pro: {
@@ -37,7 +40,8 @@ export const PLANS: Record<PlanId, Plan> = {
     visibilityQuestions: 15,
     visibilityPer: "week",
     workspaceMembers: false,
-    features: ["3 stores", "Weekly scans", "AI visibility: 15 questions a week", "Fix Center", "CSV exports", "AI traffic plugin"],
+    aiRevenue: true,
+    features: ["3 stores", "Weekly scans", "AI visibility: 15 questions a week", "AI-referred orders and revenue", "Fix Center", "CSV exports", "AI traffic plugin"],
     cta: "waitlist",
   },
   agency: {
@@ -49,7 +53,8 @@ export const PLANS: Record<PlanId, Plan> = {
     visibilityQuestions: 15,
     visibilityPer: "week",
     workspaceMembers: true,
-    features: ["10 stores", "Workspaces and team members", "Client reports", "Everything in Pro"],
+    aiRevenue: true,
+    features: ["10 stores", "Workspaces and team members", "Client reports", "AI-referred orders and revenue", "Everything in Pro"],
     cta: "waitlist",
   },
 };

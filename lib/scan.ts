@@ -7,7 +7,11 @@ import { checkFeedProduct, checkFeedStore } from "./feed";
 import { checkStoreGate } from "./gate";
 import { checkStorePages } from "./pages";
 import { checkProduct, type Finding, type Severity } from "./rules";
-import { fetchPublicPages, fetchPublishedProducts, fetchPublishedVariations, fetchComingSoon, fetchSettings, fetchSiteName, WooError } from "./woo";
+import { checkCheckout } from "./checkout";
+import { planOf, syncOrders } from "./orders-sync";
+import { PLANS } from "./plans";
+import { BROWSER_UA, AI_BOTS } from "./access";
+import { fetchPaymentGateways, fetchPublicPage, fetchPublicPages, fetchPublishedProducts, fetchPublishedVariations, fetchComingSoon, fetchSettings, fetchShippingZones, fetchSiteName, WooError } from "./woo";
 
 type Store = { id: string; owner_id: string; url: string };
 
@@ -98,7 +102,7 @@ export async function runScan(
     ).flat();
 
     const [settings, pages, siteName, comingSoon] = await Promise.all([
-      fetchSettings(store.url, ["general", "products", "advanced"], wooCreds),
+      fetchSettings(store.url, ["general", "products", "advanced", "account"], wooCreds),
       fetchPublicPages(store.url),
       fetchSiteName(store.url),
       fetchComingSoon(store.url, wooCreds),
@@ -115,6 +119,29 @@ export async function runScan(
     findings.push(...checkStoreGate(store.url, comingSoon, access.gated));
     const currency = settings.ok && /^[A-Z]{3}$/.test(settings.data.woocommerce_currency ?? "") ? settings.data.woocommerce_currency : null;
     findings.push(...(await runStructuredChecks(store.url, samples, access.pages, currency, checkToken)));
+
+    // Checkout: guest checkout, shipping, payment, the checkout page for a browser and for GPTBot, stock.
+    const [zones, gateways] = await Promise.all([fetchShippingZones(store.url, wooCreds), fetchPaymentGateways(store.url, wooCreds)]);
+    const checkoutId = settings.ok ? Number(settings.data.woocommerce_checkout_page_id ?? 0) : 0;
+    const checkoutSlug = pages.ok ? pages.data.find((p) => p.id === checkoutId)?.slug : undefined;
+    let checkoutPage = null;
+    if (checkoutSlug) {
+      const url = `${store.url}/${checkoutSlug}/`;
+      const gptbot = AI_BOTS.find((b) => b.name === "GPTBot")!.ua;
+      checkoutPage = { url, browser: await fetchPublicPage(url, BROWSER_UA, checkToken), bot: await fetchPublicPage(url, gptbot, checkToken) };
+    }
+    findings.push(...checkCheckout({
+      storeUrl: store.url,
+      settings,
+      zones,
+      gateways,
+      checkoutPage,
+      products: {
+        total: products.items.length,
+        outOfStock: products.items.filter((p) => p.stock_status === "outofstock").length,
+        needShipping: products.items.filter((p) => !p.virtual).length,
+      },
+    }));
 
     const { previous, ever } = await earlierKeys(admin, store.id, scan.id);
     const rows = findings.map((f) => ({
@@ -145,6 +172,13 @@ export async function runScan(
       })
       .eq("id", scan.id);
     await admin.from("stores").update(connectionAfterScan({ ok: true })).eq("id", store.id);
+
+    // AI-referred orders (Pro and Agency). A failure here never fails the scan.
+    try {
+      if (PLANS[await planOf(admin, store.id)].aiRevenue) await syncOrders(admin, store, wooCreds);
+    } catch (err) {
+      console.error("order sync failed", store.id, err instanceof Error ? err.message : "unknown");
+    }
     return { scanId: scan.id };
   } catch (err) {
     const message = err instanceof WooError ? err.message : "The scan failed. Please try again.";

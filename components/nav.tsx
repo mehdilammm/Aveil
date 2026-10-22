@@ -9,6 +9,7 @@ const ITEMS = [
   { label: "Store Readiness", path: "/readiness" },
   { label: "Fix Center", path: "/fix" },
   { label: "AI Visibility", path: "/visibility" },
+  { label: "AI Revenue", path: "/revenue" },
   { label: "Reports", path: "/reports" },
 ];
 
