@@ -1,0 +1,343 @@
+{
+ "note": "Real answers from matha.site (WooCommerce 11.2.1) read on 2026-10-22 through its WordPress REST API: /wc/v3/products (publish, orderby id), /wc/v3/products/categories, /wc/v3/products/attributes.",
+ "products": [
+  {
+   "id": 170,
+   "name": "Round Plain Wall Mirror",
+   "type": "simple",
+   "price": "500",
+   "regular_price": "500",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-PLN-01",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/round-plain-wall-mirror/",
+   "categories": [
+    {
+     "id": 27,
+     "name": "Plain Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 171,
+   "name": "Rectangular Wall Mirror 80 x 120 cm",
+   "type": "simple",
+   "price": "500",
+   "regular_price": "500",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-PLN-02",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/rectangular-wall-mirror-80-x-120-cm/",
+   "categories": [
+    {
+     "id": 27,
+     "name": "Plain Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 172,
+   "name": "Laser Engraved LED Mirror 80 x 120 cm",
+   "type": "simple",
+   "price": "1200",
+   "regular_price": "1200",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-LSR-01",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/laser-engraved-led-mirror-80-x-120-cm/",
+   "categories": [
+    {
+     "id": 28,
+     "name": "Laser Engraved Mirrors"
+    },
+    {
+     "id": 29,
+     "name": "LED Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 173,
+   "name": "Custom Laser Engraved Mirror",
+   "type": "simple",
+   "price": "",
+   "regular_price": "",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-LSR-02",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/custom-laser-engraved-mirror/",
+   "categories": [
+    {
+     "id": 28,
+     "name": "Laser Engraved Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 174,
+   "name": "Round LED Mirror",
+   "type": "simple",
+   "price": "800",
+   "regular_price": "800",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-LED-01",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/round-led-mirror/",
+   "categories": [
+    {
+     "id": 29,
+     "name": "LED Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 175,
+   "name": "Rectangular LED Mirror 80 x 120 cm",
+   "type": "simple",
+   "price": "800",
+   "regular_price": "800",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-LED-02",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/rectangular-led-mirror-80-x-120-cm/",
+   "categories": [
+    {
+     "id": 29,
+     "name": "LED Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 176,
+   "name": "Moroccan Pattern Laser Engraved LED Mirror",
+   "type": "simple",
+   "price": "1200",
+   "regular_price": "1200",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-LSR-03",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/moroccan-pattern-laser-engraved-led-mirror/",
+   "categories": [
+    {
+     "id": 28,
+     "name": "Laser Engraved Mirrors"
+    },
+    {
+     "id": 29,
+     "name": "LED Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 177,
+   "name": "Leaf Laser Engraved LED Mirror",
+   "type": "simple",
+   "price": "1200",
+   "regular_price": "1200",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-LSR-04",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/leaf-laser-engraved-led-mirror/",
+   "categories": [
+    {
+     "id": 28,
+     "name": "Laser Engraved Mirrors"
+    },
+    {
+     "id": 29,
+     "name": "LED Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 197,
+   "name": "Organic Shape Wall Mirror",
+   "type": "simple",
+   "price": "500",
+   "regular_price": "500",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-PLN-03",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/organic-shape-wall-mirror/",
+   "categories": [
+    {
+     "id": 27,
+     "name": "Plain Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 198,
+   "name": "Arch Mirror with Textured Frame",
+   "type": "simple",
+   "price": "500",
+   "regular_price": "500",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-PLN-04",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/arch-mirror-with-textured-frame/",
+   "categories": [
+    {
+     "id": 27,
+     "name": "Plain Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 199,
+   "name": "Wavy Full-Length LED Mirror",
+   "type": "simple",
+   "price": "800",
+   "regular_price": "800",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-LED-03",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/wavy-full-length-led-mirror/",
+   "categories": [
+    {
+     "id": 29,
+     "name": "LED Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 200,
+   "name": "Arch LED Mirror with Textured Frame",
+   "type": "simple",
+   "price": "800",
+   "regular_price": "800",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-LED-04",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/arch-led-mirror-with-textured-frame/",
+   "categories": [
+    {
+     "id": 29,
+     "name": "LED Mirrors"
+    }
+   ]
+  },
+  {
+   "id": 201,
+   "name": "Organic Shape LED Mirror",
+   "type": "simple",
+   "price": "800",
+   "regular_price": "800",
+   "sale_price": "",
+   "virtual": false,
+   "weight": "15",
+   "sku": "MIR-LED-05",
+   "stock_status": "instock",
+   "global_unique_id": "",
+   "total_sales": 0,
+   "attributes": [],
+   "variations": [],
+   "permalink": "https://matha.site/product/organic-shape-led-mirror/",
+   "categories": [
+    {
+     "id": 29,
+     "name": "LED Mirrors"
+    }
+   ]
+  }
+ ],
+ "categories": [
+  {
+   "id": 28,
+   "name": "Laser Engraved Mirrors",
+   "parent": 0,
+   "count": 4
+  },
+  {
+   "id": 29,
+   "name": "LED Mirrors",
+   "parent": 0,
+   "count": 8
+  },
+  {
+   "id": 27,
+   "name": "Plain Mirrors",
+   "parent": 0,
+   "count": 4
+  },
+  {
+   "id": 26,
+   "name": "Uncategorized",
+   "parent": 0,
+   "count": 0
+  }
+ ],
+ "attributes": []
+}

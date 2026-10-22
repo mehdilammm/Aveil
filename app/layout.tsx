@@ -1,4 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale } from "next-intl/server";
+import { dirOf, isLocale, DEFAULT_LOCALE } from "@/i18n/config";
 import { SEO_DESCRIPTION } from "@/lib/seo";
 import { SITE } from "@/lib/site";
 import "./globals.css";
@@ -14,10 +17,14 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0d3b2e" };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const current = await getLocale();
+  const locale = isLocale(current) ? current : DEFAULT_LOCALE;
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang={locale} dir={dirOf(locale)}>
+      <body>
+        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+      </body>
     </html>
   );
 }

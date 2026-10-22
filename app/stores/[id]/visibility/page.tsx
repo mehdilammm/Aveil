@@ -112,7 +112,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
 
       <div className="card">
         {ENGINES.map((e) => (
-          <span key={e} className="badge basis-observed" style={{ marginRight: 6 }}>{ENGINE_LABEL[e]}</span>
+          <span key={e} className="badge basis-observed" style={{ marginInlineEnd: 6 }}>{ENGINE_LABEL[e]}</span>
         ))}
         <p className="muted small">
           Each question is sent once to each engine ({ENGINES.map((e) => `${ENGINE_NAME[e]}: ${ENGINE_MODEL[e]}${engineConfigured(e) ? "" : e === "mistral" ? ` – ${MISTRAL_OFF_REASON}` : " – not set up"}`).join("; ")}), without web search,
@@ -190,7 +190,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                       <>
                         {r.urls.length > 0 && (
                           <p className="small" style={{ wordBreak: "break-all" }}>
-                            <strong>Links in the answer:</strong> {r.urls.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer nofollow" style={{ marginRight: 8 }}>{u}</a>)}
+                            <strong>Links in the answer:</strong> {r.urls.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer nofollow" style={{ marginInlineEnd: 8 }}>{u}</a>)}
                           </p>
                         )}
                         <details>

@@ -1,0 +1,11 @@
+{
+  "language": { "label": "Language", "en": "English", "ar": "العربية" },
+  "footer": {
+    "check": "Free check",
+    "pricing": "Pricing",
+    "bot": "Our bot",
+    "terms": "Terms",
+    "privacy": "Privacy",
+    "note": "© {year} {name}. Read-only checks; no promise of AI visibility or sales."
+  }
+}
