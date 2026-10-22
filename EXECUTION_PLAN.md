@@ -20,7 +20,7 @@ new code, this file updated, commit + push).
 
 | # | Ticket | Status | Notes / acceptance |
 | --- | --- | --- | --- |
-| B0 | One hardened fetcher | Partial | `PublicFetcher` is hardened; `woo.ts` is not (S1). Accept: all external fetches go through `lib/safe-fetch.ts`; tests for 127.0.0.1, 10/8, 169.254.169.254, ::1, fc00::/7, IPv4-mapped IPv6, redirect to private, size and redirect limits |
+| B0 | One hardened fetcher | Done (2026-10-23) | `lib/safe-fetch.ts`: connect-time DNS check used by `woo.ts` (WooCommerce API, page fetches) and `PublicFetcher` (/check); `lib/safe-fetch.test.ts` proves a private IP at connect time is refused. Gemini/Groq/NVIDIA/Mistral calls go to fixed vendor hosts. Accept: all external fetches go through `lib/safe-fetch.ts`; tests for 127.0.0.1, 10/8, 169.254.169.254, ::1, fc00::/7, IPv4-mapped IPv6, redirect to private, size and redirect limits |
 | B1 | `StorePlatformAdapter` + contract tests, WooCommerce behind it | Missing | Behaviour unchanged (existing tests stay green) |
 | B2 | WooCommerce adapter complete, HPOS declared, updater off the page-load path | Partial | Products, variations, categories, pages, settings exist; attributes and policies via adapter missing |
 | B3 | Schema source and `@id` per product page | Missing | Detects WooCommerce core, Yoast, Rank Math, theme; fixes extend the graph |
