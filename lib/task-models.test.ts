@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -12,6 +14,8 @@ const limited = () => new Response(JSON.stringify({ error: { message: "Rate limi
 const geminiAnswer = (text: string) => ({ ok: true as const, text, finishReason: "STOP", inputTokens: 5, outputTokens: 6, blocked: null, requests: 1 });
 
 const terms = { names: ["Matha"], host: "matha.site", keys: ["matha"] };
+const fx = (name: string) => readFileSync(join(__dirname, "fixtures", name), "utf8");
+const json = (status: number, body: string) => new Response(body, { status, headers: { "content-type": "application/json" } });
 
 describe("internal task chain: Groq → NVIDIA → Gemini → heuristic", () => {
   const fetchMock = vi.fn();
@@ -57,7 +61,7 @@ describe("internal task chain: Groq → NVIDIA → Gemini → heuristic", () => 
     expect(x.extractor).toBe("nvidia");
     expect(hosts()).toEqual(["api.groq.com", "api.groq.com", "integrate.api.nvidia.com"]);
     const nv = JSON.parse(fetchMock.mock.calls[2][1].body);
-    expect(nv.model).toBe("meta/llama-3.1-8b-instruct");
+    expect(nv.model).toBe("openai/gpt-oss-20b");
     expect(nv.response_format).toBeUndefined();
     expect(nv.messages[0].content).toContain("matching this JSON Schema");
     expect(usage.groq.requests).toBe(2);
@@ -116,5 +120,52 @@ describe("internal task chain: Groq → NVIDIA → Gemini → heuristic", () => 
     expect(t).toMatchObject({ value: "handmade wooden furniture and home goods", by: "nvidia" });
     // gpt-oss reasons first, so Groq gets room for it even for a 60-token task.
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).max_tokens).toBe(1024);
+  });
+  it("Groq reply with rank_if_listed: null is accepted (fixture)", async () => {
+    const { extractNames, emptyUsage } = await import("./engines");
+    fetchMock.mockResolvedValueOnce(json(200, fx("groq-extraction-rank-null.json")));
+    const usage = emptyUsage();
+    const x = await extractNames("1. Etsy 2. Hot Sauce Store", terms, "Matha", usage);
+    expect(x.extractor).toBe("groq");
+    expect(x.analysis.competitors).toEqual(["Etsy", "Hot Sauce Store"]);
+    expect(x.analysis.rank).toBeNull();
+    expect(usage.groq).toMatchObject({ requests: 1, input: 410, output: 96 });
+    const schema = JSON.parse(fetchMock.mock.calls[0][1].body).response_format.json_schema.schema;
+    expect(schema.properties.rank_if_listed.type).toEqual(["integer", "null"]);
+    expect(schema.required).toContain("rank_if_listed");
+    expect(schema.properties.brands.items.properties.url_if_present.type).toEqual(["string", "null"]);
+    expect(schema.properties.brands.items.required).toContain("url_if_present");
+  });
+
+  it("Groq json_validate_failed: the failed_generation is checked by our own validation", async () => {
+    const { extractNames, emptyUsage } = await import("./engines");
+    const failed = { brands: [{ name: "Etsy", type: "marketplace", url_if_present: null }], store_mentioned: false };
+    fetchMock.mockResolvedValueOnce(json(400, JSON.stringify({ error: { message: "Generated JSON does not match the expected schema. Please adjust your prompt. See 'failed_generation' for more details. Error: jsonschema: '' does not validate: missing properties: 'rank_if_listed'", type: "invalid_request_error", code: "json_validate_failed", failed_generation: JSON.stringify(failed) } })));
+    const x = await extractNames("Etsy", terms, "Matha", emptyUsage());
+    expect(x.extractor).toBe("groq");
+    expect(x.analysis.competitors).toEqual(["Etsy"]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("NVIDIA 410 (model end of life, fixture) is reported clearly and the chain goes on to Gemini", async () => {
+    vi.stubEnv("GROQ_ENABLED", "false");
+    const { extractNames, emptyUsage } = await import("./engines");
+    fetchMock.mockResolvedValueOnce(json(410, fx("nvidia-model-410.json")));
+    askGemini.mockResolvedValueOnce(geminiAnswer(extraction));
+    const x = await extractNames("text", terms, "Matha", emptyUsage());
+    expect(x.extractor).toBe("gemini");
+    expect(x.attempts[0].by).toBe("nvidia");
+    expect(x.attempts[0].problem).toContain('NVIDIA model "openai/gpt-oss-20b" is not available (HTTP 410');
+    expect(x.attempts[0].problem).toContain("end of life");
+    expect(x.attempts[0].problem).toContain("Set NVIDIA_MODEL");
+  });
+
+  it("NVIDIA_MODEL changes the model without code", async () => {
+    vi.stubEnv("GROQ_ENABLED", "false");
+    vi.stubEnv("NVIDIA_MODEL", "nvidia/some-small-model");
+    const { extractNames, emptyUsage } = await import("./engines");
+    fetchMock.mockResolvedValueOnce(chat(extraction));
+    await extractNames("text", terms, "Matha", emptyUsage());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).model).toBe("nvidia/some-small-model");
   });
 });

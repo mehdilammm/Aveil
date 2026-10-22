@@ -1,0 +1,16 @@
+{
+  "id": "chatcmpl-test",
+  "object": "chat.completion",
+  "model": "openai/gpt-oss-20b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"brands\":[{\"name\":\"Etsy\",\"type\":\"marketplace\",\"url_if_present\":null},{\"name\":\"Hot Sauce Store\",\"type\":\"store\",\"url_if_present\":\"hotsaucestore.com\"},{\"name\":\"SGS\",\"type\":\"service\",\"url_if_present\":null}],\"store_mentioned\":false,\"rank_if_listed\":null}"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": { "prompt_tokens": 410, "completion_tokens": 96 }
+}

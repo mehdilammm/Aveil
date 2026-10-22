@@ -235,6 +235,8 @@ export function extractionPrompt(answer: string, storeName: string, host: string
     "Give url_if_present only when a URL or domain for that name is written in the text.",
     `store_mentioned: whether the text names the store "${storeName}" or the domain ${host}.`,
     "rank_if_listed: its position among the listed shops when it is in a list, otherwise null.",
+    "Always include every field: brands (an empty list if there are none), store_mentioned, and rank_if_listed (null when unknown);",
+    "url_if_present is null when no URL is written.",
     "",
     `<answer>\n${answer}\n</answer>`,
   ].join("\n");

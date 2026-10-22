@@ -13,7 +13,9 @@ import { parseMistralResponse } from "./visibility";
 //   Structured output (json_schema): https://console.groq.com/docs/structured-outputs
 //   Free plan limits (per model, shown in the console): https://console.groq.com/docs/rate-limits
 // NVIDIA API catalog (build.nvidia.com, OpenAI-compatible): https://docs.api.nvidia.com/nim/reference/llm-apis
-//   Model: meta/llama-3.1-8b-instruct: https://docs.api.nvidia.com/nim/reference/meta-llama-3_1-8b
+//   Model list: https://build.nvidia.com/models (GET https://integrate.api.nvidia.com/v1/models with the key).
+//   Default: openai/gpt-oss-20b (https://build.nvidia.com/openai/gpt-oss-20b). meta/llama-3.1-8b-instruct reached
+//   end of life on 2026-08-26 (HTTP 410). Change it with NVIDIA_MODEL; a 404/410 is reported and the chain moves on.
 //   The key is for testing use only, so NVIDIA is only a fallback; set NVIDIA_ENABLED=false once paying customers come.
 // GROQ_ENABLED / NVIDIA_ENABLED (default true) turn each one off without a code change.
 
@@ -36,7 +38,7 @@ export const TASK_PROVIDERS: Record<TaskModelId, Provider> = {
     id: "nvidia",
     name: "NVIDIA",
     endpoint: "https://integrate.api.nvidia.com/v1/chat/completions",
-    model: process.env.NVIDIA_MODEL?.trim() || "meta/llama-3.1-8b-instruct",
+    model: process.env.NVIDIA_MODEL?.trim() || "openai/gpt-oss-20b",
     keyEnv: "NVIDIA_API_KEY",
     enabledEnv: "NVIDIA_ENABLED",
     // Schema support differs per hosted model; the prompt asks for JSON and the reply is validated instead.
@@ -74,7 +76,7 @@ export async function askTaskModel(id: TaskModelId, prompt: string, options: Ask
   if (!key) return { ok: false, error: `${p.keyEnv} is not set`, requests: 0 };
   let requests = 0;
   let waitedMs = 0;
-  const reasoning = id === "groq" && p.model.startsWith("openai/gpt-oss");
+  const reasoning = p.model.startsWith("openai/gpt-oss");
   for (let attempt = 0; attempt < 2; attempt++) {
     requests++;
     let res: Response;
@@ -88,7 +90,7 @@ export async function askTaskModel(id: TaskModelId, prompt: string, options: Ask
           // gpt-oss reasons before it answers, and the reasoning counts in max_tokens.
           max_tokens: Math.max(options.maxOutputTokens ?? 1024, reasoning ? 1024 : 0),
           temperature: 0,
-          ...(reasoning ? { reasoning_effort: "low" } : {}),
+          ...(reasoning && id === "groq" ? { reasoning_effort: "low" } : {}),
           ...(options.jsonSchema && p.jsonSchemaMode
             ? { response_format: { type: "json_schema", json_schema: { name: "result", schema: options.jsonSchema, strict: true } } }
             : {}),
@@ -108,8 +110,17 @@ export async function askTaskModel(id: TaskModelId, prompt: string, options: Ask
     }
     const body = await res.json().catch(() => null);
     if (!res.ok) {
-      const b = body as { error?: { message?: string } | string; message?: string; detail?: unknown } | null;
-      const message = (typeof b?.error === "object" ? b.error?.message : b?.error) ?? b?.message ?? (typeof b?.detail === "string" ? b.detail : `HTTP ${res.status}`);
+      const b = body as { error?: { message?: string; code?: string; failed_generation?: string } | string; message?: string; detail?: unknown } | null;
+      const err = typeof b?.error === "object" ? b.error : null;
+      // Groq checks the generated JSON against the schema and refuses it with json_validate_failed (for example a
+      // missing rank_if_listed); the reply is in failed_generation, so the caller's own validation decides.
+      if (res.status === 400 && err?.code === "json_validate_failed" && err.failed_generation?.trim()) {
+        return { ok: true, text: err.failed_generation.trim(), finishReason: "json_validate_failed", inputTokens: 0, outputTokens: 0, blocked: null, requests, waitedMs };
+      }
+      const message = (err ? err.message : typeof b?.error === "string" ? b.error : null) ?? b?.message ?? (typeof b?.detail === "string" ? b.detail : `HTTP ${res.status}`);
+      if (res.status === 404 || res.status === 410) {
+        return { ok: false, error: `${p.name} model "${p.model}" is not available (HTTP ${res.status}: ${String(message).slice(0, 160)}). Set ${p.id.toUpperCase()}_MODEL to a current model.`, requests, waitedMs };
+      }
       return { ok: false, error: `${p.name} API error ${res.status}: ${String(message).slice(0, 200)}`, requests, waitedMs };
     }
     return { ok: true, ...parseMistralResponse(body), requests, waitedMs };
