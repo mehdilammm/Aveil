@@ -4,6 +4,9 @@ import { emptyUsage, countUsage, ENGINE_MODEL, engineConfigured, askEngine, extr
 import { geminiConfigured } from "./gemini";
 import { askVisibilityQuestion } from "./grounded-question";
 import { GROUNDING_MODEL } from "./grounding";
+import { planOf } from "./orders-sync";
+import { capStatus, fitsCap } from "./usage";
+import { recordUsage, usageToday } from "./usage-store";
 import { taskModelEnabled } from "./task-models";
 import { brandTerms, canRun, ENGINE_NAME, ENGINES, MAX_PROMPTS, nextRunAt, type EngineId } from "./visibility";
 
@@ -50,6 +53,14 @@ export async function runVisibility(admin: SupabaseClient, store: Store, options
   const { data: prompts } = await admin.from("visibility_prompts").select("id, prompt").eq("store_id", store.id).order("created_at").limit(MAX_PROMPTS);
   if (!prompts?.length) return { error: "Add at least one question first." };
 
+  // Daily AI request caps of the workspace's plan (usage_events).
+  const { data: ws } = await admin.from("stores").select("workspace_id").eq("id", store.id).single();
+  const workspaceId = ws?.workspace_id as string;
+  const plan = await planOf(admin, store.id);
+  const usedBefore = await usageToday(admin, workspaceId);
+  const reached = capStatus(plan, usedBefore).filter((c) => c.level === "reached" && (c.provider === "gemini" || c.provider === "groq"));
+  if (reached.length) return { error: `Daily AI limit reached for this workspace (${reached.map((c) => `${c.provider} ${c.used}/${c.limit}`).join(", ")}). It resets at 00:00 UTC.` };
+
   const { data: run, error: runErr } = await admin
     .from("visibility_runs")
     .insert({
@@ -78,6 +89,10 @@ export async function runVisibility(admin: SupabaseClient, store: Store, options
     let stopped: string | null = null;
     for (const [i, p] of prompts.entries()) {
       const row = { run_id: run.id, store_id: store.id, owner_id: store.owner_id, prompt_id: p.id, prompt: p.prompt, engine, model: ENGINE_MODEL[engine] };
+      // About 1 answer + 2 helper requests per question: stop before the workspace's daily cap is passed.
+      if (!stopped && (!fitsCap(plan, "gemini", usedBefore.gemini + usage.gemini.requests, 1) || !fitsCap(plan, "groq", usedBefore.groq + usage.groq.requests, 2))) {
+        stopped = "Not asked: the workspace's daily AI limit was reached during this run. It resets at 00:00 UTC.";
+      }
       if (stopped || Date.now() - started > TIME_BUDGET_MS) {
         await admin.from("visibility_results").insert({ ...row, error: stopped ?? "Skipped: time limit reached for this run." });
         continue;
@@ -161,6 +176,7 @@ export async function runVisibility(admin: SupabaseClient, store: Store, options
     })
     .eq("id", run.id);
   await saveTotals();
+  await recordUsage(admin, { workspaceId, storeId: store.id, kind: "visibility_run", refId: run.id }, usage);
   return { runId: run.id, error: anyAnswer ? undefined : "No question got an answer." };
 }
 

@@ -7,6 +7,7 @@ import { getUser } from "@/lib/supabase/server";
 import { canEdit, storeAccess } from "@/lib/workspace";
 import { QUESTION_LANGUAGES, QUESTIONS_GEMINI_SCHEMA, QUESTIONS_JSON_SCHEMA, questionsPrompt, validateQuestions, type QuestionLanguage } from "@/lib/question-suggest";
 import { runTask } from "@/lib/task-models";
+import { recordUsage } from "@/lib/usage-store";
 import { brandTerms, MAX_PROMPTS, suggestPrompts } from "@/lib/visibility";
 import { fetchProductSample, fetchSettings, fetchTopCategories } from "@/lib/woo";
 
@@ -86,6 +87,14 @@ export async function suggest(_: PromptState, form: FormData): Promise<PromptSta
         maxOutputTokens: 2048,
         validate: (text) => validateQuestions(text, keys),
       });
+      const used: Record<string, { requests: number; input: number; output: number }> = {};
+      for (const a of t.attempts) {
+        const u = (used[a.by] ??= { requests: 0, input: 0, output: 0 });
+        u.requests += a.requests;
+        u.input += a.input;
+        u.output += a.output;
+      }
+      await recordUsage(admin, { workspaceId: store.workspace_id, storeId: store.id, kind: "question_suggestions" }, used);
       if (t.value && t.by) {
         const who = t.by === "gemini" ? "Gemini" : `an internal helper model (${t.by === "groq" ? "Groq" : "NVIDIA"})`;
         return { suggestions: t.value, basis: "observed", source: `Written by ${who} from ${products.length} of your products.` };

@@ -160,3 +160,5 @@ code.inline { background: var(--slate-soft); padding: 1px 6px; border-radius: 4p
 .funnel-problem { border-left-color: var(--red); }
 .funnel-value { font-weight: 600; margin: 6px 0 2px; }
 .reasons { padding-left: 20px; display: grid; gap: 10px; }
+.usage-warn { border-color: var(--orange); background: var(--orange-soft); }
+.usage-reached { border-color: var(--red); background: var(--red-soft); }
