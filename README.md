@@ -163,3 +163,6 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
   chain (Groq → NVIDIA → Gemini) reads the tone (positive / neutral / negative), a short description and the features
   given to the store and to each named competitor. "Mentioned" stays the text match; competitors must be names the
   extraction found; features are kept only when their words are in the answer. Stored in `visibility_results.profile`.
+- Share of voice (`lib/share-of-voice.ts`, AI Visibility → Share of voice): per weekly run, "named in X of Y
+  questions" for the store and every name the Gemini answers give instead, a ranking, and the history run by run.
+  Questions without an answer are counted apart. No score.
