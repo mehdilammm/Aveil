@@ -214,3 +214,7 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
   Sign up needs the "I agree to the Terms and the Privacy Policy" box.
 - agentscope-core 1.2.1 (`/downloads/agentscope-core-1.2.1.zip`): "Clear test data" can be repeated and can clear one
   chosen day (UTC), with the same confirmation.
+- SEO (`lib/seo.ts`): title template and meta description, Open Graph and Twitter card with a generated image
+  (`app/opengraph-image.tsx`), canonical URLs, `/sitemap.xml` (public pages only), `/robots.txt` (AI bots named and
+  allowed on public pages; the app, API and invites kept out), SoftwareApplication JSON-LD on `/` with the real plan
+  prices and no rating or reviews.

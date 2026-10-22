@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicHeader } from "@/components/public-header";
+import { SITE } from "@/lib/site";
 import { SiteFooter } from "@/components/site-footer";
 import { CheckForm } from "./check-form";
 
 export const metadata: Metadata = {
-  title: "Free AI agent readiness check for WooCommerce stores – AgentScope",
+  title: { absolute: `Free AI agent readiness check for WooCommerce and Shopify stores – ${SITE.name}` },
+  alternates: { canonical: "/check" },
   description: "See whether AI assistants and shopping agents can read your store: robots.txt, bot access, product structured data and prices.",
 };
 

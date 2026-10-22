@@ -4,7 +4,7 @@ import { getUser } from "@/lib/supabase/server";
 import { hashInviteToken, inviteProblem, type InviteRow } from "@/lib/workspace";
 import { AcceptInvite } from "./accept";
 
-export const metadata = { title: "Workspace invite · AgentScope", robots: { index: false } };
+export const metadata = { title: "Workspace invite", robots: { index: false } };
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PublicHeader } from "@/components/public-header";
 import { LIMITS, PUBLIC_UA } from "@/lib/public-scan";
 
-export const metadata: Metadata = { title: "AgentScopeBot – AgentScope", description: "Who AgentScopeBot is, what it checks and how to block it." };
+export const metadata: Metadata = { title: "AgentScopeBot", description: "Who AgentScopeBot is, what it checks and how to block it.", alternates: { canonical: "/bot" } };
 
 export default function BotPage() {
   return (

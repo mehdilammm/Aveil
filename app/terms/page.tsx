@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { SiteFooter } from "@/components/site-footer";
 import { SITE } from "@/lib/site";
 
-export const metadata: Metadata = { title: `Terms of Service – ${SITE.name}` };
+export const metadata: Metadata = { title: "Terms of Service", description: "The terms for using the service: read-only store access, the WordPress plugin, no guarantee of AI visibility or sales.", alternates: { canonical: "/terms" } };
 
 export default function TermsPage() {
   return (

@@ -10,7 +10,7 @@ import { ShareLink } from "./share-link";
 import { WaitlistForm } from "./waitlist-form";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "AI agent readiness report – AgentScope", robots: { index: false } };
+export const metadata: Metadata = { title: "AI agent readiness report", robots: { index: false } };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SEV = { high: 0, medium: 1, low: 2 } as const;

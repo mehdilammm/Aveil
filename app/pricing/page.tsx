@@ -3,10 +3,9 @@ import Link from "next/link";
 import { PublicHeader } from "@/components/public-header";
 import { SiteFooter } from "@/components/site-footer";
 import { PLAN_ORDER, PLANS } from "@/lib/plans";
-import { SITE } from "@/lib/site";
 import { WaitlistForm } from "./waitlist-form";
 
-export const metadata: Metadata = { title: `Pricing – ${SITE.name}`, description: "Free, Pro and Agency plans for WooCommerce AI readiness checks." };
+export const metadata: Metadata = { title: "Pricing", description: "Free, Pro and Agency plans for WooCommerce AI readiness checks, AI visibility tracking and AI bot traffic.", alternates: { canonical: "/pricing" } };
 
 export default function PricingPage() {
   return (

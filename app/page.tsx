@@ -3,12 +3,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PublicHeader } from "@/components/public-header";
 import { SiteFooter } from "@/components/site-footer";
+import { SEO_DESCRIPTION, softwareApplicationJsonLd } from "@/lib/seo";
 import { SITE } from "@/lib/site";
 import { getUser } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: `${SITE.name}: AI shopping agent readiness for WooCommerce`,
-  description: "Product-level readiness checks, AI visibility tracking and verified fixes for WooCommerce stores.",
+  title: { absolute: `${SITE.name}: AI shopping agent readiness for WooCommerce` },
+  description: SEO_DESCRIPTION,
+  alternates: { canonical: "/" },
 };
 
 const SECTIONS = [
@@ -43,6 +45,7 @@ export default async function Home() {
   return (
     <>
       <PublicHeader />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationJsonLd()).replace(/</g, "\\u003c") }} />
       <main className="public-main landing">
         <section className="hero">
           <h1>{SITE.tagline}</h1>

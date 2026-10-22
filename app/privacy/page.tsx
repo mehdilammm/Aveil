@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { SiteFooter } from "@/components/site-footer";
 import { SITE } from "@/lib/site";
 
-export const metadata: Metadata = { title: `Privacy Policy – ${SITE.name}` };
+export const metadata: Metadata = { title: "Privacy Policy", description: "What data the service collects, which providers process it, how long it is kept and your rights.", alternates: { canonical: "/privacy" } };
 
 export default function PrivacyPage() {
   return (
