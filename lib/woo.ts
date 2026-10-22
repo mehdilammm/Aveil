@@ -238,6 +238,17 @@ export async function fetchComingSoon(baseUrl: string, creds: WooCredentials): P
   }
 }
 
+export type ProductSample = { name: string; price: string | null; categories: string[] };
+
+// Up to 30 published products (best sellers first) with price and categories, for question suggestions.
+export async function fetchProductSample(baseUrl: string, creds: WooCredentials, n = 30): Promise<ProductSample[]> {
+  const { items } = await getPage<{ name: string; price?: string; categories?: { name: string }[] }>(
+    baseUrl, "/products", { status: "publish", per_page: String(n), orderby: "popularity", order: "desc", _fields: "name,price,categories" }, creds,
+  );
+  const decode = (t: string) => t.replace(/&amp;/g, "&").replace(/&#8217;/g, "’").replace(/&quot;/g, '"').replace(/<[^>]+>/g, "").trim();
+  return items.filter((p) => p?.name).map((p) => ({ name: decode(p.name), price: p.price ? String(p.price) : null, categories: (p.categories ?? []).map((c) => decode(c.name)) }));
+}
+
 // Biggest product categories by product count, for question suggestions.
 export async function fetchTopCategories(baseUrl: string, creds: WooCredentials): Promise<string[]> {
   const { items } = await getPage<{ name: string; count: number }>(baseUrl, "/products/categories", { per_page: "20", orderby: "count", order: "desc", hide_empty: "true" }, creds);

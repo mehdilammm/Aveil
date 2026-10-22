@@ -166,3 +166,7 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
 - Share of voice (`lib/share-of-voice.ts`, AI Visibility → Share of voice): per weekly run, "named in X of Y
   questions" for the store and every name the Gemini answers give instead, a ranking, and the history run by run.
   Questions without an answer are counted apart. No score.
+- Question suggestions (`lib/question-suggest.ts`): up to 30 best-selling products (name, price, categories) from the
+  WooCommerce API → the task chain writes 15 shopper questions (buy, compare, "best X for Y", "where to buy X") in
+  English, French or Arabic, without the store's name. The user ticks and edits them before saving. Fallback:
+  category templates, labelled HEURISTIC.
