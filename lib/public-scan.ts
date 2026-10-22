@@ -14,7 +14,7 @@ import type { PageFetch } from "./woo";
 
 export const PUBLIC_UA = "AgentScopeBot/1.0 (+https://agentscope-peach.vercel.app/bot)";
 export const PUBLIC_UA_TOKEN = "AgentScopeBot";
-export const CHECK_HEADER = "X-AgentScope-Check";
+export { CHECK_HEADER } from "./check-header";
 
 export const LIMITS = {
   httpRequests: 10,

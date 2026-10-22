@@ -3,13 +3,11 @@
  * Sends the daily traffic totals from the agsc_traffic table to the AgentScope app, once a day.
  * Only the aggregated rows are sent (day, source, category, confidence, route, http_status, hits, last_seen).
  * No IP, user agent, URL or cookie leaves the site. Requests are signed with HMAC-SHA256.
+ * The same connection token signs AgentScope's own check requests (see AGSC_Check).
  *
- * Install: copy this file to agentscope-core/includes/, then in agentscope-core.php add
- *   require_once AGSC_DIR . 'includes/class-agsc-sender.php';
- * after the other require_once lines, and inside agsc_bootstrap() add
- *   AGSC_Sender::init();
- * Also add to the deactivation hook list:
- *   register_deactivation_hook(__FILE__, array('AGSC_Sender', 'deactivate'));
+ * Connect from Settings: paste the connection code the app shows (Settings → AI traffic plugin). The code is
+ * "agsc1." followed by base64url JSON {"endpoint","store_id","token"}. A plain "agsc_…" token also works when the
+ * endpoint and store ID are already saved.
  */
 if (!defined('ABSPATH')) {
     exit;
@@ -20,12 +18,13 @@ final class AGSC_Sender {
     const CRON      = 'agsc_send_traffic';
     const LAST      = 'agsc_remote_last_result';
     const SEND_DAYS = 3; // Resend the last 3 days: totals are replaced, so late hits are corrected.
+    const MAX_ROWS  = 1000;
 
     public static function init() {
-        add_action(self::CRON, array(__CLASS__, 'send'));
-        add_action('admin_menu', array(__CLASS__, 'menu'), 20);
-        add_action('admin_post_agsc_save_remote', array(__CLASS__, 'handle_save'));
+        add_action(self::CRON, array(__CLASS__, 'send_scheduled'));
+        add_action('admin_post_agsc_connect', array(__CLASS__, 'handle_connect'));
         add_action('admin_post_agsc_send_now', array(__CLASS__, 'handle_send_now'));
+        add_action('admin_post_agsc_disconnect', array(__CLASS__, 'handle_disconnect'));
         if (!wp_next_scheduled(self::CRON)) {
             wp_schedule_event(time() + 15 * MINUTE_IN_SECONDS, 'daily', self::CRON);
         }
@@ -37,28 +36,63 @@ final class AGSC_Sender {
 
     public static function settings() {
         $saved = get_option(self::OPTION, array());
-        return array_merge(array('endpoint' => '', 'store_id' => '', 'token' => ''), is_array($saved) ? $saved : array());
+        $s = array_merge(array('endpoint' => '', 'store_id' => '', 'token' => ''), is_array($saved) ? $saved : array());
+        foreach ($s as $k => $v) {
+            $s[$k] = (string) $v;
+        }
+        return $s;
     }
 
-    private static function is_configured($s) {
+    public static function is_configured($s = null) {
+        $s = $s ? $s : self::settings();
         return strpos($s['endpoint'], 'https://') === 0
             && preg_match('/^[0-9a-f-]{36}$/i', $s['store_id'])
             && strpos($s['token'], 'agsc_') === 0;
     }
 
-    /** Collects the last SEND_DAYS days of totals and posts them. Returns a short result string. */
-    public static function send() {
+    /**
+     * Reads a connection code (agsc1.<base64url JSON>) or a plain token. Returns the new settings, or a string error.
+     */
+    public static function parse_code($code, $current) {
+        $code = trim((string) $code);
+        if (strpos($code, 'agsc1.') === 0) {
+            $json = base64_decode(strtr(substr($code, 6), '-_', '+/'), true);
+            $data = $json ? json_decode($json, true) : null;
+            if (!is_array($data) || !isset($data['endpoint'], $data['store_id'], $data['token'])) {
+                return 'This connection code is not valid. Copy it again from the app.';
+            }
+            $next = array('endpoint' => (string) $data['endpoint'], 'store_id' => (string) $data['store_id'], 'token' => (string) $data['token']);
+        } elseif (strpos($code, 'agsc_') === 0) {
+            $next = array_merge($current, array('token' => $code));
+        } else {
+            return 'Paste the connection code from the app (it starts with agsc1.).';
+        }
+        if (!self::is_configured($next)) {
+            return 'The connection code is incomplete (endpoint must be https, store ID a UUID, token agsc_…).';
+        }
+        return $next;
+    }
+
+    public static function send_scheduled() {
+        self::send();
+    }
+
+    /**
+     * Collects the totals from $since (default: the last SEND_DAYS days) and posts them. Returns a short result.
+     */
+    public static function send($since = null) {
         global $wpdb;
         $s = self::settings();
         if (!self::is_configured($s)) {
-            return self::remember('Not configured.');
+            return self::remember('Not connected.');
         }
 
         $table = AGSC_Traffic::table();
-        $since = gmdate('Y-m-d', time() - (self::SEND_DAYS - 1) * DAY_IN_SECONDS);
+        $since = $since ? $since : gmdate('Y-m-d', time() - (self::SEND_DAYS - 1) * DAY_IN_SECONDS);
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT day, source, category, confidence, route, http_status, hits, last_seen FROM {$table} WHERE day >= %s ORDER BY day ASC LIMIT 1000",
-            $since
+            "SELECT day, source, category, confidence, route, http_status, hits, last_seen FROM {$table} WHERE day >= %s ORDER BY day ASC LIMIT %d",
+            $since,
+            self::MAX_ROWS
         ), ARRAY_A);
 
         $clean = array();
@@ -107,25 +141,25 @@ final class AGSC_Sender {
         return $message;
     }
 
-    public static function menu() {
-        add_submenu_page('agsc-overview', 'Connect app - AgentScope', 'Connect app', 'manage_options', 'agsc-connect', array(__CLASS__, 'render'));
+    private static function back($msg) {
+        wp_safe_redirect(add_query_arg(array('page' => 'agsc-settings', 'agsc_msg' => $msg), admin_url('admin.php')));
+        exit;
     }
 
-    public static function handle_save() {
+    public static function handle_connect() {
         if (!current_user_can('manage_options')) {
             wp_die('Not allowed.', 403);
         }
-        check_admin_referer('agsc_save_remote');
-        $current = self::settings();
-        $token = isset($_POST['token']) ? trim(sanitize_text_field(wp_unslash($_POST['token']))) : '';
-        update_option(self::OPTION, array(
-            'endpoint' => isset($_POST['endpoint']) ? esc_url_raw(trim(wp_unslash($_POST['endpoint'])), array('https')) : '',
-            'store_id' => isset($_POST['store_id']) ? sanitize_text_field(wp_unslash($_POST['store_id'])) : '',
-            // An empty field keeps the saved token, so it never has to be shown again.
-            'token'    => $token !== '' ? $token : $current['token'],
-        ), false);
-        wp_safe_redirect(admin_url('admin.php?page=agsc-connect&saved=1'));
-        exit;
+        check_admin_referer('agsc_connect');
+        $code = isset($_POST['connection_code']) ? sanitize_text_field(wp_unslash($_POST['connection_code'])) : '';
+        $next = self::parse_code($code, self::settings());
+        if (is_string($next)) {
+            set_transient('agsc_connect_error', $next, 60);
+            self::back('connect-failed');
+        }
+        update_option(self::OPTION, $next, false);
+        self::send();
+        self::back('connected');
     }
 
     public static function handle_send_now() {
@@ -134,43 +168,57 @@ final class AGSC_Sender {
         }
         check_admin_referer('agsc_send_now');
         self::send();
-        wp_safe_redirect(admin_url('admin.php?page=agsc-connect'));
-        exit;
+        self::back('sent');
     }
 
-    public static function render() {
+    public static function handle_disconnect() {
         if (!current_user_can('manage_options')) {
-            return;
+            wp_die('Not allowed.', 403);
         }
+        check_admin_referer('agsc_disconnect');
+        delete_option(self::OPTION);
+        self::remember('Disconnected.');
+        self::back('disconnected');
+    }
+
+    /** The "Connect to the AgentScope app" section of the Settings page. */
+    public static function render_section() {
         $s = self::settings();
+        $connected = self::is_configured($s);
         $last = get_option(self::LAST, array());
         $next = wp_next_scheduled(self::CRON);
-        ?>
-        <div class="wrap">
-            <h1>Connect to the AgentScope app</h1>
-            <p>Sends the daily AI traffic totals (no IPs, user agents, URLs or cookies) once a day. Create the token in the app under Settings → AI traffic plugin.</p>
-            <?php if (!empty($_GET['saved'])) : ?><div class="notice notice-success"><p>Saved.</p></div><?php endif; ?>
-            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                <input type="hidden" name="action" value="agsc_save_remote">
-                <?php wp_nonce_field('agsc_save_remote'); ?>
-                <table class="form-table" role="presentation">
-                    <tr><th><label for="agsc-endpoint">Endpoint</label></th>
-                        <td><input id="agsc-endpoint" name="endpoint" type="url" class="regular-text" value="<?php echo esc_attr($s['endpoint']); ?>" placeholder="https://your-app/api/ingest/traffic"></td></tr>
-                    <tr><th><label for="agsc-store">Store ID</label></th>
-                        <td><input id="agsc-store" name="store_id" type="text" class="regular-text" value="<?php echo esc_attr($s['store_id']); ?>"></td></tr>
-                    <tr><th><label for="agsc-token">Token</label></th>
-                        <td><input id="agsc-token" name="token" type="password" class="regular-text" autocomplete="off" placeholder="<?php echo $s['token'] ? esc_attr('Saved (…' . substr($s['token'], -4) . '). Leave empty to keep it.') : 'agsc_…'; ?>"></td></tr>
-                </table>
-                <?php submit_button('Save'); ?>
-            </form>
-            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                <input type="hidden" name="action" value="agsc_send_now">
-                <?php wp_nonce_field('agsc_send_now'); ?>
-                <?php submit_button('Send now', 'secondary'); ?>
-            </form>
-            <p>Last result: <?php echo isset($last['message']) ? esc_html($last['message'] . ' (' . gmdate('Y-m-d H:i', (int) $last['time']) . ' UTC)') : 'none yet'; ?></p>
-            <p>Next automatic send: <?php echo $next ? esc_html(gmdate('Y-m-d H:i', $next) . ' UTC') : 'not scheduled'; ?></p>
-        </div>
-        <?php
+        $error = get_transient('agsc_connect_error');
+        if ($error) {
+            delete_transient('agsc_connect_error');
+        }
+        echo '<h2 class="agsc-h2">Connect to the AgentScope app</h2>';
+        echo '<div class="agsc-form">';
+        echo '<p class="agsc-help agsc-help--flush">Sends the daily AI traffic totals (no IPs, user agents, URLs or cookies) once a day. The same connection signs AgentScope\'s own checks, so they are never counted as traffic.</p>';
+        if ($error) {
+            echo '<div class="agsc-notice agsc-notice--bad" role="alert">' . esc_html($error) . '</div>';
+        }
+        if ($connected) {
+            echo '<p><strong>Connected</strong> to store ' . esc_html($s['store_id']) . ' with token …' . esc_html(substr($s['token'], -4)) . '.</p>';
+        } else {
+            echo '<p><strong>Not connected.</strong> In the app: Settings → AI traffic plugin → Connect traffic plugin, then paste the connection code here.</p>';
+        }
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="agsc_connect">';
+        wp_nonce_field('agsc_connect');
+        echo '<label class="agsc-field agsc-field--wide">Connection token <input type="password" name="connection_code" autocomplete="off" placeholder="' . esc_attr($connected ? 'Saved. Paste a new code to replace it.' : 'agsc1.…') . '"></label>';
+        echo '<button type="submit" class="agsc-btn">Connect</button></form>';
+        if ($connected) {
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="agsc-inline">';
+            echo '<input type="hidden" name="action" value="agsc_send_now">';
+            wp_nonce_field('agsc_send_now');
+            echo '<button type="submit" class="agsc-btn agsc-btn--ghost">Send now</button></form> ';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="agsc-inline" onsubmit="return confirm(\'Disconnect from the AgentScope app?\');">';
+            echo '<input type="hidden" name="action" value="agsc_disconnect">';
+            wp_nonce_field('agsc_disconnect');
+            echo '<button type="submit" class="agsc-btn agsc-btn--ghost">Disconnect</button></form>';
+        }
+        echo '<p class="agsc-meta">Last send: ' . (isset($last['message']) ? esc_html($last['message'] . ' (' . gmdate('Y-m-d H:i', (int) $last['time']) . ' UTC)') : 'none yet') . '<br>';
+        echo 'Next automatic send: ' . ($next ? esc_html(gmdate('Y-m-d H:i', $next) . ' UTC') : 'not scheduled') . '</p>';
+        echo '</div>';
     }
 }

@@ -31,17 +31,17 @@ const MAX_RETRIES = 2;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Spaces requests out and retries a 429 once (at most MAX_RETRIES per scan), honouring Retry-After.
-function politeFetcher() {
+function politeFetcher(checkToken: string | null) {
   let first = true;
   let retries = 0;
   return async (url: string, userAgent: string): Promise<PageFetch> => {
     if (!first) await sleep(REQUEST_GAP_MS);
     first = false;
-    const res = await fetchPublicPage(url, userAgent);
+    const res = await fetchPublicPage(url, userAgent, checkToken);
     if (res.ok && res.status === 429 && retries < MAX_RETRIES) {
       retries++;
       await sleep(retryAfterMs(res.retryAfter));
-      return fetchPublicPage(url, userAgent);
+      return fetchPublicPage(url, userAgent, checkToken);
     }
     return res;
   };
@@ -53,8 +53,9 @@ export async function runAccessCheck(
   storeUrl: string,
   productUrls: string[],
   comingSoon: Source<ComingSoonSetting>,
+  checkToken: string | null = null,
 ): Promise<{ findings: Finding[]; pages: PageResult[]; gated: { label: string; gate: Gate }[] }> {
-  const get = politeFetcher();
+  const get = politeFetcher(checkToken);
   const pages: PageResult[] = [];
   const gated: { label: string; gate: Gate }[] = [];
   for (const item of accessPlan(`${storeUrl}/`, productUrls)) {
@@ -73,8 +74,8 @@ export async function runAccessCheck(
 
 const CHECKER_UA = "AgentScope/0.3 (+store readiness check)";
 
-async function fetchText(url: string): Promise<Source<RobotsFetch>> {
-  const res = await fetchPublicPage(url, CHECKER_UA);
+async function fetchText(url: string, checkToken: string | null): Promise<Source<RobotsFetch>> {
+  const res = await fetchPublicPage(url, CHECKER_UA, checkToken);
   if (!res.ok) return { ok: false, reason: `${url} could not be loaded: ${res.error}.` };
   if (res.redirectedTo) return { ok: true, data: { status: 404, text: "" } };
   return { ok: true, data: { status: res.status, text: res.body } };
@@ -86,9 +87,10 @@ export async function runStructuredChecks(
   samples: { url: string; product: WooProduct }[],
   accessPages: PageResult[],
   storeCurrency: string | null,
+  checkToken: string | null = null,
 ): Promise<Finding[]> {
-  const robots = await fetchText(`${storeUrl}/robots.txt`);
-  const llms = await fetchText(`${storeUrl}/llms.txt`);
+  const robots = await fetchText(`${storeUrl}/robots.txt`, checkToken);
+  const llms = await fetchText(`${storeUrl}/llms.txt`, checkToken);
   const productPath = samples[0] ? new URL(samples[0].url).pathname : null;
 
   const schemaPages = schemaPagesFrom(samples, accessPages);

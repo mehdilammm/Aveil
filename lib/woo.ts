@@ -2,6 +2,7 @@ import "server-only";
 import { lookup } from "node:dns/promises";
 import type { PublicPage, Source } from "./pages";
 import type { WooProduct, WooVariation } from "./rules";
+import { CHECK_HEADER, checkHeaderValue } from "./check-header";
 import { isPrivateAddress } from "./url";
 
 export type WooCredentials = { consumerKey: string; consumerSecret: string };
@@ -177,7 +178,8 @@ async function readCapped(res: Response): Promise<{ text: string; bytes: number 
 
 // Fetches a public page with a given User-Agent, like a visitor would. No credentials are sent.
 // Follows same-host redirects; a redirect to another host is reported, not followed.
-export async function fetchPublicPage(target: string, userAgent: string): Promise<PageFetch> {
+// checkToken: the store's traffic connection token, to sign X-AgentScope-Check so the plugin skips this request.
+export async function fetchPublicPage(target: string, userAgent: string, checkToken: string | null = null): Promise<PageFetch> {
   try {
     let current = new URL(target);
     const startHost = current.host;
@@ -185,7 +187,7 @@ export async function fetchPublicPage(target: string, userAgent: string): Promis
       if (current.protocol !== "https:") return { ok: false, error: "redirected to a non-https address" };
       await assertPublicHost(current);
       const res = await fetch(current, {
-        headers: { "User-Agent": userAgent, Accept: "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "en" },
+        headers: { "User-Agent": userAgent, Accept: "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "en", [CHECK_HEADER]: checkHeaderValue(checkToken) },
         redirect: "manual",
         signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
         cache: "no-store",

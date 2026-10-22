@@ -106,12 +106,15 @@ export async function runScan(
     findings.push(...checkStorePages({ storeUrl: store.url, settings, pages }));
     findings.push(...checkFeedStore({ storeUrl: store.url, siteName, settings }));
 
+    // The traffic connection token signs X-AgentScope-Check, so the plugin does not count these test requests.
+    const { data: connector } = await admin.rpc("get_traffic_connector_secret", { p_store_id: store.id }).maybeSingle<{ token: string }>();
+    const checkToken = connector?.token ?? null;
     const samples = sampleProductPages(store.url, products.items);
-    const access = await runAccessCheck(store.url, samples.map((s) => s.url), comingSoon);
+    const access = await runAccessCheck(store.url, samples.map((s) => s.url), comingSoon, checkToken);
     findings.push(...access.findings);
     findings.push(...checkStoreGate(store.url, comingSoon, access.gated));
     const currency = settings.ok && /^[A-Z]{3}$/.test(settings.data.woocommerce_currency ?? "") ? settings.data.woocommerce_currency : null;
-    findings.push(...(await runStructuredChecks(store.url, samples, access.pages, currency)));
+    findings.push(...(await runStructuredChecks(store.url, samples, access.pages, currency, checkToken)));
 
     const { previous, ever } = await earlierKeys(admin, store.id, scan.id);
     const rows = findings.map((f) => ({

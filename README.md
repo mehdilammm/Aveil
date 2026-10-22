@@ -44,7 +44,7 @@ Migrations live in `supabase/migrations`.
 - **Structured data** (`lib/robots.ts`, `lib/structured-data.ts`): robots.txt per bot and Sitemap line, JSON-LD Product compared
   with the API, llms.txt as information only.
 - **Traffic** (`/api/ingest/traffic`, `lib/traffic.ts`): signed daily totals from the agentscope-core plugin
-  (`wordpress/agentscope-core/includes/class-agsc-sender.php`).
+  (`wordpress/agentscope-core/`, v1.1.0; zip at `public/downloads/agentscope-core-1.1.0.zip`).
 - **Scheduled scans** (`vercel.json`, `/api/cron/weekly-scans`): runs daily, scans stores whose last complete scan is 7+ days old,
   at most one scheduled scan per store per day. Needs `CRON_SECRET` in Vercel.
 - **Weekly report**: Reports page, fixed / new / came back.
@@ -193,3 +193,10 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
   not. `/api/health` shows `grounding.enabled`, the flag as read, the model and today's / this month's usage.
   "Re-run with citations (test)" (workspace owner, grounding on): skips the weekly wait, at most 3 runs per store a
   day, grounding caps still apply, stored as a normal run.
+- agentscope-core 1.1.0 (`wordpress/agentscope-core`, download `/downloads/agentscope-core-1.1.0.zip`): every
+  AgentScope request to a store (full scan, including the bot user agents, and /check) carries `X-AgentScope-Check`
+  (`lib/check-header.ts`): `v1.<ts>.<HMAC-SHA256(connection token, "agentscope-check.<ts>")>` when the store has a
+  traffic connection, else `1`. The plugin skips those requests; with a token it accepts only fresh signed values.
+  The app connection is built into the plugin's Settings (connection code, Connect, Send now, last send), and
+  "Clear test data" sets pre-1.1.0 totals to 0 after confirmation and resends them. Rebuild the zip with
+  `cd wordpress && zip -rqX ../public/downloads/agentscope-core-1.1.0.zip agentscope-core`.

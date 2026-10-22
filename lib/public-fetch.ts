@@ -2,6 +2,7 @@ import "server-only";
 import { lookup } from "node:dns";
 import { isIP } from "node:net";
 import { Agent, fetch as undiciFetch } from "undici";
+import { checkHeaderValue } from "./check-header";
 import { applyCanonical, CHECK_HEADER, learnCanonical, LIMITS, NOT_CHECKED, type RequestLogEntry } from "./public-scan";
 import { assertPublicAddresses, isPrivateAddress } from "./url";
 import { shopifyFromHeaders, vendorFromHeaders, type PageFetch } from "./woo";
@@ -43,7 +44,8 @@ export class PublicFetcher {
   private last = 0;
   private canonical: { from: string; to: string } | null = null;
 
-  constructor(private readonly gapMs: number = LIMITS.gapMs) {}
+  // checkToken: the store's traffic connection token, when AgentScope knows the store, to sign X-AgentScope-Check.
+  constructor(private readonly gapMs: number = LIMITS.gapMs, private readonly checkToken: string | null = null) {}
 
   get remaining() {
     return LIMITS.httpRequests - this.requests;
@@ -81,7 +83,7 @@ export class PublicFetcher {
         const res = await undiciFetch(current, {
           dispatcher: agent,
           redirect: "manual",
-          headers: { "User-Agent": userAgent, Accept: "text/html,application/xhtml+xml,text/plain,application/xml;q=0.9,*/*;q=0.8", [CHECK_HEADER]: "1" },
+          headers: { "User-Agent": userAgent, Accept: "text/html,application/xhtml+xml,text/plain,application/xml;q=0.9,*/*;q=0.8", [CHECK_HEADER]: checkHeaderValue(this.checkToken) },
           signal: AbortSignal.timeout(LIMITS.timeoutMs),
         });
         const location = res.headers.get("location");

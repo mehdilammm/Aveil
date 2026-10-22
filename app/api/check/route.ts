@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { clientIp, hashIp, isFresh, withinRateLimit } from "@/lib/public-scan";
+import { PublicFetcher } from "@/lib/public-fetch";
 import { runPublicScan } from "@/lib/public-scan-run";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeStoreUrl } from "@/lib/url";
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
   if (error || !row) return NextResponse.json({ error: "Server error. Please try again." }, { status: 500 });
 
   try {
-    const { report, usage, requests } = await runPublicScan(admin, origin, host);
+    const { report, usage, requests } = await runPublicScan(admin, origin, host, new PublicFetcher(undefined, await checkTokenForHost(admin, host)));
     await admin
       .from("public_reports")
       .update({
@@ -65,4 +66,23 @@ export async function POST(request: Request) {
     await admin.from("public_reports").update({ status: "failed", error: "The check could not finish.", finished_at: new Date().toISOString() }).eq("id", row.id);
   }
   return NextResponse.json({ id: row.id });
+}
+
+// When a store on this host has a traffic connection, its token signs X-AgentScope-Check so the plugin skips the
+// check's requests. Otherwise the header is the unsigned "1". The token never leaves the server.
+async function checkTokenForHost(admin: ReturnType<typeof createAdminClient>, host: string): Promise<string | null> {
+  const bare = host.replace(/^www\./, "");
+  const { data: stores } = await admin.from("stores").select("id, url").ilike("url", `%${bare}%`).limit(20);
+  for (const s of stores ?? []) {
+    let h = "";
+    try {
+      h = new URL(s.url).hostname.replace(/^www\./, "");
+    } catch {
+      continue;
+    }
+    if (h !== bare) continue;
+    const { data } = await admin.rpc("get_traffic_connector_secret", { p_store_id: s.id }).maybeSingle<{ token: string }>();
+    if (data?.token) return data.token;
+  }
+  return null;
 }
