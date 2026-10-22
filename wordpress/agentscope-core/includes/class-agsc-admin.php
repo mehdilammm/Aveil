@@ -262,7 +262,7 @@ final class AGSC_Admin {
             echo '<p class="agsc-figure">Off</p><p>Recording is switched off, so nothing is being counted. <a href="' . esc_url(self::page_url('agsc-settings')) . '">Turn it on in Settings</a>.</p>';
         } else {
             echo '<p class="agsc-figure">' . (int) $traffic['total_hits'] . '<span> requests</span></p>';
-            echo '<p class="agsc-meta">Self-declared AI user agents and AI referrers since ' . esc_html($traffic['since_utc']) . '. Unverified. AgentScope\'s own checks are not counted. ' . self::label('OBSERVED') . '</p>';
+            echo '<p class="agsc-meta">Self-declared AI user agents and AI referrers since ' . esc_html($traffic['since_utc']) . '. Unverified. AgentScope\'s own checks are not counted' . ($traffic['likely_checker_hits'] > 0 ? '; ' . (int) $traffic['likely_checker_hits'] . ' likely checker-tool requests are counted apart' : '') . '. ' . self::label('OBSERVED') . '</p>';
         }
         echo '</section>';
 
@@ -289,6 +289,9 @@ final class AGSC_Admin {
         if (empty($t['sources'])) {
             echo '<div class="agsc-empty"><p>No matching requests recorded since ' . esc_html($t['since_utc']) . ' UTC.</p></div>';
             return;
+        }
+        if ($t['likely_checker_hits'] > 0) {
+            echo '<div class="agsc-notice agsc-notice--warn" role="status">' . (int) $t['likely_checker_hits'] . ' requests are counted apart as <strong>likely-checker-tool</strong>: probably an SEO/GEO checker tool, not real AI traffic. They are not in the totals. ' . self::label('HEURISTIC') . '<br>' . esc_html($t['likely_checker_rule']) . '</div>';
         }
         echo '<h2 class="agsc-h2">By source ' . self::label('OBSERVED') . '</h2>';
         echo '<div class="agsc-table-wrap"><table class="agsc-table"><thead><tr><th>Source</th><th>Type</th><th>Confidence</th><th>Requests</th><th>Last seen (UTC)</th></tr></thead><tbody>';
@@ -395,7 +398,7 @@ final class AGSC_Admin {
         echo '<input type="hidden" name="action" value="agsc_save_settings">';
         wp_nonce_field('agsc_save_settings');
         echo '<label class="agsc-check"><input type="checkbox" name="capture_enabled" value="1"' . checked($s['capture_enabled'], true, false) . '> Record AI traffic signals</label>';
-        echo '<p class="agsc-help">Counts requests whose user agent or referrer names a known AI service. Stores daily totals only: no IP address, no full user agent, no page URL. AgentScope\'s own checks (X-AgentScope-Check header) are not counted.</p>';
+        echo '<p class="agsc-help">Counts requests whose user agent or referrer names a known AI service. Stores daily totals only: no IP address, no full user agent, no page URL. AgentScope\'s own checks (X-AgentScope-Check header) are not counted. Bursts (3+ AI sources, or 5+ bot requests with 3+ bot names, within 60 seconds) are counted apart as likely checker tools; this is a heuristic.</p>';
         echo '<label class="agsc-field">Keep data for <input type="number" name="retention_days" min="7" max="365" value="' . (int) $s['retention_days'] . '"> days</label>';
         echo '<label class="agsc-check"><input type="checkbox" name="delete_on_uninstall" value="1"' . checked($s['delete_on_uninstall'], true, false) . '> Delete all AgentScope data when the plugin is deleted</label>';
         echo '<p class="agsc-help">Off by default, so deleting the plugin keeps your history.</p>';

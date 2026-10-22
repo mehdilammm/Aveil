@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getStore } from "@/lib/data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
+import { splitCheckerRows } from "@/lib/traffic";
 
 const DAYS = 30;
 
@@ -29,7 +30,7 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
   }
 
   const since = new Date(Date.now() - (DAYS - 1) * 86_400_000).toISOString().slice(0, 10);
-  const rows: Row[] = [];
+  const all: Row[] = [];
   for (let from = 0; ; from += 1000) {
     const { data } = await supabase
       .from("traffic_daily")
@@ -37,7 +38,7 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
       .eq("store_id", store.id)
       .gte("day", since)
       .range(from, from + 999);
-    rows.push(...((data ?? []) as Row[]));
+    all.push(...((data ?? []) as Row[]));
     if (!data || data.length < 1000) break;
   }
 
@@ -48,7 +49,11 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
     </div>
   );
 
-  if (!connector && rows.length === 0) {
+  // Bursts the plugin marked as likely checker tools are shown apart, never in the main numbers.
+  const { main: rows, checker } = splitCheckerRows(all.filter((r) => r.hits > 0));
+  const checkerTotal = checker.reduce((n, r) => n + r.hits, 0);
+
+  if (!connector && all.length === 0) {
     return (
       <>
         {head}
@@ -76,6 +81,28 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
         </p>
         <p className="muted">Last data received: {connector?.last_ingest_at ? new Date(connector.last_ingest_at).toUTCString() : "none yet"}</p>
       </div>
+
+      {checkerTotal > 0 && (
+        <>
+          <h2>Probably checker tools</h2>
+          <div className="card">
+            <p><span className="badge basis-heuristic">Heuristic</span> <strong>{checkerTotal}</strong> requests: probably an SEO/GEO checker tool, not real AI traffic. Not in the numbers below.</p>
+            <p className="muted small">
+              Rule (plugin 1.2.0+): 3 or more different AI sources, or 5 or more AI bot requests with 3 or more different bot names, within 60 seconds.
+              Real AI crawlers rarely arrive together, but this is a guess from timing only, not proof either way.
+            </p>
+            <table>
+              <thead><tr><th>Source</th><th>Category</th><th className="num">Requests</th></tr></thead>
+              <tbody>
+                {sumBy(checker, (r) => `${r.source}|${r.category}`).map(([k, hits]) => {
+                  const [source, category] = k.split("|");
+                  return <tr key={k}><td>{source}</td><td>{category}</td><td className="num">{hits}</td></tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {rows.length === 0 ? (
         <div className="card empty">

@@ -141,7 +141,29 @@ final class AGSC_Traffic {
         if ($status < 100 || $status > 599) {
             $status = 0;
         }
-        self::increment(gmdate('Y-m-d'), $signal, self::$route, $status);
+        $day = gmdate('Y-m-d');
+        // Several AI bots within a minute look like a checker tool, not real AI traffic (HEURISTIC, see AGSC_Burst).
+        if ($signal['confidence'] === 'unverified-user-agent' && AGSC_Burst::observe($signal, $day, self::$route, $status)) {
+            $signal['confidence'] = AGSC_Burst::CONFIDENCE;
+        }
+        self::increment($day, $signal, self::$route, $status);
+    }
+
+    /** Moves one already counted request of a burst from unverified-user-agent to likely-checker-tool. */
+    public static function move_to_checker($e) {
+        global $wpdb;
+        $table = self::table();
+        $moved = $wpdb->query($wpdb->prepare(
+            "UPDATE {$table} SET hits = hits - 1 WHERE day = %s AND source = %s AND category = %s AND confidence = 'unverified-user-agent' AND route = %s AND http_status = %d AND hits > 0",
+            $e['day'],
+            $e['source'],
+            $e['category'],
+            $e['route'],
+            (int) $e['status']
+        ));
+        if ($moved) {
+            self::increment($e['day'], array('source' => $e['source'], 'category' => $e['category'], 'confidence' => AGSC_Burst::CONFIDENCE), $e['route'], (int) $e['status']);
+        }
     }
 
     private static function increment($day, $signal, $route, $status) {
@@ -222,7 +244,7 @@ final class AGSC_Traffic {
         $settings = AGSC_Settings::get();
 
         $totals = $wpdb->get_results($wpdb->prepare(
-            "SELECT category, SUM(hits) AS hits FROM {$table} WHERE day >= %s AND hits > 0 GROUP BY category ORDER BY hits DESC",
+            "SELECT category, SUM(hits) AS hits FROM {$table} WHERE day >= %s AND hits > 0 AND confidence <> 'likely-checker-tool' GROUP BY category ORDER BY hits DESC",
             $since
         ), ARRAY_A);
         $sources = $wpdb->get_results($wpdb->prepare(
@@ -234,9 +256,13 @@ final class AGSC_Traffic {
             $since
         ), ARRAY_A);
         $daily = $wpdb->get_results($wpdb->prepare(
-            "SELECT day, SUM(hits) AS hits FROM {$table} WHERE day >= %s GROUP BY day ORDER BY day ASC",
+            "SELECT day, SUM(hits) AS hits FROM {$table} WHERE day >= %s AND confidence <> 'likely-checker-tool' GROUP BY day ORDER BY day ASC",
             $since
         ), ARRAY_A);
+        $checker = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COALESCE(SUM(hits), 0) FROM {$table} WHERE day >= %s AND confidence = 'likely-checker-tool'",
+            $since
+        ));
 
         $totals  = self::normalize_rows($totals);
         $sources = self::normalize_rows($sources);
@@ -256,6 +282,8 @@ final class AGSC_Traffic {
             'since_utc'       => $since,
             'capture_enabled' => (bool) $settings['capture_enabled'],
             'total_hits'      => $total,
+            'likely_checker_hits' => $checker,
+            'likely_checker_rule' => 'HEURISTIC: 3+ different AI sources, or 5+ AI bot requests with 3+ different bot names, within 60 seconds are counted apart as likely-checker-tool (probably an SEO/GEO checker tool). Not proof either way.',
             'totals'          => $totals,
             'sources'         => $sources,
             'routes'          => $routes,
@@ -265,7 +293,7 @@ final class AGSC_Traffic {
                 'legacy_until_utc'      => $legacy ? (string) $legacy : null,
                 'legacy_cleared'        => is_array($cleared),
             ),
-            'caveat'          => 'Counts only WordPress PHP-handled GET/HEAD requests while capture is on. User agents and referrers are unverified and can be spoofed. Pages served from a host or CDN cache are not counted. AgentScope\'s own checks are not counted from version 1.1.0. This is not proof of AI recommendations, visits by real customers, or sales.',
+            'caveat'          => 'Counts only WordPress PHP-handled GET/HEAD requests while capture is on. User agents and referrers are unverified and can be spoofed. Pages served from a host or CDN cache are not counted. AgentScope\'s own checks are not counted from version 1.1.0. Bursts of several AI bots within a minute are counted apart as likely checker tools (heuristic) from version 1.2.0. This is not proof of AI recommendations, visits by real customers, or sales.',
         );
     }
 }

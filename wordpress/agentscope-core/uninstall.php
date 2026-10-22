@@ -8,6 +8,7 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 }
 wp_clear_scheduled_hook('agsc_daily_purge');
 wp_clear_scheduled_hook('agsc_send_traffic');
+delete_transient('agsc_recent_bots');
 $agsc_settings = get_option('agsc_settings', array());
 if (is_array($agsc_settings) && !empty($agsc_settings['delete_on_uninstall'])) {
     global $wpdb;

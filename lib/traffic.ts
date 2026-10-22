@@ -85,3 +85,11 @@ export function validateRows(input: unknown, now: Date): { rows: TrafficRow[] } 
   }
   return { rows };
 }
+
+// Requests the plugin (1.2.0+) marked as a burst of several AI bots within a minute: probably an SEO/GEO checker tool.
+// HEURISTIC: shown apart and left out of the main numbers.
+export const CHECKER_CONFIDENCE = "likely-checker-tool";
+
+export function splitCheckerRows<T extends { confidence: string }>(rows: T[]): { main: T[]; checker: T[] } {
+  return { main: rows.filter((r) => r.confidence !== CHECKER_CONFIDENCE), checker: rows.filter((r) => r.confidence === CHECKER_CONFIDENCE) };
+}

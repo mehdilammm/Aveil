@@ -200,3 +200,7 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
   The app connection is built into the plugin's Settings (connection code, Connect, Send now, last send), and
   "Clear test data" sets pre-1.1.0 totals to 0 after confirmation and resends them. Rebuild the zip with
   `cd wordpress && zip -rqX ../public/downloads/agentscope-core-1.1.0.zip agentscope-core`.
+- agentscope-core 1.2.0 (`/downloads/agentscope-core-1.2.0.zip`): burst detection (HEURISTIC, `class-agsc-burst.php`).
+  Within 60 seconds, 3+ different AI sources, or 5+ AI bot requests with 3+ bot names, are recorded as
+  `likely-checker-tool` (the burst's earlier requests are moved too). The plugin and the app's AI Traffic page show
+  them apart ("Probably an SEO/GEO checker tool, not real AI traffic") and leave them out of the main numbers.

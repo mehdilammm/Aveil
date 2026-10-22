@@ -55,6 +55,7 @@
 .agsc-data--synthetic { color: #6b5bb3; }
 .agsc-data--demo { color: var(--agsc-orange); }
 .agsc-data--unavailable { color: var(--agsc-muted); }
+.agsc-data--heuristic { color: var(--agsc-orange); }
 
 .agsc-btn { display: inline-block; background: var(--agsc-emerald); color: #fff; border: 1px solid var(--agsc-emerald); border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; }
 .agsc-btn:hover { background: var(--agsc-pine-2); border-color: var(--agsc-pine-2); color: #fff; }
