@@ -77,6 +77,7 @@ final class AGSC_Admin {
         AGSC_Settings::update(array(
             'capture_enabled'     => !empty($_POST['capture_enabled']),
             'delete_on_uninstall' => !empty($_POST['delete_on_uninstall']),
+            'order_attribution'   => !empty($_POST['order_attribution']),
             'retention_days'      => isset($_POST['retention_days']) ? (int) $_POST['retention_days'] : 30,
         ));
         wp_safe_redirect(self::page_url('agsc-settings', array('agsc_msg' => 'saved')));
@@ -109,7 +110,7 @@ final class AGSC_Admin {
         }
         // When connected, the zeroed days are sent so the app's copy is corrected too.
         if (AGSC_Sender::is_configured() && $resend_from) {
-            AGSC_Sender::send($resend_from);
+            AGSC_Sender::send_soon($resend_from);
         }
         wp_safe_redirect(self::page_url('agsc-settings', array('agsc_msg' => 'cleared')));
         exit;
@@ -193,10 +194,10 @@ final class AGSC_Admin {
             'scanned'           => array('ok', 'Scan finished. Results below are from this scan.'),
             'scan-failed'       => array('bad', 'Scan did not run. WooCommerce must be active.'),
             'saved'             => array('ok', 'Settings saved.'),
-            'connected'         => array('ok', 'Connected to the AgentScope app. A first send was attempted; see "Last send".'),
+            'connected'         => array('ok', 'Connected to the AgentScope app. The first send runs in the background; see "Last send" in a minute.'),
             'connect-failed'    => array('bad', 'Not connected.'),
             'disconnected'      => array('ok', 'Disconnected from the AgentScope app.'),
-            'sent'              => array('ok', 'Send attempted; see "Last send".'),
+            'sent'              => array('ok', 'Sending in the background; see "Last send" in a minute.'),
             'cleared'           => array('ok', 'Test data cleared: the chosen totals are now 0. See the list below.'),
             'clear-bad-day'     => array('bad', 'Nothing was cleared. Pick a valid day that is not in the future.'),
             'clear-unconfirmed' => array('bad', 'Nothing was cleared. Tick the confirmation box first.'),
@@ -413,6 +414,8 @@ final class AGSC_Admin {
         echo '<label class="agsc-check"><input type="checkbox" name="capture_enabled" value="1"' . checked($s['capture_enabled'], true, false) . '> Record AI traffic signals</label>';
         echo '<p class="agsc-help">Counts requests whose user agent or referrer names a known AI service. Stores daily totals only: no IP address, no full user agent, no page URL. AgentScope\'s own checks (X-AgentScope-Check header) are not counted. Bursts (3+ AI sources, or 5+ bot requests with 3+ bot names, within 60 seconds) are counted apart as likely checker tools; this is a heuristic.</p>';
         echo '<label class="agsc-field">Keep data for <input type="number" name="retention_days" min="7" max="365" value="' . (int) $s['retention_days'] . '"> days</label>';
+        echo '<label class="agsc-check"><input type="checkbox" name="order_attribution" value="1"' . checked($s['order_attribution'], true, false) . '> Note on orders when the buyer came from an AI assistant</label>';
+        echo '<p class="agsc-help">Keeps the AI source (for example ChatGPT), how it was matched and the landing path in the WooCommerce session, and saves them on the order. No IP, user agent, name or email. Respects the WP Consent API (statistics) when a consent plugin is active. A fallback for WooCommerce Order Attribution.</p>';
         echo '<label class="agsc-check"><input type="checkbox" name="delete_on_uninstall" value="1"' . checked($s['delete_on_uninstall'], true, false) . '> Delete all AgentScope data when the plugin is deleted</label>';
         echo '<p class="agsc-help">Off by default, so deleting the plugin keeps your history.</p>';
         echo '<button type="submit" class="agsc-btn">Save settings</button></form>';

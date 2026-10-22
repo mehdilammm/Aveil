@@ -10,9 +10,10 @@ const ok = page(200);
 const allBots = (f: PageFetch) => Object.fromEntries(AI_BOTS.map((b) => [b.name, f]));
 
 describe("accessPlan", () => {
-  it("never uses more than 10 requests", () => {
-    expect(requestCount(accessPlan("https://shop.test", ["https://shop.test/p/1", "https://shop.test/p/2", "https://shop.test/p/3"]))).toBe(10);
-    expect(requestCount(accessPlan("https://shop.test", []))).toBe(6);
+  it("never uses more than 12 requests (7 bots on the home page)", () => {
+    expect(AI_BOTS.map((b) => b.name)).toEqual(expect.arrayContaining(["Claude-SearchBot", "Claude-User"]));
+    expect(requestCount(accessPlan("https://shop.test", ["https://shop.test/p/1", "https://shop.test/p/2", "https://shop.test/p/3"]))).toBe(12);
+    expect(requestCount(accessPlan("https://shop.test", []))).toBe(8);
   });
 });
 

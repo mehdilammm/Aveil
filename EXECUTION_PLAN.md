@@ -9,12 +9,12 @@ new code, this file updated, commit + push).
 
 | # | Ticket | Status | What exists | Acceptance criteria |
 | --- | --- | --- | --- | --- |
-| A1 | AI-referred orders (WooCommerce) | Partial | Parser, config list, sync, table design on branch `claude/agentscope-v0-1-setup-6cez8h` (not applied, not tested). Verified on matha.site's WooCommerce source that attribution meta is `_wc_order_attribution_{source_type,utm_source,referrer,session_entry}` and that `include_meta` filters REST `meta_data` | Last 90 days read with `_fields` limited to id/date/total/currency/status/created_via/meta_data and `include_meta` = attribution keys only; signatures in config; `Unavailable` + how to enable when no order has attribution; stored columns = order id, date, total, currency, source, matched-by, landing path; no PII column exists; UI says many AI visits lose their referrer so the count is a minimum; matha.site (0 orders) shows "No AI-referred orders yet" |
-| A2 | Plugin attribution fallback | Missing | — | AI referral (referrer host or utm_source in config) captured once per session into the WC session; written to order meta on `woocommerce_checkout_order_processed` and `woocommerce_store_api_checkout_order_processed` (block checkout); HPOS compatibility declared; consent: without a consent signal (WP Consent API if present) only aggregate counts; no blocking calls; PHP harness tests |
-| A3 | Agent checkout | Partial | Matcher on `created_via` (on branch). WooCommerce core removed its Agentic Checkout API in 11.2 (seen in matha.site's WooCommerce source), so no core marker exists | Counted only with evidence on the order; otherwise "Not measurable yet" |
-| A4 | AI Revenue funnel page | Partial | Page + `buildFunnel` (on branch) | 6 stages, each with real numbers and a badge (Observed / Heuristic / Unavailable + reason); no estimate anywhere |
-| A5 | Why agents aren't buying | Partial | `diagnose()` + checkout rules: guest checkout off, captcha on checkout, no shipping method, sells everywhere but ships to some, no payment / offline only (info), out of stock, checkout blocked for GPTBot (on branch). Price / variation price rules already exist in the scan | First broken stage + reasons with evidence, fix and Fix Center link; heuristic rules labeled; "This does not guarantee sales"; one unit test per rule; matha.site shows "COD only" (info) and "sells to all countries, ships only to MA" |
-| A6 | Plans | Partial | `plans.ts` flag `aiRevenue`, migration adds `workspaces.plan` (on branch) | Free = funnel without orders, Pro/Agency = orders + revenue; /pricing updated; plan read server-side |
+| A1 | AI-referred orders (WooCommerce) | Built (2026-10-23) | `lib/ai-orders.ts`, `lib/orders-sync.ts`, `fetchRecentOrders` (90 days, `_fields` id/date/total/currency/status/created_via/meta_data, `include_meta` = attribution + plugin keys only). Tables `ai_orders`, `order_syncs` applied (no PII column). Unit tests + matha.site real-data test (same query on the live API: 200, 0 orders → "No AI-referred orders yet"). The count is shown as a minimum. Runs from the Pro scan and the `orders_sync` job | as before |
+| A2 | Plugin attribution fallback | Built (plugin 1.4.0) | `class-agsc-attribution.php`: opt-in setting `order_attribution` (off by default), session capture on front-end GET, meta `_agsc_ai_referral_{source,via,entry}` on classic and Store API checkout, HPOS + block checkout compatibility declared, WP Consent API `statistics` respected, no network call. PHP harness tests (`lib/plugin-attribution.test.ts`). Not yet installed on matha.site | as before |
+| A3 | Agent checkout | Built | Counted only from evidence on the order (`created_via` matcher); otherwise "Not measurable yet" (WooCommerce 11.2 removed its Agentic Checkout API) | as before |
+| A4 | AI Revenue funnel page | Built | `/stores/[id]/revenue`: 6 stages, each with its number and a badge (Observed / Heuristic / Unavailable + reason). `lib/funnel.test.ts` | as before |
+| A5 | Why agents aren't buying | Built | `diagnose()` + `lib/checkout.ts` rules (one test each). matha.site real data: guest checkout on, sells to all countries / ships only MA (`shipping_gap`), COD only (`offline_payment_only`, heuristic, info), 13 products none out of stock | as before |
+| A6 | Plans | Built | `workspaces.plan` applied; plan read server-side. **Test override: the matha.site workspace ("Personal", cd674fa4-…) is set to `pro` by hand for testing. It is not a paid plan; set it back to `free` before launch.** | as before |
 
 ## Milestone B — Data foundation
 
@@ -24,12 +24,12 @@ new code, this file updated, commit + push).
 | B1 | `StorePlatformAdapter` + contract tests, WooCommerce behind it | Missing | Behaviour unchanged (existing tests stay green) |
 | B2 | WooCommerce adapter complete, HPOS declared, updater off the page-load path | Partial | Products, variations, categories, pages, settings exist; attributes and policies via adapter missing |
 | B3 | Schema source and `@id` per product page | Missing | Detects WooCommerce core, Yoast, Rank Math, theme; fixes extend the graph |
-| B4 | Store-wide access checks: add Claude-SearchBot, Claude-User, Google-Extended | Partial | Public check covers 5 bots; robots verdicts include Google-Extended; access test lacks Claude-SearchBot, Claude-User |
+| B4 | Store-wide access checks: add Claude-SearchBot, Claude-User, Google-Extended | Done (2026-10-23) | Access test sends 12 requests (6 bots × 2 pages) incl. Claude-SearchBot and Claude-User; robots verdicts include Google-Extended |
 | B5 | Bot verification (IP/CIDR + async rDNS) | Missing | Plugin buffers matching hits on `shutdown`, flushes in batches by WP-Cron; IP + full UA + URL stored only for AI-bot UAs; server verifies against cached official lists; Verified = Observed, UA-only = Heuristic; retention default 90 days; burst detection kept; /privacy + readme updated |
-| B6 | Per-scan cost logging + daily cost cap per tenant | Partial | Tokens/requests logged on visibility runs and public reports; no per-scan table, no per-tenant cap (S3) |
+| B6 | Per-scan cost logging + daily cost cap per tenant | Partial | `usage_events` + daily request caps per workspace and provider (`lib/usage.ts`, 80% warning and "reached" alert on the Visibility page; run stops at the cap). Per-scan logging for the store scan still missing. Prices are 0 (free tiers) |
 | B7 | i18n skeleton (`next-intl`, en + ar, RTL) | Missing | `dir="rtl"` for ar, logical CSS properties, new/touched strings in catalogs |
 | B8 | Smart sampling (Free 5/5, Pro 50/25) | Missing | Today: all products for rules, 2 pages for access/JSON-LD |
-| B9 | Background jobs | Missing | Section 4 of ARCHITECTURE.md |
+| B9 | Background jobs | Partial | `jobs`, `job_steps`, `claim_job` (SKIP LOCKED), backoff, max attempts; `/api/jobs/tick` answers 404 without the secret header (secret only in Vault); idle tick does no work. First handler: `orders_sync`. pg_cron + pg_net call it every minute |
 
 ## Milestone C — Causal core
 
@@ -49,6 +49,12 @@ new code, this file updated, commit + push).
 | D3 | Factual description optimizer with diff + approval | Missing | |
 | D4 | Export + opt-in apply (write key), audit log, 1-click undo | Partial | Findings CSV export exists; no apply/undo |
 | D5 | Verify loop (immediate technical re-check; visibility at 7/14/30 days) | Partial | Rescan marks findings resolved; no targeted re-fetch, no scheduled visibility re-checks |
+
+## Plugin 1.4.0
+
+Update check moved to a daily WP-Cron event (no network call on admin or visitor pages; filters read the cached
+answer only). "Connect" and "Send now" queue a one-off WP-Cron send instead of waiting on the network. Attribution
+fallback (A2). Harness test asserts zero network calls before the cron runs.
 
 ## Milestone E — Later (accounts or approval needed)
 

@@ -27,6 +27,16 @@ export default function PrivacyPage() {
             <strong>Free public check:</strong> the domain checked and the report. For rate limits we keep a hash of your IP address that changes every
             day; we do not store the IP itself.
           </li>
+          <li>
+            <strong>AI-referred orders (Pro and Agency):</strong> with your WooCommerce API key we read the orders of the last 90 days, asking only for the
+            order id, date, total, currency, status, how the order was created and its attribution fields. We keep, for orders that came from an AI
+            assistant: order id, date, total, currency, the AI source, how it was matched and the landing page path. No customer name, email, phone,
+            address or IP address is requested or stored.
+          </li>
+          <li>
+            <strong>Plugin AI-referral note (opt-in):</strong> the WordPress plugin can save the AI source, how it was matched and the landing path on new
+            orders, through the WooCommerce session; it respects the WP Consent API when a consent plugin is active.
+          </li>
           <li><strong>Waitlist:</strong> the email and plan you enter, only to tell you when payments open.</li>
           <li><strong>Team members:</strong> workspace memberships and invites (only a hash of each invite link is stored).</li>
         </ul>

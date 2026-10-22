@@ -42,11 +42,12 @@ describe("runVisibility with both engines", () => {
       let op = "select";
       let payload: unknown = null;
       const b: Record<string, unknown> = {};
-      for (const m of ["eq", "neq", "order", "limit", "in", "is", "not"]) b[m] = () => b;
+      for (const m of ["eq", "neq", "gte", "lt", "order", "limit", "in", "is", "not"]) b[m] = () => b;
       b.select = () => b;
       b.insert = (p: unknown) => ((op = "insert"), (payload = p), b);
       b.update = () => ((op = "update"), b);
       b.single = () => Promise.resolve({ data: { id: "run-1" }, error: null });
+      b.maybeSingle = () => Promise.resolve({ data: null, error: null });
       b.then = (resolve: (v: unknown) => void) => {
         if (op === "insert") {
           if (table === "visibility_results") inserted.push(payload as Record<string, unknown>);

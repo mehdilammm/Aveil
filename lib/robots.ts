@@ -60,6 +60,8 @@ const BOT_SEVERITY: Record<BotName, Severity> = {
   "ChatGPT-User": "high",
   "OAI-SearchBot": "high",
   PerplexityBot: "high",
+  "Claude-SearchBot": "high",
+  "Claude-User": "high",
   GPTBot: "medium",
   ClaudeBot: "medium",
 };

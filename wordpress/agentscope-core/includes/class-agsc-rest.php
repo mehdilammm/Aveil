@@ -36,6 +36,7 @@ final class AGSC_Rest {
                 'capture_enabled'     => array('type' => 'boolean', 'required' => false),
                 'retention_days'      => array('type' => 'integer', 'required' => false, 'minimum' => 7, 'maximum' => 365),
                 'delete_on_uninstall' => array('type' => 'boolean', 'required' => false),
+                'order_attribution'   => array('type' => 'boolean', 'required' => false),
             ),
         ));
         register_rest_route(self::NS, '/selftest', array(
@@ -70,7 +71,7 @@ final class AGSC_Rest {
 
     public static function settings($request) {
         $input = array();
-        foreach (array('capture_enabled', 'retention_days', 'delete_on_uninstall') as $key) {
+        foreach (array('capture_enabled', 'retention_days', 'delete_on_uninstall', 'order_attribution') as $key) {
             if ($request->has_param($key)) {
                 $input[$key] = $request->get_param($key);
             }

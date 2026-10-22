@@ -11,6 +11,8 @@ import { deletePrompt } from "./actions";
 import { PromptsForm } from "./prompts-form";
 import { RereadButton, RunVisibilityButton, TestRunButton } from "./run-button";
 import { storeAccess } from "@/lib/workspace";
+import { UsageAlert } from "@/components/usage-alert";
+import { PLANS, type PlanId } from "@/lib/plans";
 import { groundingEnabled } from "@/lib/grounding";
 
 type Run = { id: string; status: string; model: string; created_at: string; finished_at: string | null; requests_count: number; input_tokens: number; output_tokens: number; error: string | null };
@@ -55,6 +57,8 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
   const store = await getStore(supabase, id);
   if (!store) notFound();
   const access = user ? await storeAccess(supabase, user.id, id) : null;
+  const { data: wsPlan } = access ? await supabase.from("workspaces").select("plan").eq("id", access.workspace_id).maybeSingle() : { data: null };
+  const planId = ((wsPlan?.plan as PlanId | undefined) ?? "free") in PLANS ? ((wsPlan?.plan as PlanId | undefined) ?? "free") : "free";
 
   const [{ data: promptRows }, { data: runRows }] = await Promise.all([
     supabase.from("visibility_prompts").select("id, prompt").eq("store_id", id).order("created_at"),
@@ -104,6 +108,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
         <p className="sub">Whether your store appears when people ask an AI assistant about what you sell.</p>
       </div>
       <VisibilityTabs storeId={store.id} active="" />
+      {access && <UsageAlert supabase={supabase} workspaceId={access.workspace_id} plan={planId} always />}
 
       <div className="card">
         {ENGINES.map((e) => (

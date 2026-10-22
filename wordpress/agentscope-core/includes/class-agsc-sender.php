@@ -19,9 +19,23 @@ final class AGSC_Sender {
     const LAST      = 'agsc_remote_last_result';
     const SEND_DAYS = 3; // Resend the last 3 days: totals are replaced, so late hits are corrected.
     const MAX_ROWS  = 1000;
+    const CRON_NOW  = 'agsc_send_traffic_now';
+
+    /**
+     * Sends in the background (a one-off WP-Cron event), so no admin page waits for the network.
+     * $since: first day to send (default: the last SEND_DAYS days).
+     */
+    public static function send_soon($since = null) {
+        $args = $since ? array((string) $since) : array();
+        if (!wp_next_scheduled(self::CRON_NOW, $args)) {
+            wp_schedule_single_event(time(), self::CRON_NOW, $args);
+        }
+        self::remember('Queued: sending in the background.');
+    }
 
     public static function init() {
         add_action(self::CRON, array(__CLASS__, 'send_scheduled'));
+        add_action(self::CRON_NOW, array(__CLASS__, 'send'));
         add_action('admin_post_agsc_connect', array(__CLASS__, 'handle_connect'));
         add_action('admin_post_agsc_send_now', array(__CLASS__, 'handle_send_now'));
         add_action('admin_post_agsc_disconnect', array(__CLASS__, 'handle_disconnect'));
@@ -32,6 +46,7 @@ final class AGSC_Sender {
 
     public static function deactivate() {
         wp_clear_scheduled_hook(self::CRON);
+        wp_clear_scheduled_hook(self::CRON_NOW);
     }
 
     public static function settings() {
@@ -158,7 +173,7 @@ final class AGSC_Sender {
             self::back('connect-failed');
         }
         update_option(self::OPTION, $next, false);
-        self::send();
+        self::send_soon();
         self::back('connected');
     }
 
@@ -167,7 +182,7 @@ final class AGSC_Sender {
             wp_die('Not allowed.', 403);
         }
         check_admin_referer('agsc_send_now');
-        self::send();
+        self::send_soon();
         self::back('sent');
     }
 

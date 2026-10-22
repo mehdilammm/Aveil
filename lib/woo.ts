@@ -270,3 +270,64 @@ export function vendorFromHeaders(h: { get(name: string): string | null }): stri
 export function shopifyFromHeaders(h: { get(name: string): string | null }): boolean {
   return Boolean(h.get("x-shopify-stage") || h.get("x-shopid") || h.get("x-shardid") || /shopify/i.test(h.get("powered-by") ?? ""));
 }
+
+// Shipping zones with their locations and methods (at most 20 zones).
+export async function fetchShippingZones(baseUrl: string, creds: WooCredentials): Promise<Source<import("./checkout").ShippingZone[]>> {
+  try {
+    const { items } = await getPage<{ id: number; name: string }>(baseUrl, "/shipping/zones", {}, creds);
+    const zones = [];
+    for (const z of items.slice(0, 20)) {
+      const [locations, methods] = await Promise.all([
+        getPage<{ code: string; type: string }>(baseUrl, `/shipping/zones/${z.id}/locations`, {}, creds),
+        getPage<{ method_id: string; enabled: boolean }>(baseUrl, `/shipping/zones/${z.id}/methods`, {}, creds),
+      ]);
+      zones.push({
+        id: z.id,
+        name: z.name,
+        locations: locations.items.map((l) => ({ code: String(l.code), type: String(l.type) })),
+        methods: methods.items.map((m) => ({ method_id: String(m.method_id), enabled: m.enabled === true })),
+      });
+    }
+    return { ok: true, data: zones };
+  } catch (err) {
+    return { ok: false, reason: `Shipping zones could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
+  }
+}
+
+export async function fetchPaymentGateways(baseUrl: string, creds: WooCredentials): Promise<Source<import("./checkout").Gateway[]>> {
+  try {
+    const { items } = await getPage<{ id: string; title?: string; enabled?: boolean }>(baseUrl, "/payment_gateways", { _fields: "id,title,enabled" }, creds);
+    return { ok: true, data: items.map((g) => ({ id: String(g.id), title: String(g.title ?? g.id), enabled: g.enabled === true })) };
+  } catch (err) {
+    return { ok: false, reason: `Payment methods could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
+  }
+}
+
+// Orders of the last `days` days: only id, date, total, currency, status, created_via and the Order Attribution keys.
+// No billing, shipping, customer or line-item fields are requested.
+export async function fetchRecentOrders(baseUrl: string, creds: WooCredentials, days: number, max: number, metaKeys: string[]): Promise<Source<import("./ai-orders").WooOrder[]>> {
+  const after = new Date(Date.now() - days * 86_400_000).toISOString();
+  const orders: import("./ai-orders").WooOrder[] = [];
+  try {
+    for (let page = 1; orders.length < max; page++) {
+      const res = await getPage<import("./ai-orders").WooOrder>(baseUrl, "/orders", {
+        after,
+        per_page: "100",
+        page: String(page),
+        orderby: "date",
+        order: "desc",
+        status: "processing,completed,on-hold",
+        _fields: "id,date_created_gmt,total,currency,status,created_via,meta_data",
+        include_meta: metaKeys.join(","),
+      }, creds);
+      orders.push(...res.items);
+      if (page >= res.totalPages || !res.items.length) break;
+    }
+    return { ok: true, data: orders.slice(0, max) };
+  } catch (err) {
+    if (err instanceof WooError && (err.status === 401 || err.status === 403)) {
+      return { ok: false, reason: "This API key is not allowed to read orders. Give the key Read permission (WooCommerce → Settings → Advanced → REST API)." };
+    }
+    return { ok: false, reason: `Orders could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
+  }
+}
