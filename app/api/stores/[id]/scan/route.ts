@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { runScan } from "@/lib/scan";
+import { kickJobs } from "@/lib/job-kick";
+import { enqueueScan } from "@/lib/scan";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { canEdit, storeAccess } from "@/lib/workspace";
@@ -7,6 +8,7 @@ import { canEdit, storeAccess } from "@/lib/workspace";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+// Queues the scan as a background job and starts it; the page follows it with /api/jobs/[id].
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user } = await getUser();
@@ -18,8 +20,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!canEdit(store.role)) return NextResponse.json({ error: "Viewers cannot run checks. Ask a workspace admin." }, { status: 403 });
 
   try {
-    const result = await runScan(createAdminClient(), store);
-    return NextResponse.json(result, { status: result.error ? 409 : 200 });
+    const result = await enqueueScan(createAdminClient(), store, "manual", user.id);
+    kickJobs();
+    return NextResponse.json(result, { status: result.error ? 409 : 202 });
   } catch (err) {
     console.error("scan route failed", err instanceof Error ? err.message : "unknown error");
     return NextResponse.json({ error: "The scan could not start because of a server problem. Please try again later." }, { status: 500 });

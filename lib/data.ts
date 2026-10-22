@@ -110,3 +110,17 @@ export async function weeklyReport(supabase: Client, scans: ScanRow[]): Promise<
   const summary = weeklySummary(complete.map((s) => ({ id: s.id, finishedAt: s.finished_at!, keys: keys.get(s.id) ?? [] })));
   return summary ? { summary, titles } : null;
 }
+
+// The store's queued or running job of this kind (started in the last 30 minutes), so a page can follow it.
+export async function openJobId(supabase: Client, storeId: string, kind: "scan" | "visibility"): Promise<string | null> {
+  const { data } = await supabase
+    .from("jobs")
+    .select("id")
+    .eq("store_id", storeId)
+    .eq("kind", kind)
+    .in("status", ["queued", "running"])
+    .gte("created_at", new Date(Date.now() - 30 * 60_000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1);
+  return data?.[0]?.id ?? null;
+}

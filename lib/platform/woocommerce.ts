@@ -7,6 +7,7 @@ import {
   fetchPublicPage,
   fetchPublicPages,
   fetchPublishedProducts,
+  fetchPublishedProductsPage,
   fetchPaymentGateways,
   fetchPublishedVariations,
   fetchShippingZones,
@@ -23,6 +24,7 @@ const CHECKER_UA = "AgentScope/0.3 (+store readiness check)";
 // The WooCommerce side of the contract: the same calls the scan made before, behind one interface.
 export type WooDeps = {
   fetchPublishedProducts: typeof fetchPublishedProducts;
+  fetchPublishedProductsPage: typeof fetchPublishedProductsPage;
   fetchPublishedVariations: typeof fetchPublishedVariations;
   fetchCategories: typeof fetchCategories;
   fetchAttributes: typeof fetchAttributes;
@@ -38,7 +40,7 @@ export type WooDeps = {
 };
 
 const REAL: WooDeps = {
-  fetchPublishedProducts, fetchPublishedVariations, fetchCategories, fetchAttributes, fetchSettings, fetchPublicPages,
+  fetchPublishedProducts, fetchPublishedProductsPage, fetchPublishedVariations, fetchCategories, fetchAttributes, fetchSettings, fetchPublicPages,
   fetchSiteName, fetchComingSoon, fetchPublicPage, runAccessCheck, verifyReadKey, fetchShippingZones, fetchPaymentGateways,
 };
 
@@ -50,6 +52,7 @@ export function wooCommerceAdapter(storeUrl: string, creds: WooCredentials, deps
       const r = await deps.fetchPublishedProducts(storeUrl, creds);
       return { items: r.items, total: r.total, truncated: r.truncated };
     },
+    fetchProductsPage: (page) => deps.fetchPublishedProductsPage(storeUrl, creds, page),
     fetchVariations: (productId) => deps.fetchPublishedVariations(storeUrl, productId, creds),
     fetchCategories: () => deps.fetchCategories(storeUrl, creds),
     fetchAttributes: () => deps.fetchAttributes(storeUrl, creds),

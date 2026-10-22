@@ -5,6 +5,7 @@ import { geminiConfigured } from "./gemini";
 import { askVisibilityQuestion } from "./grounded-question";
 import { GROUNDING_MODEL } from "./grounding";
 import { planOf } from "./orders-sync";
+import { PLANS } from "./plans";
 import { capStatus, fitsCap } from "./usage";
 import { recordUsage, usageToday } from "./usage-store";
 import { taskModelEnabled } from "./task-models";
@@ -29,9 +30,9 @@ function isFatal(error: string): boolean {
 // options.test: "Re-run with citations (test)" for the workspace owner: skips the weekly wait (at most
 // TEST_RUNS_PER_DAY runs per store in 24 h), keeps the grounding caps, and is stored as a normal run.
 export const TEST_RUNS_PER_DAY = 3;
-export async function runVisibility(admin: SupabaseClient, store: Store, options: { test?: boolean } = {}): Promise<{ runId?: string; error?: string }> {
-  const engines = ENGINES.filter(engineConfigured);
-  if (!engines.length) return { error: "AI Visibility is not set up on the server (no AI engine key)." };
+// The checks that decide whether a run may start (also used before a run is queued as a job).
+export async function visibilityPrecheck(admin: SupabaseClient, store: Store, options: { test?: boolean } = {}): Promise<{ runId?: string; error?: string } | null> {
+  if (!ENGINES.some(engineConfigured)) return { error: "AI Visibility is not set up on the server (no AI engine key)." };
   if (options.test) {
     const { count } = await admin.from("visibility_runs").select("id", { count: "exact", head: true }).eq("store_id", store.id).gte("created_at", new Date(Date.now() - 86_400_000).toISOString());
     if ((count ?? 0) >= TEST_RUNS_PER_DAY) return { error: `At most ${TEST_RUNS_PER_DAY} runs per store in 24 hours.` };
@@ -49,14 +50,24 @@ export async function runVisibility(admin: SupabaseClient, store: Store, options
   if (!options.test && last && last.status === "complete" && !canRun(last.created_at, new Date())) {
     return { error: `Questions can be run once a week. Next run: ${nextRunAt(last.created_at)!.toUTCString()}.` };
   }
+  return null;
+}
 
-  const { data: prompts } = await admin.from("visibility_prompts").select("id, prompt").eq("store_id", store.id).order("created_at").limit(MAX_PROMPTS);
+// options.budgetMs: time this run may use (a job passes what is left of its tick).
+export async function runVisibility(admin: SupabaseClient, store: Store, options: { test?: boolean; budgetMs?: number } = {}): Promise<{ runId?: string; error?: string }> {
+  const engines = ENGINES.filter(engineConfigured);
+  const refused = await visibilityPrecheck(admin, store, options);
+  if (refused) return refused;
+  const budget = Math.min(TIME_BUDGET_MS, options.budgetMs ?? TIME_BUDGET_MS);
+
+  // Smart sampling: the plan's number of questions (Free 5, Pro and Agency 25), oldest first.
+  const plan = await planOf(admin, store.id);
+  const { data: prompts } = await admin.from("visibility_prompts").select("id, prompt").eq("store_id", store.id).order("created_at").limit(PLANS[plan].visibilityQuestions);
   if (!prompts?.length) return { error: "Add at least one question first." };
 
   // Daily AI request caps of the workspace's plan (usage_events).
   const { data: ws } = await admin.from("stores").select("workspace_id").eq("id", store.id).single();
   const workspaceId = ws?.workspace_id as string;
-  const plan = await planOf(admin, store.id);
   const usedBefore = await usageToday(admin, workspaceId);
   const reached = capStatus(plan, usedBefore).filter((c) => c.level === "reached" && (c.provider === "gemini" || c.provider === "groq"));
   if (reached.length) return { error: `Daily AI limit reached for this workspace (${reached.map((c) => `${c.provider} ${c.used}/${c.limit}`).join(", ")}). It resets at 00:00 UTC.` };
@@ -93,7 +104,7 @@ export async function runVisibility(admin: SupabaseClient, store: Store, options
       if (!stopped && (!fitsCap(plan, "gemini", usedBefore.gemini + usage.gemini.requests, 1) || !fitsCap(plan, "groq", usedBefore.groq + usage.groq.requests, 2))) {
         stopped = "Not asked: the workspace's daily AI limit was reached during this run. It resets at 00:00 UTC.";
       }
-      if (stopped || Date.now() - started > TIME_BUDGET_MS) {
+      if (stopped || Date.now() - started > budget) {
         await admin.from("visibility_results").insert({ ...row, error: stopped ?? "Skipped: time limit reached for this run." });
         continue;
       }

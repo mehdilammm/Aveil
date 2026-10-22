@@ -4,7 +4,7 @@ import { formatDate } from "@/components/badges";
 import { FindingCard } from "@/components/finding-card";
 import { ACCESS_NOTE } from "@/lib/access";
 import { areaOf, AREAS } from "@/lib/categories";
-import { findingsForScan, getStore, listScans, sortForFixing } from "@/lib/data";
+import { findingsForScan, getStore, listScans, sortForFixing, openJobId } from "@/lib/data";
 import { PluginOnboarding } from "@/components/plugin-onboarding";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
@@ -15,6 +15,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
   const { supabase } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
+  const scanJobId = await openJobId(supabase, store.id, "scan");
 
   // Stores in the app are WooCommerce stores: show how to install the traffic plugin until it is connected.
   let pluginConnected = true;
@@ -62,7 +63,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         <div className="card empty">
           <strong>No scan yet</strong>
           <p>Run the first scan to see how ready this store is for AI shopping agents.</p>
-          <RunScanButton storeId={store.id} label="Run first scan" />
+          <RunScanButton storeId={store.id} openJobId={scanJobId} label="Run first scan" />
         </div>
       ) : (
         <>
@@ -74,7 +75,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
                 {last.status === "failed" && last.error && <p className="error">{last.error}</p>}
                 {lastComplete && <div className="muted">{lastComplete.scanned_products ?? 0} products scanned</div>}
               </div>
-              <RunScanButton storeId={store.id} label="Rescan" />
+              <RunScanButton storeId={store.id} openJobId={scanJobId} label="Rescan" />
             </div>
           </div>
 

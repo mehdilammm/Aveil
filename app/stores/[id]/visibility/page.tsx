@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { formatDate } from "@/components/badges";
-import { getStore } from "@/lib/data";
+import { getStore, openJobId } from "@/lib/data";
 import { ENGINE_MODEL, engineConfigured } from "@/lib/engines";
 import { MISTRAL_OFF_REASON } from "@/lib/mistral";
 import { VisibilityTabs } from "@/components/visibility-tabs";
 import { GEMINI_DISCLAIMER } from "@/lib/public-scan";
 import { getUser } from "@/lib/supabase/server";
-import { canRun, ENGINE_LABEL, ENGINE_NAME, ENGINES, MAX_PROMPTS, nextRunAt, TASK_BY_LABEL, type EngineId, type TaskById } from "@/lib/visibility";
+import { canRun, ENGINE_LABEL, ENGINE_NAME, ENGINES, nextRunAt, TASK_BY_LABEL, type EngineId, type TaskById } from "@/lib/visibility";
 import { deletePrompt } from "./actions";
 import { PromptsForm } from "./prompts-form";
 import { RereadButton, RunVisibilityButton, TestRunButton } from "./run-button";
@@ -56,6 +56,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
+  const visibilityJobId = await openJobId(supabase, store.id, "visibility");
   const access = user ? await storeAccess(supabase, user.id, id) : null;
   const { data: wsPlan } = access ? await supabase.from("workspaces").select("plan").eq("id", access.workspace_id).maybeSingle() : { data: null };
   const planId = ((wsPlan?.plan as PlanId | undefined) ?? "free") in PLANS ? ((wsPlan?.plan as PlanId | undefined) ?? "free") : "free";
@@ -121,7 +122,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
         </p>
       </div>
 
-      <h2>Questions ({prompts.length}/{MAX_PROMPTS})</h2>
+      <h2>Questions ({prompts.length}/{PLANS[planId].visibilityQuestions})</h2>
       {prompts.length > 0 && (
         <div className="card">
           {prompts.map((p) => (
@@ -134,11 +135,11 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
           ))}
         </div>
       )}
-      <PromptsForm storeId={store.id} remaining={MAX_PROMPTS - prompts.length} existing={prompts.map((p) => p.prompt)} />
+      <PromptsForm storeId={store.id} remaining={Math.max(0, PLANS[planId].visibilityQuestions - prompts.length)} existing={prompts.map((p) => p.prompt)} />
 
       <h2>Run</h2>
       <div className="card">
-        <RunVisibilityButton storeId={store.id} disabledReason={disabledReason} />
+        <RunVisibilityButton storeId={store.id} disabledReason={disabledReason} openJobId={visibilityJobId} />
         {access?.role === "owner" && groundingEnabled() && engineConfigured("gemini") && prompts.length > 0 && !running && <TestRunButton storeId={store.id} />}
         {engineConfigured("gemini") && results.filter((r) => r.engine === "gemini" && r.answer && !r.extraction).length > 0 && (
           <RereadButton storeId={store.id} count={results.filter((r) => r.engine === "gemini" && r.answer && !r.extraction).length} />
