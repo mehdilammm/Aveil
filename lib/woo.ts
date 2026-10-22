@@ -1,9 +1,8 @@
 import "server-only";
-import { lookup } from "node:dns/promises";
 import type { PublicPage, Source } from "./pages";
 import type { WooProduct, WooVariation } from "./rules";
 import { CHECK_HEADER, checkHeaderValue } from "./check-header";
-import { isPrivateAddress } from "./url";
+import { BlockedUrlError, guardedFetch } from "./safe-fetch";
 
 export type WooCredentials = { consumerKey: string; consumerSecret: string };
 
@@ -18,30 +17,32 @@ const MAX_PAGES = 50; // 5,000 products per scan in v0.1
 const MAX_REDIRECTS = 3;
 const TIMEOUT_MS = 20_000;
 
-async function assertPublicHost(url: URL) {
-  const addresses = await lookup(url.hostname, { all: true }).catch(() => {
-    throw new WooError(`Could not resolve ${url.hostname}`);
-  });
-  if (addresses.some((a) => isPrivateAddress(a.address))) {
-    throw new WooError(`${url.hostname} points to a private address`);
-  }
-}
-
-// Fetches over https only, checking every redirect hop against private addresses.
+// Fetches over https only through the guarded client (DNS checked at connect time, see safe-fetch.ts).
+// Redirects are followed here, one hop at a time, each re-checked; credentials never go to another host.
 async function safeFetch(url: URL, headers: Record<string, string>): Promise<Response> {
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (current.protocol !== "https:") throw new WooError("Store redirected to a non-https address");
-    await assertPublicHost(current);
-    const res = await fetch(current, { headers, redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
+    const res = (await guarded(current, { headers, timeoutMs: TIMEOUT_MS })) as unknown as Response;
     const location = res.headers.get("location");
     if (res.status < 300 || res.status >= 400 || !location) return res;
+    await res.body?.cancel().catch(() => {});
     const next = new URL(location, current);
     // Do not forward credentials to another host.
     if (next.host !== url.host) throw new WooError(`Store redirects to ${next.host}. Use that address as the store URL.`);
     current = next;
   }
   throw new WooError("Too many redirects");
+}
+
+// guardedFetch with WooError messages for refused targets.
+async function guarded(url: URL, init: Parameters<typeof guardedFetch>[1]) {
+  try {
+    return await guardedFetch(url, init);
+  } catch (err) {
+    if (err instanceof BlockedUrlError) throw new WooError(`${url.hostname}: ${err.message}`);
+    throw err;
+  }
 }
 
 type Page<T> = { items: T[]; total: number; totalPages: number };
@@ -185,13 +186,10 @@ export async function fetchPublicPage(target: string, userAgent: string, checkTo
     const startHost = current.host;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
       if (current.protocol !== "https:") return { ok: false, error: "redirected to a non-https address" };
-      await assertPublicHost(current);
-      const res = await fetch(current, {
+      const res = (await guarded(current, {
         headers: { "User-Agent": userAgent, Accept: "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "en", [CHECK_HEADER]: checkHeaderValue(checkToken) },
-        redirect: "manual",
-        signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
-        cache: "no-store",
-      });
+        timeoutMs: PAGE_TIMEOUT_MS,
+      })) as unknown as Response;
       const location = res.headers.get("location");
       if (res.status >= 300 && res.status < 400 && location) {
         await res.body?.cancel().catch(() => {});

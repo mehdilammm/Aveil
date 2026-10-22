@@ -1,40 +1,16 @@
 import "server-only";
-import { lookup } from "node:dns";
-import { isIP } from "node:net";
-import { Agent, fetch as undiciFetch } from "undici";
+import { fetch as undiciFetch } from "undici";
+import { safeAgent, urlProblem } from "./safe-fetch";
 import { checkHeaderValue } from "./check-header";
 import { applyCanonical, CHECK_HEADER, learnCanonical, LIMITS, NOT_CHECKED, type RequestLogEntry } from "./public-scan";
-import { assertPublicAddresses, isPrivateAddress } from "./url";
 import { shopifyFromHeaders, vendorFromHeaders, type PageFetch } from "./woo";
 
-// DNS check at connect time, so a host cannot switch to a private address between our check and the connection.
-const agent = new Agent({
-  connect: {
-    timeout: LIMITS.timeoutMs,
-    lookup(hostname, options, callback) {
-      lookup(hostname, { all: true }, (err, addresses) => {
-        if (err) return callback(err, "", 4);
-        const problem = assertPublicAddresses(addresses);
-        if (problem) return callback(new Error(`Blocked: ${problem}`), "", 4);
-        if ((options as { all?: boolean }).all) return (callback as unknown as (e: null, a: typeof addresses) => void)(null, addresses);
-        callback(null, addresses[0].address, addresses[0].family);
-      });
-    },
-  },
-  headersTimeout: LIMITS.timeoutMs,
-  bodyTimeout: LIMITS.timeoutMs,
-});
+// Connect-time DNS check (see safe-fetch.ts).
+const agent = safeAgent(LIMITS.timeoutMs);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function hostAllowed(u: URL): string | null {
-  if (u.protocol !== "https:") return "only https is allowed";
-  if (u.username || u.password) return "credentials in URL";
-  const host = u.hostname.replace(/^\[|\]$/g, "");
-  if (isIP(host) && isPrivateAddress(host)) return `${host} is not a public address`;
-  if (host === "localhost" || /\.(localhost|local|internal|lan|home\.arpa)$/i.test(host)) return `${host} is not a public host`;
-  return null;
-}
+const hostAllowed = (u: URL) => urlProblem(u);
 
 // One scan's HTTP client: at most LIMITS.httpRequests requests (redirect hops count), 1.5 s apart,
 // 10 s timeout, 2 MB per answer, https only, every redirect re-checked (max 3).
