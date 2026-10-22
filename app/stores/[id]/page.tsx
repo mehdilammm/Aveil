@@ -5,6 +5,8 @@ import { FindingCard } from "@/components/finding-card";
 import { ACCESS_NOTE } from "@/lib/access";
 import { areaOf, AREAS } from "@/lib/categories";
 import { findingsForScan, getStore, listScans, sortForFixing } from "@/lib/data";
+import { PluginOnboarding } from "@/components/plugin-onboarding";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "./run-scan-button";
 
@@ -13,6 +15,15 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
   const { supabase } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
+
+  // Stores in the app are WooCommerce stores: show how to install the traffic plugin until it is connected.
+  let pluginConnected = true;
+  try {
+    const { data } = await createAdminClient().from("traffic_connectors").select("store_id").eq("store_id", store.id).maybeSingle();
+    pluginConnected = Boolean(data);
+  } catch {
+    pluginConnected = true; // unknown: do not nag
+  }
 
   const scans = await listScans(supabase, id, 20);
   const last = scans[0];
@@ -39,6 +50,13 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         </p>
         {store.connection_status === "error" && store.connection_error && <p className="error">{store.connection_error}</p>}
       </div>
+
+      {!pluginConnected && (
+        <details className="card">
+          <summary><strong>Measure real AI bot traffic</strong> <span className="muted small">install the WordPress plugin</span></summary>
+          <PluginOnboarding connected={null} />
+        </details>
+      )}
 
       {!last ? (
         <div className="card empty">

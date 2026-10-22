@@ -7,6 +7,7 @@ import { canEdit, ensurePersonalWorkspace, listWorkspaces } from "@/lib/workspac
 import { AddStoreForm } from "./add-store-form";
 import { DeleteStoreForm } from "./delete-store-form";
 import { TrafficConnect } from "./traffic-connect";
+import { PluginOnboarding } from "@/components/plugin-onboarding";
 
 export default async function SettingsPage() {
   const { supabase, user } = await getUser();
@@ -48,8 +49,10 @@ export default async function SettingsPage() {
           {canEdit(roleOf.get(s.workspace_id)?.role) ? (
             <>
               <details>
-                <summary className="muted">AI traffic plugin</summary>
-                <TrafficConnect storeId={s.id} connected={connectors.get(s.id) ?? null} endpoint={endpoint} />
+                <summary className="muted">AI traffic plugin{connectors.get(s.id) ? " (connected)" : " (not connected)"}</summary>
+                <PluginOnboarding connected={connectors.get(s.id) ?? null} codeHere>
+                  <TrafficConnect storeId={s.id} connected={connectors.get(s.id) ?? null} endpoint={endpoint} />
+                </PluginOnboarding>
               </details>
               <details>
                 <summary className="muted">Delete this store</summary>

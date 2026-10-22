@@ -218,3 +218,9 @@ otherwise. On Shopify, the JSON-LD price is compared with the /products.json pri
   (`app/opengraph-image.tsx`), canonical URLs, `/sitemap.xml` (public pages only), `/robots.txt` (AI bots named and
   allowed on public pages; the app, API and invites kept out), SoftwareApplication JSON-LD on `/` with the real plan
   prices and no rating or reviews.
+- Plugin distribution: Settings → AI traffic plugin and the store Overview (until connected) show a Download button
+  (latest zip) and 4 install steps. `node scripts/build-plugin.mjs` builds `public/downloads/agentscope-core-<v>.zip`
+  and writes `lib/plugin-release.json` (version, SHA-256, changelog); `/api/plugin/latest` serves it publicly.
+  agentscope-core 1.3.0 checks that endpoint once a day (no store data sent), shows the update in WordPress and
+  verifies the zip's SHA-256 before installing. readme.txt follows the WordPress.org format with an External
+  services section; for a WordPress.org build, leave `includes/class-agsc-updater.php` out of the zip.

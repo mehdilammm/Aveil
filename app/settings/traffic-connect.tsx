@@ -15,13 +15,7 @@ export function TrafficConnect({ storeId, connected, endpoint }: Props) {
   const [state, action, pending] = useActionState<TrafficTokenState, FormData>(createTrafficToken, {});
   return (
     <div className="stack" style={{ display: "grid", gap: 8 }}>
-      {connected ? (
-        <p className="muted">
-          Connected with token {connected.hint}. Last data: {connected.lastIngestAt ? new Date(connected.lastIngestAt).toUTCString() : "none yet"}.
-        </p>
-      ) : (
-        <p className="muted">Not connected. The agentscope-core plugin can send daily AI traffic totals to this store.</p>
-      )}
+      {connected && <p className="muted small">Connected with token {connected.hint}.</p>}
       {state.token && (
         <div className="card" style={{ background: "var(--emerald-soft)" }}>
           <strong>Copy this into the plugin now (AgentScope → Settings → Connection token). It is shown only once.</strong>
