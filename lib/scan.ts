@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findingState } from "./history";
-import { runAccessCheck, runStructuredChecks, sampleProductPages } from "./agent-checks";
+import { runStructuredChecks, sampleProductPages } from "./agent-checks";
 import { connectionAfterScan } from "./connection";
 import { checkFeedProduct, checkFeedStore } from "./feed";
 import { checkStoreGate } from "./gate";
@@ -11,7 +11,9 @@ import { checkCheckout } from "./checkout";
 import { planOf, syncOrders } from "./orders-sync";
 import { PLANS } from "./plans";
 import { BROWSER_UA, AI_BOTS } from "./access";
-import { fetchPaymentGateways, fetchPublicPage, fetchPublicPages, fetchPublishedProducts, fetchPublishedVariations, fetchComingSoon, fetchSettings, fetchShippingZones, fetchSiteName, WooError } from "./woo";
+import { fetchPublicPage, WooError } from "./woo";
+import { wooCommerceAdapter } from "./platform/woocommerce";
+import { recordVerification } from "./ownership-store";
 
 type Store = { id: string; owner_id: string; url: string };
 
@@ -90,23 +92,19 @@ export async function runScan(
     if (!creds) throw new WooError("No API key is saved for this store. Add the store again with its API key.");
 
     const wooCreds = { consumerKey: creds.consumer_key, consumerSecret: creds.consumer_secret };
-    const products = await fetchPublishedProducts(store.url, wooCreds);
+    const adapter = wooCommerceAdapter(store.url, wooCreds);
+    const products = await adapter.fetchProducts();
 
     const findings: Finding[] = (
       await mapLimit(products.items, VARIATION_CONCURRENCY, async (p) =>
         [
-          ...checkProduct(p, p.type === "variable" ? await fetchPublishedVariations(store.url, p.id, wooCreds) : []),
+          ...checkProduct(p, p.type === "variable" ? await adapter.fetchVariations(p.id) : []),
           ...checkFeedProduct(p),
         ],
       )
     ).flat();
 
-    const [settings, pages, siteName, comingSoon] = await Promise.all([
-      fetchSettings(store.url, ["general", "products", "advanced", "account"], wooCreds),
-      fetchPublicPages(store.url),
-      fetchSiteName(store.url),
-      fetchComingSoon(store.url, wooCreds),
-    ]);
+    const { settings, pages, siteName, comingSoon } = await adapter.fetchPolicies();
     findings.push(...checkStorePages({ storeUrl: store.url, settings, pages }));
     findings.push(...checkFeedStore({ storeUrl: store.url, siteName, settings }));
 
@@ -114,14 +112,14 @@ export async function runScan(
     const { data: connector } = await admin.rpc("get_traffic_connector_secret", { p_store_id: store.id }).maybeSingle<{ token: string }>();
     const checkToken = connector?.token ?? null;
     const samples = sampleProductPages(store.url, products.items);
-    const access = await runAccessCheck(store.url, samples.map((s) => s.url), comingSoon, checkToken);
+    const access = await adapter.checkBotAccess(samples.map((s) => s.url), comingSoon, checkToken);
     findings.push(...access.findings);
     findings.push(...checkStoreGate(store.url, comingSoon, access.gated));
     const currency = settings.ok && /^[A-Z]{3}$/.test(settings.data.woocommerce_currency ?? "") ? settings.data.woocommerce_currency : null;
     findings.push(...(await runStructuredChecks(store.url, samples, access.pages, currency, checkToken)));
 
     // Checkout: guest checkout, shipping, payment, the checkout page for a browser and for GPTBot, stock.
-    const [zones, gateways] = await Promise.all([fetchShippingZones(store.url, wooCreds), fetchPaymentGateways(store.url, wooCreds)]);
+    const { zones, gateways } = await adapter.fetchCheckoutSetup();
     const checkoutId = settings.ok ? Number(settings.data.woocommerce_checkout_page_id ?? 0) : 0;
     const checkoutSlug = pages.ok ? pages.data.find((p) => p.id === checkoutId)?.slug : undefined;
     let checkoutPage = null;
@@ -172,6 +170,12 @@ export async function runScan(
       })
       .eq("id", scan.id);
     await admin.from("stores").update(connectionAfterScan({ ok: true })).eq("id", store.id);
+    // The key just read the store's products on its own host: ownership by API key, re-confirmed by each scan.
+    try {
+      await recordVerification(admin, store, "api_key", { verified: true, evidence: `WooCommerce at ${new URL(store.url).host} accepted this store's API key during the scan.` });
+    } catch (err) {
+      console.error("ownership record failed", store.id, err instanceof Error ? err.message : "unknown");
+    }
 
     // AI-referred orders (Pro and Agency). A failure here never fails the scan.
     try {

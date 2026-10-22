@@ -332,3 +332,46 @@ export async function fetchRecentOrders(baseUrl: string, creds: WooCredentials, 
     return { ok: false, reason: `Orders could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
   }
 }
+
+const reason = (what: string, err: unknown) =>
+  err instanceof WooError && (err.status === 401 || err.status === 403)
+    ? `This API key is not allowed to read ${what}.`
+    : `${what[0].toUpperCase()}${what.slice(1)} could not be read: ${err instanceof WooError ? err.message : "request failed"}.`;
+const decodeName = (t: string) => t.replace(/&amp;/g, "&").replace(/&#8217;/g, "’").replace(/&quot;/g, '"').replace(/<[^>]+>/g, "").trim();
+
+// All product categories (id, name, parent, product count).
+export async function fetchCategories(baseUrl: string, creds: WooCredentials): Promise<Source<import("./platform/adapter").Category[]>> {
+  try {
+    const { items } = await getAll<{ id: number; name: string; parent?: number; count?: number }>(baseUrl, "/products/categories", { _fields: "id,name,parent,count" }, creds);
+    return { ok: true, data: items.map((c) => ({ id: c.id, name: decodeName(c.name ?? ""), parent: Number(c.parent ?? 0), count: Number(c.count ?? 0) })) };
+  } catch (err) {
+    return { ok: false, reason: reason("product categories", err) };
+  }
+}
+
+const MAX_ATTRIBUTES = 30;
+
+// Global product attributes (Size, Color, ...) with their terms (first 100 per attribute).
+export async function fetchAttributes(baseUrl: string, creds: WooCredentials): Promise<Source<import("./platform/adapter").Attribute[]>> {
+  try {
+    const { items } = await getPage<{ id: number; name: string; slug: string }>(baseUrl, "/products/attributes", {}, creds);
+    const out = [];
+    for (const a of items.slice(0, MAX_ATTRIBUTES)) {
+      const terms = await getPage<{ name: string }>(baseUrl, `/products/attributes/${a.id}/terms`, { per_page: "100", _fields: "name" }, creds);
+      out.push({ id: a.id, name: decodeName(a.name ?? ""), slug: String(a.slug ?? ""), terms: terms.items.map((t) => decodeName(t.name ?? "")) });
+    }
+    return { ok: true, data: out };
+  } catch (err) {
+    return { ok: false, reason: reason("product attributes", err) };
+  }
+}
+
+// One authenticated request: proves the saved key is accepted by WooCommerce on this host.
+export async function verifyReadKey(baseUrl: string, creds: WooCredentials): Promise<Source<true>> {
+  try {
+    await getPage<{ id: number }>(baseUrl, "/products", { per_page: "1", _fields: "id" }, creds);
+    return { ok: true, data: true };
+  } catch (err) {
+    return { ok: false, reason: err instanceof WooError ? err.message : "The WooCommerce API could not be reached." };
+  }
+}
