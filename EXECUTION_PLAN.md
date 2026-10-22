@@ -29,7 +29,7 @@ new code, this file updated, commit + push).
 | B6 | Per-scan cost logging + daily cost cap per tenant | Partial | `usage_events` + daily request caps per workspace and provider (`lib/usage.ts`, 80% warning and "reached" alert on the Visibility page; run stops at the cap). Per-scan logging for the store scan still missing. Prices are 0 (free tiers) |
 | B7 | i18n skeleton (`next-intl`, en + ar, RTL) | Missing | `dir="rtl"` for ar, logical CSS properties, new/touched strings in catalogs |
 | B8 | Smart sampling (Free 5/5, Pro 50/25) | Missing | Today: all products for rules, 2 pages for access/JSON-LD |
-| B9 | Background jobs | Partial | `jobs`, `job_steps`, `claim_job` (SKIP LOCKED), backoff, max attempts; `/api/jobs/tick` answers 404 without the secret header (secret only in Vault); idle tick does no work. First handler: `orders_sync`. pg_cron + pg_net call it every minute |
+| B9 | Background jobs | Partial | `jobs`, `job_steps`, `claim_job` (SKIP LOCKED), backoff, max attempts; `/api/jobs/tick` answers 404 without the secret header (secret only in Vault); idle tick does no work. First handler: `orders_sync`. pg_cron + pg_net call it every minute (secret read from Vault at run time). Checked in production 2026-10-22: wrong secret → 404; idle tick → 200 `{ran:0}`; queued `orders_sync` for matha.site → succeeded on the next tick, `order_syncs` = ok, 0 orders scanned |
 
 ## Milestone C — Causal core
 
