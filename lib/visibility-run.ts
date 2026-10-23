@@ -6,6 +6,7 @@ import { askVisibilityQuestion } from "./grounded-question";
 import { GROUNDING_MODEL } from "./grounding";
 import { planOf } from "./orders-sync";
 import { PLANS } from "./plans";
+import { ACCESS_METHOD } from "./markets";
 import { capStatus, fitsCap } from "./usage";
 import { recordUsage, usageToday } from "./usage-store";
 import { taskModelEnabled } from "./task-models";
@@ -62,7 +63,7 @@ export async function runVisibility(admin: SupabaseClient, store: Store, options
 
   // Smart sampling: the plan's number of questions (Free 5, Pro and Agency 25), oldest first.
   const plan = await planOf(admin, store.id);
-  const { data: prompts } = await admin.from("visibility_prompts").select("id, prompt").eq("store_id", store.id).order("created_at").limit(PLANS[plan].visibilityQuestions);
+  const { data: prompts } = await admin.from("visibility_prompts").select("id, prompt, market, language").eq("store_id", store.id).order("created_at").limit(PLANS[plan].visibilityQuestions);
   if (!prompts?.length) return { error: "Add at least one question first." };
 
   // Daily AI request caps of the workspace's plan (usage_events).
@@ -99,7 +100,8 @@ export async function runVisibility(admin: SupabaseClient, store: Store, options
   const lane = async (engine: EngineId) => {
     let stopped: string | null = null;
     for (const [i, p] of prompts.entries()) {
-      const row = { run_id: run.id, store_id: store.id, owner_id: store.owner_id, prompt_id: p.id, prompt: p.prompt, engine, model: ENGINE_MODEL[engine] };
+      // Provenance: the market and language the question is written for, and how the model was reached.
+      const row = { run_id: run.id, store_id: store.id, owner_id: store.owner_id, prompt_id: p.id, prompt: p.prompt, engine, model: ENGINE_MODEL[engine], country: p.market ?? null, language: p.language ?? null, access_method: ACCESS_METHOD.ungrounded as string };
       // About 1 answer + 2 helper requests per question: stop before the workspace's daily cap is passed.
       if (!stopped && (!fitsCap(plan, "gemini", usedBefore.gemini + usage.gemini.requests, 1) || !fitsCap(plan, "groq", usedBefore.groq + usage.groq.requests, 2))) {
         stopped = "Not asked: the workspace's daily AI limit was reached during this run. It resets at 00:00 UTC.";
@@ -114,7 +116,10 @@ export async function runVisibility(admin: SupabaseClient, store: Store, options
       const q = engine === "gemini" ? await askVisibilityQuestion(admin, p.prompt) : null;
       const r = q ? q.result : await askEngine(engine, p.prompt);
       const citations = q?.citations ?? null;
-      if (q?.grounded) row.model = GROUNDING_MODEL;
+      if (q?.grounded) {
+        row.model = GROUNDING_MODEL;
+        row.access_method = ACCESS_METHOD.grounded;
+      }
       const grounded = q?.grounded ?? false;
       if (q?.attempted && !usedGrounding) {
         usedGrounding = true;

@@ -176,5 +176,31 @@
     "checking": "Re-checking…",
     "checkingNote": "The same check runs again on this item with caches bypassed, up to 3 times.",
     "failed": "The re-check could not start."
+  },
+  "prompts": {
+    "market": "Market",
+    "marketLabel": "Questions for shoppers in:",
+    "m_US": "United States (English)",
+    "m_UK": "United Kingdom (English)",
+    "m_SA": "Saudi Arabia (Arabic)",
+    "m_AE": "United Arab Emirates (Arabic)",
+    "m_MA": "Morocco (Arabic)",
+    "m_FR": "France (French)",
+    "add": "Add a question",
+    "left": "{n} of {limit} left",
+    "suggestionsLegend": "Suggestions for {market}. Tick the ones to keep and edit them before saving.",
+    "keep": "Keep this question",
+    "saving": "Saving…",
+    "save": "Save",
+    "suggesting": "Reading your products…",
+    "suggest": "Suggest questions from my products",
+    "nativeNote": "Written directly in the market's language, the way shoppers there ask; never translated from English."
+  },
+  "answer": {
+    "ungrounded": "Ungrounded model answer",
+    "grounded": "Answer with web search",
+    "provenance": "{engine} · {model} · {method} · market: {market} · language: {language} · {date}",
+    "notRecorded": "not recorded",
+    "apiNote": "What the model returned on {date}, through its API. The consumer apps (ChatGPT, Gemini…) can answer differently: they know the user's location, history and settings."
   }
 }

@@ -7,14 +7,15 @@ import { planOf } from "@/lib/orders-sync";
 import { PLANS } from "@/lib/plans";
 import { getUser } from "@/lib/supabase/server";
 import { canEdit, storeAccess } from "@/lib/workspace";
-import { QUESTION_LANGUAGES, QUESTIONS_GEMINI_SCHEMA, QUESTIONS_JSON_SCHEMA, questionsPrompt, validateQuestions, type QuestionLanguage } from "@/lib/question-suggest";
+import { QUESTIONS_GEMINI_SCHEMA, QUESTIONS_JSON_SCHEMA, questionsPrompt, validateQuestions } from "@/lib/question-suggest";
+import { MARKETS, marketOf } from "@/lib/markets";
 import { runTask } from "@/lib/task-models";
 import { recordUsage } from "@/lib/usage-store";
 import { brandTerms, suggestPrompts } from "@/lib/visibility";
 import { fetchProductSample, fetchSettings, fetchTopCategories } from "@/lib/woo";
 
 // basis: "observed" when written from the store's products by a helper model, "heuristic" for the template fallback.
-export type PromptState = { error?: string; suggestions?: string[]; source?: string; basis?: "observed" | "heuristic" };
+export type PromptState = { error?: string; suggestions?: string[]; source?: string; basis?: "observed" | "heuristic"; market?: string };
 
 // The store, only for its workspace's owners and admins (viewers only read).
 async function ownedStore(storeId: string) {
@@ -40,7 +41,10 @@ export async function addPrompts(_: PromptState, form: FormData): Promise<Prompt
   const limit = PLANS[await planOf(createAdminClient(), store.id)].visibilityQuestions;
   if ((count ?? 0) + texts.length > limit) return { error: `This plan allows ${limit} questions per store.` };
 
-  const { error } = await supabase.from("visibility_prompts").insert(texts.map((prompt) => ({ store_id: store.id, owner_id: user.id, prompt })));
+  // The market the questions are written for (its language is stored with it).
+  const market = marketOf(form.get("market"));
+  if (!market) return { error: "Pick the market the question is for." };
+  const { error } = await supabase.from("visibility_prompts").insert(texts.map((prompt) => ({ store_id: store.id, owner_id: user.id, prompt, market: market.id, language: market.language })));
   if (error) return { error: error.code === "23505" ? "That question is already in the list." : "Could not save the question." };
   revalidatePath(`/stores/${store.id}/visibility`);
   return {};
@@ -59,8 +63,7 @@ export async function deletePrompt(form: FormData): Promise<void> {
 export async function suggest(_: PromptState, form: FormData): Promise<PromptState> {
   const { store } = await ownedStore(String(form.get("store_id") ?? ""));
   if (!store) return { error: "Store not found, or you can only view it." };
-  const lang = String(form.get("language") ?? "en");
-  const language: QuestionLanguage = lang in QUESTION_LANGUAGES ? (lang as QuestionLanguage) : "en";
+  const market = marketOf(form.get("market")) ?? MARKETS[0];
   try {
     const admin = createAdminClient();
     const { data: creds } = await admin
@@ -84,11 +87,11 @@ export async function suggest(_: PromptState, form: FormData): Promise<PromptSta
     if (products.length) {
       const keys = brandTerms(store.name, store.url).keys ?? [];
       const t = await runTask({
-        prompt: questionsPrompt({ products, categories, country, currency, language }),
+        prompt: questionsPrompt({ products, categories, country, currency, market }),
         jsonSchema: QUESTIONS_JSON_SCHEMA,
         geminiSchema: QUESTIONS_GEMINI_SCHEMA,
         maxOutputTokens: 2048,
-        validate: (text) => validateQuestions(text, keys),
+        validate: (text) => validateQuestions(text, keys, market),
       });
       const used: Record<string, { requests: number; input: number; output: number }> = {};
       for (const a of t.attempts) {
@@ -100,11 +103,14 @@ export async function suggest(_: PromptState, form: FormData): Promise<PromptSta
       await recordUsage(admin, { workspaceId: store.workspace_id, storeId: store.id, kind: "question_suggestions" }, used);
       if (t.value && t.by) {
         const who = t.by === "gemini" ? "Gemini" : `an internal helper model (${t.by === "groq" ? "Groq" : "NVIDIA"})`;
-        return { suggestions: t.value, basis: "observed", source: `Written by ${who} from ${products.length} of your products.` };
+        return { suggestions: t.value, market: market.id, basis: "observed", source: `Written by ${who} from ${products.length} of your products, for shoppers in ${market.country}.` };
       }
     }
+    // The fallback templates are English: never offered for a market in another language (no translation).
+    if (market.language !== "en") return { error: `The helper models could not write questions in this market's language right now. Type your own questions for ${market.country}, or try again later.` };
     return {
       suggestions: suggestPrompts(categories, country),
+      market: market.id,
       basis: "heuristic",
       source: products.length ? "The helper models could not write questions; these are templates from your categories (English)." : "No published products were found; these are templates from your categories (English).",
     };

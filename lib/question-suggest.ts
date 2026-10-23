@@ -1,10 +1,10 @@
 // Question suggestions from the store's real products, categories and prices: realistic shopper questions
-// (buying, comparing, "best X for Y", "where to buy X"), without the store's name. Written by the task chain
-// (Groq → NVIDIA → Gemini); nothing is saved until the user picks and edits them.
+// (buying, comparing, "best X for Y", "where to buy X"), without the store's name, written for one market in its
+// own language (never translated from English). Written by the task chain (Groq → NVIDIA → Gemini); nothing is
+// saved until the user picks and edits them.
+import { inMarketScript, type Market } from "./markets";
 
-export const QUESTION_LANGUAGES = { en: "English", fr: "Français", ar: "العربية" } as const;
-export type QuestionLanguage = keyof typeof QUESTION_LANGUAGES;
-const LANGUAGE_NAME: Record<QuestionLanguage, string> = { en: "English", fr: "French", ar: "Arabic" };
+const LANGUAGE_NAME: Record<Market["language"], string> = { en: "English", fr: "French", ar: "Arabic" };
 
 export const SUGGESTED_COUNT = 15;
 
@@ -18,7 +18,7 @@ export const QUESTIONS_JSON_SCHEMA = {
 } as const;
 export const QUESTIONS_GEMINI_SCHEMA = { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "STRING" } } }, required: ["questions"] } as const;
 
-export function questionsPrompt(input: { products: ProductInfo[]; categories: string[]; country: string | null; currency: string | null; language: QuestionLanguage }): string {
+export function questionsPrompt(input: { products: ProductInfo[]; categories: string[]; country: string | null; currency: string | null; market: Market }): string {
   const products = input.products.slice(0, 30).map((p) => `- ${p.name}${p.price ? ` (${p.price}${input.currency ? ` ${input.currency}` : ""})` : ""}${p.categories.length ? ` [${p.categories.join(", ")}]` : ""}`);
   return [
     "Here are products from an online store (name, price, categories).",
@@ -29,13 +29,15 @@ export function questionsPrompt(input: { products: ProductInfo[]; categories: st
     `Write ${SUGGESTED_COUNT} realistic questions a shopper would type into an AI assistant before buying products like these.`,
     "Mix: where to buy a product type, best X for a use or person, comparisons between product types or price ranges, gift ideas, budget questions.",
     "Use generic product types, not the exact product names. Never include the store's name, domain or brand.",
-    `Write them in ${LANGUAGE_NAME[input.language]}. Each question under 150 characters.`,
+    `The shoppers are in ${input.market.country}. Write each question directly in ${LANGUAGE_NAME[input.market.language]}, the way they type it: ${input.market.native}.`,
+    "Do not write them in English and translate them: think of what a shopper there would ask, with their own words, local shopping habits (payment, delivery) and currency.",
+    "Each question under 150 characters.",
     'Answer with JSON only: {"questions": ["...", "..."]}',
   ].filter((l) => l !== "").join("\n");
 }
 
 // Keeps 3-300 character questions without the brand, deduplicated; at least 5 are needed for a usable reply.
-export function validateQuestions(text: string, brandKeys: string[]): string[] | null {
+export function validateQuestions(text: string, brandKeys: string[], market?: Market): string[] | null {
   let data: { questions?: unknown };
   try {
     data = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
@@ -49,6 +51,8 @@ export function validateQuestions(text: string, brandKeys: string[]): string[] |
     if (typeof q !== "string") continue;
     const t = q.replace(/\s+/g, " ").replace(/^\d+[.)]\s*/, "").trim();
     if (t.length < 3 || t.length > 300) continue;
+    // Arabic markets get Arabic questions, the others no Arabic: a reply in the wrong language is refused.
+    if (market && !inMarketScript(t, market)) continue;
     const compact = t.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]/g, "");
     if (brandKeys.some((k) => k.length >= 3 && compact.includes(k))) continue;
     const key = t.toLowerCase();
