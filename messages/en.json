@@ -294,5 +294,21 @@
     "byYou": "a team member",
     "reverted": "undone",
     "failedRow": "failed"
+  },
+  "dataControl": {
+    "export": "Export all data (JSON)",
+    "exportNote": "Stores, scans, findings, AI answers, traffic, orders, bot hits, fixes and their log. API keys and tokens are not included.",
+    "deleteWorkspace": "Delete this workspace",
+    "deleteWorkspaceNote": "Deletes the workspace, its stores and everything under them (scans, answers, traffic, orders, bot hits, fixes, saved keys). This cannot be undone. Changes already made on the store itself stay there; undo them first if you want.",
+    "confirmWorkspace": "Delete \"{name}\" and all its data for good?",
+    "typeName": "Type {name} to confirm",
+    "deleteForever": "Delete forever",
+    "deleting": "Deleting…",
+    "accountTitle": "Your account",
+    "deleteAccountNote": "Deletes your account, every workspace you own with all its data, and your waitlist sign-ups. You leave the workspaces you do not own. This cannot be undone. Export your data first if you want a copy.",
+    "blocking": "You added these stores to workspaces you do not own: {stores}. Remove them (or ask the owner) first.",
+    "typeEmail": "Type {email} to confirm",
+    "confirmAccount": "Delete your account and all your data for good?",
+    "deleteAccount": "Delete my account"
   }
 }

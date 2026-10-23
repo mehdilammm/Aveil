@@ -3,6 +3,9 @@ import { getUser } from "@/lib/supabase/server";
 import { ensurePersonalWorkspace, listWorkspaces } from "@/lib/workspace";
 import { removeMember, revokeInvite } from "./actions";
 import { CreateWorkspaceForm, InviteForm } from "./forms";
+import { DeleteAccountForm, DeleteWorkspaceForm } from "./danger-forms";
+import { storesBlockingAccountDelete } from "@/lib/data-export";
+import { getTranslations } from "next-intl/server";
 
 export const metadata = { title: "Workspaces · Settings" };
 
@@ -25,6 +28,8 @@ export default async function WorkspacesPage() {
     if (data.user?.email) emails.set(uid, data.user.email);
   }
   const owned = workspaces.filter((w) => w.role === "owner").map((w) => w.id);
+  const t = await getTranslations("dataControl");
+  const blocking = await storesBlockingAccountDelete(admin, user.id).catch(() => []);
   const { data: invites } = owned.length
     ? await admin.from("workspace_invites").select("id, workspace_id, role, email, expires_at").in("workspace_id", owned).is("accepted_at", null).is("revoked_at", null).gt("expires_at", new Date().toISOString())
     : { data: [] };
@@ -63,6 +68,13 @@ export default async function WorkspacesPage() {
             </tbody>
           </table>
           {w.role === "owner" && (
+            <p className="row small">
+              <a className="button secondary" href={`/api/workspaces/${w.id}/export`}>{t("export")}</a>
+              <span className="muted">{t("exportNote")}</span>
+            </p>
+          )}
+          {w.role === "owner" && <DeleteWorkspaceForm workspaceId={w.id} name={w.name} />}
+          {w.role === "owner" && (
             <>
               <h3 className="small">Invite</h3>
               <InviteForm workspaceId={w.id} />
@@ -80,6 +92,10 @@ export default async function WorkspacesPage() {
       ))}
       <h2>New workspace</h2>
       <CreateWorkspaceForm />
+      <h2>{t("accountTitle")}</h2>
+      <div className="card">
+        <DeleteAccountForm email={user.email ?? ""} blocking={blocking.map((b) => b.name)} />
+      </div>
     </>
   );
 }

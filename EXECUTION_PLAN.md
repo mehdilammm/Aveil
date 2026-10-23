@@ -20,12 +20,16 @@ new code, this file updated, commit + push).
 
 | # | Gap | Status |
 | --- | --- | --- |
-| G1 | Data export + hard delete for the workspace owner | Missing |
+| G1 | Data export + hard delete for the workspace owner | Done in code (2026-10-23); live delete test waits for the owner | Settings → Workspaces: owner-only JSON export (`/api/workspaces/[id]/export`, every store table, no keys / tokens / hashes), delete workspace (type its name), delete account (type the email; owned workspaces, waitlist sign-ups, then the user; refused while the user's stores sit in another owner's workspace). Checked in production: every table under stores / workspaces has ON DELETE CASCADE and the Vault triggers exist for read keys, write keys and plugin tokens. A test workspace "G1 delete test" (1 store, 1 scan, key in Vault) is in the owner's list for the live delete test. Tests `lib/data-export.test.ts` |
 | G2 | Tenant isolation tests | Missing |
 | G3 | Safe shareable report | Partial (only /check reports) |
 | G4 | Arabic clause templates for impact sentences | Missing |
 | G5 | Visibility outcome track (7/14/30 days) | Partial (runs scheduled, no comparison view) |
 | G6 | /check → full scan conversion | Partial (sign-up link only) |
+| G7 | Plans (Free = full audit + all manual / one-click / input fixes, 1 store) | Missing: proposal, then wait for approval |
+| G8 | Bulk fixes + bulk GTIN/SKU/weight CSV import (preview, audit, undo) | Missing |
+| G9 | Finding: UCP / ACP / agentic checkout support (info) | Missing |
+| G10 | Landing en + ar (new hero and points, no competitor names) | Missing |
 
 ## Milestone A — Do agents buy? If not, why?
 
@@ -88,7 +92,7 @@ Signed technical fixes (D2/D4). Released through the update checker.
 
 ## pg_net schema
 
-Advisor 0014 (pg_net in public): `drop extension pg_net` hangs (it waits for the pg_net worker) past the 60 s limit of the SQL tool, three tries, nothing changed; the jobs tick keeps answering 200. To do from the Supabase dashboard (Database → Extensions).
+Advisor 0014 (pg_net in public): the SQL tool asks the owner to confirm every destructive statement (DROP, DELETE) and waits; the confirmation cannot be given from this session, so it timed out three times with nothing changed. The jobs tick keeps answering 200. To do from the Supabase dashboard (Database → Extensions).
 
 ## Milestone E — Later (accounts or approval needed)
 

@@ -32,6 +32,31 @@ Unavailable with the reason, no invented values), merchant safety (read-only by 
 write key or the signed plugin after approval, undo), one hardened fetcher, privacy rules for bot IPs, free tiers
 only until a cost is approved, verification gate after each part.
 
+## Competitive update (verified on WordPress.org, Oct 2026)
+
+- AgenticTrack (WooCommerce plugin): free audit with a 0–100 score per product, all manual fixes free (schema,
+  price, category, description, GTIN/SKU), free robots.txt + product-aware llms.txt, preview + one-click undo, bulk
+  fixes, bulk SKU/GTIN CSV import, free 7-day AI sales. Pro = AI rewrites + agent-order analytics.
+- AgentCart (WooCommerce + Shopify): UCP protocol so agents can browse and check out. Complementary.
+- Mention Network: AI visibility for e-commerce (ChatGPT, Gemini, Claude, AI Mode), first check free.
+- Never copy their code or texts. No competitor names on the site.
+
+## Gaps after G6
+
+- G7 Plans: Free = full readiness audit + all manual / one-click / input fixes for 1 store (never weaker than the
+  free tools above). Pro = multi-store, weekly scans, AI visibility, verified bot traffic, AI-referred orders +
+  funnel + "why agents aren't buying", auto-fix, reports. Agency = workspaces + team + client reports. Propose
+  plans.ts and /pricing changes, then STOP and wait for the APPROVED line.
+- G8 Bulk fixes: bulk apply for one-click fixes + bulk GTIN/SKU/weight CSV import, with preview, audit log and undo.
+- G9 New finding: detect UCP / ACP / agentic checkout support (manifest, feed, or plugins like AgentCart). Info
+  only, badged.
+- G10 Landing (en + ar): hero "See why AI shopping agents skip your WooCommerce products. Fix without breaking the
+  store. Prove it with real AI-referred orders." Edge line "Others give you a score. We show why AI agents don't
+  buy, fix it, and prove it with real orders." Points: multi-store for agencies, verified AI bot traffic, free check
+  on any store, no magic score.
+
+Reporting: two lines after each part; the long report after G6 and after G10.
+
 ## Approvals on record
 
 - APPROVED: workspaces / workspace_members as the tenant — 2026-10-22
