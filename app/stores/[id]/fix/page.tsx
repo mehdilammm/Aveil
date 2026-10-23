@@ -20,7 +20,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
   const access = user ? await storeAccess(supabase, user.id, store.id) : null;
   const editor = Boolean(access && canEdit(access.role));
   const [{ data: vrows }, { data: rrows }] = await Promise.all([
-    supabase.from("finding_verifications").select("finding_key, status, evidence, checked_at, job_id").eq("store_id", store.id),
+    supabase.from("finding_verifications").select("finding_key, status, evidence, checked_at, job_id, scan_id").eq("store_id", store.id),
     supabase.from("visibility_rechecks").select("due_on, day, finding_keys, job_id").eq("store_id", store.id).order("due_on"),
   ]);
   const verifications = new Map((vrows ?? []).map((v) => [v.finding_key as string, v as { status: string; evidence: string | null; checked_at: string | null; job_id: string | null }]));
@@ -33,8 +33,12 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
   // Priority queue: (Impact × Confidence) / Effort; high-value products are the scan's sample.
   const { data: sampleRows } = lastComplete ? await supabase.from("scan_schema_pages").select("product_id").eq("scan_id", lastComplete.id) : { data: [] };
   const weights = weightsFrom(query);
-  const queue = fixQueue(findings, new Set((sampleRows ?? []).map((r) => Number(r.product_id))), weights);
-  const unavailable = findings.filter((f) => f.basis === "unavailable");
+  // Verified fixes leave the queue and wait in their own section until the next scan confirms them.
+  // Only a re-check of this scan's finding counts; a newer scan starts over.
+  const isResolved = (key: string) => { const v = verifications.get(key) as { status: string; scan_id?: string } | undefined; return v?.status === "resolved" && v.scan_id === lastComplete?.id; };
+  const queue = fixQueue(findings.filter((f) => !isResolved(f.finding_key)), new Set((sampleRows ?? []).map((r) => Number(r.product_id))), weights);
+  const resolvedNow = findings.filter((f) => isResolved(f.finding_key));
+  const unavailable = findings.filter((f) => f.basis === "unavailable" && !isResolved(f.finding_key));
 
   return (
     <>
@@ -98,6 +102,20 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
           <h2>{t("g_check")} ({unavailable.length})</h2>
           <p className="muted small">{t("checkNote")}</p>
           {unavailable.map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} />)}
+        </section>
+      )}
+
+      {resolvedNow.length > 0 && (
+        <section>
+          <h2>{t("g_resolved")} ({resolvedNow.length})</h2>
+          {resolvedNow.map((f) => {
+            const v = verifications.get(f.finding_key)!;
+            return (
+              <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} resolvedLabel={t("v_resolved")}>
+                <p className="small">{v.checked_at ? t("checkedAt", { date: formatDate(v.checked_at) }) : ""} {v.evidence}</p>
+              </FindingCard>
+            );
+          })}
         </section>
       )}
 

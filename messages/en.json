@@ -155,7 +155,8 @@
     "g_high_value": "High-value product fixes",
     "g_product": "Other product fixes",
     "g_check": "To check first (unavailable)",
-    "checkNote": "These could not be checked, so they are not ranked. The evidence says why."
+    "checkNote": "These could not be checked, so they are not ranked. The evidence says why.",
+    "g_resolved": "Resolved, waiting for next scan"
   },
   "descriptions": {
     "title": "Factual descriptions",
