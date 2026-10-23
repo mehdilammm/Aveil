@@ -25,7 +25,7 @@ function db() {
 describe("data export and hard delete", () => {
   it("export holds the workspace's data, never keys, tokens or their hashes", async () => {
     const { client } = db();
-    const out = await exportWorkspace(client, "w1");
+    const out = (await exportWorkspace(client, "w1")) as Awaited<ReturnType<typeof exportWorkspace>> & Record<string, unknown[]>;
     expect(out.stores.map((s: { id: string }) => s.id)).toEqual(["s1"]);
     expect(out.findings).toHaveLength(1);
     expect(out.job_steps).toHaveLength(1);
