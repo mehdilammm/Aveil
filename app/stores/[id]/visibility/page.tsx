@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { formatDate } from "@/components/badges";
 import { getStore, openJobId } from "@/lib/data";
+import { getTranslations } from "next-intl/server";
+import type { MarketId } from "@/lib/markets";
 import { ENGINE_MODEL, engineConfigured } from "@/lib/engines";
 import { MISTRAL_OFF_REASON } from "@/lib/mistral";
 import { VisibilityTabs } from "@/components/visibility-tabs";
@@ -21,6 +23,10 @@ type Result = {
   prompt_id: string | null;
   prompt: string;
   engine: EngineId;
+  grounded: boolean | null;
+  access_method: string | null;
+  country: string | null;
+  language: string | null;
   model: string | null;
   answer: string | null;
   mentioned: boolean | null;
@@ -57,21 +63,26 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
   const store = await getStore(supabase, id);
   if (!store) notFound();
   const visibilityJobId = await openJobId(supabase, store.id, "visibility");
+  const [tp, ta] = await Promise.all([getTranslations("prompts"), getTranslations("answer")]);
   const access = user ? await storeAccess(supabase, user.id, id) : null;
   const { data: wsPlan } = access ? await supabase.from("workspaces").select("plan").eq("id", access.workspace_id).maybeSingle() : { data: null };
   const planId = ((wsPlan?.plan as PlanId | undefined) ?? "free") in PLANS ? ((wsPlan?.plan as PlanId | undefined) ?? "free") : "free";
 
   const [{ data: promptRows }, { data: runRows }] = await Promise.all([
-    supabase.from("visibility_prompts").select("id, prompt").eq("store_id", id).order("created_at"),
+    supabase.from("visibility_prompts").select("id, prompt, market, language").eq("store_id", id).order("created_at"),
     supabase.from("visibility_runs").select("id, status, model, created_at, finished_at, requests_count, input_tokens, output_tokens, error").eq("store_id", id).order("created_at", { ascending: false }).limit(12),
   ]);
   const prompts = promptRows ?? [];
+  // New questions default to the market most used so far.
+  const counts = new Map<string, number>();
+  for (const p of prompts) if (p.market) counts.set(p.market, (counts.get(p.market) ?? 0) + 1);
+  const defaultPromptMarket = ([...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "US") as MarketId;
   const runs = (runRows ?? []) as Run[];
   const runIds = runs.map((r) => r.id);
   const { data: resultRows } = runIds.length
     ? await supabase
         .from("visibility_results")
-        .select("run_id, prompt_id, prompt, engine, model, answer, mentioned, mention_rank, competitors, urls, error, extraction, extractor, requests, input_tokens, output_tokens, created_at")
+        .select("run_id, prompt_id, prompt, engine, model, answer, mentioned, mention_rank, competitors, urls, error, extraction, extractor, requests, input_tokens, output_tokens, created_at, country, language, access_method, grounded")
         .in("run_id", runIds)
     : { data: [] };
   const results = (resultRows ?? []) as Result[];
@@ -129,13 +140,13 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
             <form key={p.id} action={deletePrompt} className="row" style={{ justifyContent: "space-between", borderBottom: "1px solid var(--border)", padding: "6px 0" }}>
               <input type="hidden" name="store_id" value={store.id} />
               <input type="hidden" name="prompt_id" value={p.id} />
-              <span>{p.prompt}</span>
+              <span dir="auto">{p.prompt} <span className="badge basis-unavailable small">{p.market ? tp(`m_${p.market}`) : ta("notRecorded")}</span></span>
               <button className="secondary" style={{ padding: "4px 10px" }}>Remove</button>
             </form>
           ))}
         </div>
       )}
-      <PromptsForm storeId={store.id} remaining={Math.max(0, PLANS[planId].visibilityQuestions - prompts.length)} existing={prompts.map((p) => p.prompt)} />
+      <PromptsForm storeId={store.id} remaining={Math.max(0, PLANS[planId].visibilityQuestions - prompts.length)} limit={PLANS[planId].visibilityQuestions} existing={prompts.map((p) => p.prompt)} defaultMarket={defaultPromptMarket} />
 
       <h2>Run</h2>
       <div className="card">
@@ -184,7 +195,9 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                 <h3>{p.prompt}</h3>
                 {rows.map((r) => (
                   <div key={r.engine} style={{ borderTop: "1px solid var(--border)", paddingTop: 6, marginTop: 6 }}>
-                    <span className="badge basis-observed">{ENGINE_LABEL[r.engine]}</span>
+                    <span className="badge basis-observed">{ENGINE_LABEL[r.engine]}</span>{" "}
+                    <span className={`badge ${r.grounded ? "basis-observed" : "basis-heuristic"}`}>{r.grounded ? ta("grounded") : ta("ungrounded")}</span>
+                    <p className="muted small">{ta("provenance", { engine: ENGINE_NAME[r.engine], model: r.model ?? ENGINE_MODEL[r.engine], method: r.access_method ?? ta("notRecorded"), market: r.country ?? ta("notRecorded"), language: r.language ?? ta("notRecorded"), date: formatDate(r.created_at) })}</p>
                     {r.error ? (
                       <p className="muted small">Unavailable: {r.error}</p>
                     ) : (
@@ -220,7 +233,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                     </table>
                   </div>
                 )}
-                <p className="muted small">{GEMINI_DISCLAIMER}</p>
+                <p className="muted small">{ta("apiNote", { date: formatDate(rows[0].created_at) })} {GEMINI_DISCLAIMER}</p>
               </div>
             );
           })}

@@ -35,7 +35,7 @@ new code, this file updated, commit + push).
 
 | # | Ticket | Status | Notes |
 | --- | --- | --- | --- |
-| C1 | Native buyer-intent prompts per market/language, full provenance | Partial | Suggestions from products in en/fr/ar exist; no market field, no per-answer country/language/access-method columns; "Ungrounded model answer" label to add |
+| C1 | Native buyer-intent prompts per market/language, full provenance | Done in code (2026-10-23); first run with markets waits for the weekly limit | Markets US, UK (English), SA, AE, MA (Arabic), FR (`lib/markets.ts`). Suggestions written directly in the market's language for its shoppers (local wording, payment, delivery, currency), never translated; replies in the wrong script are refused, and the English templates are never offered for Arabic or French markets. Each question stores its market and language; each answer stores country (market), language and access method ("Official API, ungrounded" / "with Google Search") next to engine, model and time, shown on every answer with the "Ungrounded model answer" label and the note that API answers can differ from the consumer apps. Full answer, citations (when grounded), whether named and who was named instead were already stored. Existing questions show "not recorded". Fixed: the database still limited questions to 15 while Pro allows 25 (trigger now 25). Tests `lib/markets.test.ts`, `lib/question-suggest.test.ts` |
 | C2 | Product Impact summary | Missing | |
 | C3 | Competitor gap analyzer | Missing | Disabled until a grounded engine is approved: shows `Unavailable: needs grounded engine` |
 | C4 | Prioritized fix queue `(Impact × Confidence) / Effort` | Missing | Fix Center sorts by severity and basis today |
