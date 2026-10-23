@@ -34,10 +34,13 @@ export default function PrivacyPage() {
             address or IP address is requested or stored.
           </li>
           <li>
-            <strong>AI bot identity (plugin 1.5 or later, with traffic capture on):</strong> only for requests whose user agent is a known AI bot
-            (for example GPTBot, ClaudeBot, PerplexityBot, Googlebot), the plugin sends the time, IP address, full user agent, page path (no query
-            string), method and status. Requests from people are never sent. We check the IP against the lists the bot operators publish (and
-            Google&apos;s reverse DNS) to tell a real bot from one that only uses its name. These rows are deleted after 90 days by default.
+            <strong>AI bot identity (plugin 1.5 or later, with traffic capture on and the plugin connected):</strong> the IP address is stored only
+            for requests whose user agent is a known AI bot (GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, Claude-SearchBot, Claude-User,
+            PerplexityBot, Perplexity-User), never for people. For those requests the plugin sends the time, IP address, full user agent, page path
+            (no query string), method and status. On the store, these rows are deleted after a successful send, or at the latest 7 days later if
+            they could not be sent. We check each IP against the lists the bot operators publish (and Google&apos;s reverse DNS). If the IP is not in
+            the official list, we keep only &quot;user agent only&quot; and delete the IP immediately, since it may be a person using a bot&apos;s name.
+            Verified bot IPs are kept for at most 90 days.
           </li>
           <li>
             <strong>Plugin AI-referral note (opt-in):</strong> the WordPress plugin can save the AI source, how it was matched and the landing path on new

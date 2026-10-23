@@ -1,10 +1,9 @@
 {
-  "version": "1.4.0",
-  "file": "agentscope-core-1.4.0.zip",
-  "sha256": "635fb81158744206d3776c58b1e2631e557c31aeb174ac04c1e40e33bab4c4de",
+  "version": "1.5.0",
+  "file": "agentscope-core-1.5.0.zip",
+  "sha256": "bfaa73793d16a20eaebd987eef517b729b47039a1c889d4bdd7a2e345bdd8bd0",
   "changelog": [
-    "Optional AI referral note on orders (session → order meta), classic and block checkout; HPOS and block checkout compatibility declared.",
-    "No network call during any page load: the update check runs from WP-Cron, and \"Connect\" / \"Send now\" / clearing test data send in the background."
+    "AI bot identity: for known AI bot user agents only, the time, IP, full user agent, path, method and status are sent in signed batches from WP-Cron so the app can check the IP against the operators' published lists. Deleted locally after a successful send or after 7 days at the latest; never stored for people."
   ],
   "requires": "6.0",
   "requires_php": "7.4",

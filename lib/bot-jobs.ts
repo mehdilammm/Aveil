@@ -1,7 +1,7 @@
 import "server-only";
 import { promises as dns } from "node:dns";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { IP_SOURCES, parseRanges, RETENTION_DEFAULT_DAYS, verifyHit } from "./bot-verify";
+import { IP_SOURCES, parseRanges, RETENTION_DEFAULT_DAYS, RETENTION_MAX_DAYS, verifyHit } from "./bot-verify";
 import { JobYield, type StepContext } from "./jobs";
 import { guardedFetch } from "./safe-fetch";
 
@@ -77,7 +77,10 @@ export async function verifyStoreHits(ctx: StepContext, storeId: string, lookup:
     if (!hits?.length) break;
     for (const h of hits) {
       const v = await verifyHit({ bot: h.bot, ip: String(h.ip) }, ranges, (ip) => withTimeout(lookup(ip), 3000));
-      await admin.from("bot_hits").update({ verified: v.verified, verify_method: v.method, verify_detail: v.detail, verified_at: new Date().toISOString() }).eq("store_id", storeId).eq("hit_id", h.hit_id);
+      // Not in the published list: the IP may be a person's, so it is deleted now; only the claim is kept.
+      const row = { verified: v.verified, verify_method: v.method, verify_detail: v.detail, verified_at: new Date().toISOString(), ...(v.verified ? {} : { ip: null }) };
+      const { error } = await admin.from("bot_hits").update(row).eq("store_id", storeId).eq("hit_id", h.hit_id);
+      if (error) throw error;
     }
     total += hits.length;
   }
@@ -86,12 +89,12 @@ export async function verifyStoreHits(ctx: StepContext, storeId: string, lookup:
 
 const withTimeout = <T,>(p: Promise<T>, ms: number) => Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
 
-// Deletes hits older than each store's retention (default 90 days).
+// Deletes hits older than each store's retention (default and maximum 90 days).
 export async function purgeOldHits(admin: SupabaseClient, now = Date.now()) {
   const { data: stores } = await admin.from("stores").select("id, bot_hit_retention_days");
   let stores_ = 0;
   for (const s of stores ?? []) {
-    const days = Number(s.bot_hit_retention_days ?? RETENTION_DEFAULT_DAYS);
+    const days = Math.min(RETENTION_MAX_DAYS, Number(s.bot_hit_retention_days ?? RETENTION_DEFAULT_DAYS));
     await admin.from("bot_hits").delete().eq("store_id", s.id).lt("seen_at", new Date(now - days * 86_400_000).toISOString());
     stores_++;
   }

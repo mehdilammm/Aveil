@@ -75,6 +75,7 @@ final class AGSC_Traffic {
   KEY day (day)
 ) {$charset};";
         dbDelta($sql);
+        AGSC_Bothits::install();
         update_option('agsc_db_version', AGSC_DB_VERSION);
     }
 
@@ -147,6 +148,10 @@ final class AGSC_Traffic {
             $signal['confidence'] = AGSC_Burst::CONFIDENCE;
         }
         self::increment($day, $signal, self::$route, $status);
+        // AI bot user agents only (never people, never a checker-tool burst): for the identity check in the app.
+        if ($signal['category'] !== 'human-ai-referral' && $signal['confidence'] !== AGSC_Burst::CONFIDENCE) {
+            AGSC_Bothits::record($ua, $method, $status);
+        }
     }
 
     /** Moves one already counted request of a burst from unverified-user-agent to likely-checker-tool. */
