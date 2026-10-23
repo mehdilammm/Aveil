@@ -29,6 +29,7 @@ describe("AI Revenue funnel", () => {
   it("findings go to the right stage; checkout blocked for bots is an access problem", () => {
     expect(stageOfFinding({ type: "access_blocked", finding_key: "a" })).toBe("access");
     expect(stageOfFinding({ type: "checkout_blocked_bots", finding_key: "c" })).toBe("access");
+    expect(stageOfFinding({ type: "checkout_rate_limited_bots", finding_key: "r" })).toBe("access");
     expect(stageOfFinding({ type: "checkout_guest_disabled", finding_key: "c" })).toBe("buy");
     expect(stageOfFinding({ type: "price_missing", finding_key: "p" })).toBe("understand");
   });

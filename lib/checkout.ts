@@ -1,6 +1,7 @@
 // Checkout checks: what can stop a shopper sent by AI, or an AI agent, from completing a purchase. Read-only, from the
 // WooCommerce settings, shipping and payment APIs and the public checkout page. Rules that are judgement calls are
 // HEURISTIC. None of this guarantees sales.
+import { BLOCK_STATUS, CHALLENGE_RE } from "./access";
 import type { Source } from "./pages";
 import type { Finding } from "./rules";
 import type { PageFetch } from "./woo";
@@ -13,14 +14,14 @@ export type CheckoutInput = {
   settings: Source<Record<string, string>>; // includes woocommerce_enable_guest_checkout, woocommerce_allowed_countries, ...
   zones: Source<ShippingZone[]>;
   gateways: Source<Gateway[]>;
-  checkoutPage: { url: string; browser: PageFetch; bot: PageFetch } | null;
+  // botRetried: the bot request got a 429 and was retried once after waiting.
+  checkoutPage: { url: string; browser: PageFetch; bot: PageFetch; botRetried?: boolean } | null;
   products: { total: number; outOfStock: number; needShipping: number };
 };
 
 // Offline payment methods: an AI agent that pays for the buyer needs an online one.
 export const OFFLINE_GATEWAYS = new Set(["cod", "bacs", "cheque"]);
 const CAPTCHA_RE = /g-recaptcha|recaptcha\/api\.js|grecaptcha|hcaptcha\.com|h-captcha|challenges\.cloudflare\.com\/turnstile|cf-turnstile|friendlycaptcha|frc-captcha/i;
-const BLOCK_STATUSES = new Set([401, 403, 429, 503]);
 
 const f = (key: string, type: string, x: Omit<Finding, "finding_key" | "type" | "product_id">): Finding => ({ finding_key: `checkout:${key}`, type: `checkout_${type}`, product_id: null, ...x });
 
@@ -99,13 +100,26 @@ export function checkCheckout(input: CheckoutInput): Finding[] {
   if (cp) {
     const b = cp.browser;
     const bot = cp.bot;
-    if (b.ok && b.status < 400 && bot.ok && (BLOCK_STATUSES.has(bot.status) || bot.challengeHeader)) {
+    // Same rule as the access test: 401/403 or a challenge page = blocked; 429 = rate-limited (retried once first).
+    const browserChallenged = b.ok && (b.challengeHeader || CHALLENGE_RE.test(b.body));
+    const botChallenged = bot.ok && (bot.challengeHeader || (!browserChallenged && CHALLENGE_RE.test(bot.body)));
+    if (b.ok && b.status < 400 && bot.ok && (BLOCK_STATUS.has(bot.status) || botChallenged)) {
       out.push(f("blocked_bots", "blocked_bots", {
         title: "The checkout page is blocked for AI bots",
         severity: "high",
         basis: "observed",
-        evidence: `${cp.url}: a browser got HTTP ${b.status}; GPTBot got HTTP ${bot.status}${bot.challengeHeader ? " with a bot challenge" : ""}.`,
+        evidence: `${cp.url}: a browser got HTTP ${b.status}; GPTBot got HTTP ${bot.status}${botChallenged ? " with a bot challenge" : ""}.`,
         guidance: "Allow AI agents on /checkout/ in your firewall or bot protection (Cloudflare: WAF and Bot Fight Mode rules), keeping rate limits for abuse.",
+        fix_url: null,
+      }));
+    }
+    if (b.ok && b.status < 400 && bot.ok && bot.status === 429 && !botChallenged) {
+      out.push(f("rate_limited_bots", "rate_limited_bots", {
+        title: "The checkout page rate-limited GPTBot",
+        severity: "medium",
+        basis: "heuristic",
+        evidence: `${cp.url}: a browser got HTTP ${b.status}; GPTBot got HTTP 429 (too many requests)${cp.botRetried ? ", even after waiting and one retry" : ""}. This can come from the scan's own requests in a short time; the next scan checks again.`,
+        guidance: "If it repeats, check the rate limits of your firewall or bot protection for AI agents on /checkout/.",
         fix_url: null,
       }));
     }

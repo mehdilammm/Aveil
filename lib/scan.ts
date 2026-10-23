@@ -11,7 +11,7 @@ import { checkProduct, type Finding, type Severity, type WooProduct } from "./ru
 import { checkCheckout } from "./checkout";
 import { planOf, syncOrders } from "./orders-sync";
 import { PLANS } from "./plans";
-import { BROWSER_UA, AI_BOTS } from "./access";
+import { BROWSER_UA, AI_BOTS, retryAfterMs } from "./access";
 import { fetchPublicPage, MAX_PRODUCT_PAGES, WooError, type PageFetch, type WooCredentials } from "./woo";
 import { wooCommerceAdapter } from "./platform/woocommerce";
 import { recordVerification } from "./ownership-store";
@@ -149,6 +149,17 @@ export function schemaPage(product: Slim, url: string, res: PageFetch): SchemaPa
   };
 }
 
+// Waits between requests and retries a 429 once (Retry-After honoured), like the access test.
+async function politePage(url: string, ua: string, checkToken: string | null): Promise<{ res: PageFetch; retried: boolean }> {
+  await sleep(PAGE_GAP_MS);
+  const res = await fetchPublicPage(url, ua, checkToken);
+  if (res.ok && res.status === 429) {
+    await sleep(retryAfterMs(res.retryAfter));
+    return { res: await fetchPublicPage(url, ua, checkToken), retried: true };
+  }
+  return { res, retried: false };
+}
+
 async function credentialsOf(admin: SupabaseClient, store: Store): Promise<WooCredentials> {
   const { data: creds, error } = await admin
     .rpc("get_store_credentials", { p_store_id: store.id, p_owner_id: store.owner_id })
@@ -272,7 +283,9 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
         if (checkoutSlug) {
           const url = `${store.url}/${checkoutSlug}/`;
           const gptbot = AI_BOTS.find((b) => b.name === "GPTBot")!.ua;
-          checkoutPage = { url, browser: await fetchPublicPage(url, BROWSER_UA, checkToken), bot: await fetchPublicPage(url, gptbot, checkToken) };
+          const browser = await politePage(url, BROWSER_UA, checkToken);
+          const bot = await politePage(url, gptbot, checkToken);
+          checkoutPage = { url, browser: browser.res, bot: bot.res, botRetried: bot.retried };
         }
         findings.push(...checkCheckout({
           storeUrl: store.url,
