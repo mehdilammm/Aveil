@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
+import { deleteAccount, deleteWorkspace } from "@/lib/data-export";
 import { hashInviteToken, INVITE_DAYS, inviteProblem, newInviteToken, type InviteRow } from "@/lib/workspace";
 
 export type WsState = { error?: string; link?: string; done?: string };
@@ -89,4 +90,39 @@ export async function acceptInvite(_: WsState, form: FormData): Promise<WsState>
     if (error) return { error: "Could not join the workspace." };
   }
   redirect("/stores");
+}
+
+export type DeleteState = { error?: string };
+
+// Hard delete of a workspace by its owner, after typing its name. Everything under it is deleted.
+export async function deleteWorkspaceAction(_: DeleteState, form: FormData): Promise<DeleteState> {
+  const { supabase, user } = await getUser();
+  if (!user) redirect("/login");
+  const id = String(form.get("workspace_id") ?? "");
+  const { data: m } = await supabase.from("workspace_members").select("role").eq("workspace_id", id).eq("user_id", user.id).maybeSingle();
+  if (m?.role !== "owner") return { error: "Only the owner can delete this workspace." };
+  const admin = createAdminClient();
+  const { data: ws } = await admin.from("workspaces").select("name").eq("id", id).maybeSingle();
+  if (!ws || String(form.get("confirm_name") ?? "").trim() !== ws.name) return { error: "Type the workspace name exactly to confirm." };
+  try {
+    await deleteWorkspace(admin, id);
+  } catch {
+    return { error: "Could not delete the workspace. Please try again." };
+  }
+  revalidatePath("/settings/workspaces");
+  redirect("/settings/workspaces");
+}
+
+// Hard delete of the account: owned workspaces, waitlist sign-ups and the user. Then signs out.
+export async function deleteAccountAction(_: DeleteState, form: FormData): Promise<DeleteState> {
+  const { supabase, user } = await getUser();
+  if (!user) redirect("/login");
+  if (String(form.get("confirm_email") ?? "").trim().toLowerCase() !== (user.email ?? "").toLowerCase()) return { error: "Type your email exactly to confirm." };
+  try {
+    await deleteAccount(createAdminClient(), user.id, user.email ?? null);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not delete the account." };
+  }
+  await supabase.auth.signOut();
+  redirect("/");
 }
