@@ -1,0 +1,188 @@
+{
+ "note": "Findings of matha.site's scan bc31d146 (2026-10-23), as stored, and its product sample.",
+ "findings": [
+  {
+   "finding_key": "access:GPTBot",
+   "type": "access_rate_limited",
+   "severity": "medium",
+   "basis": "heuristic",
+   "product_id": null
+  },
+  {
+   "finding_key": "checkout:offline_payment_only",
+   "type": "checkout_offline_payment_only",
+   "severity": "low",
+   "basis": "heuristic",
+   "product_id": null
+  },
+  {
+   "finding_key": "checkout:rate_limited_bots",
+   "type": "checkout_rate_limited_bots",
+   "severity": "medium",
+   "basis": "heuristic",
+   "product_id": null
+  },
+  {
+   "finding_key": "checkout:shipping_gap",
+   "type": "checkout_shipping_gap",
+   "severity": "medium",
+   "basis": "observed",
+   "product_id": null
+  },
+  {
+   "finding_key": "feed_identifier_missing:170",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 170
+  },
+  {
+   "finding_key": "feed_identifier_missing:171",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 171
+  },
+  {
+   "finding_key": "feed_identifier_missing:172",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 172
+  },
+  {
+   "finding_key": "feed_identifier_missing:173",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 173
+  },
+  {
+   "finding_key": "feed_identifier_missing:174",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 174
+  },
+  {
+   "finding_key": "feed_identifier_missing:175",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 175
+  },
+  {
+   "finding_key": "feed_identifier_missing:176",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 176
+  },
+  {
+   "finding_key": "feed_identifier_missing:177",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 177
+  },
+  {
+   "finding_key": "feed_identifier_missing:197",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 197
+  },
+  {
+   "finding_key": "feed_identifier_missing:198",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 198
+  },
+  {
+   "finding_key": "feed_identifier_missing:199",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 199
+  },
+  {
+   "finding_key": "feed_identifier_missing:200",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 200
+  },
+  {
+   "finding_key": "feed_identifier_missing:201",
+   "type": "feed_identifier_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": 201
+  },
+  {
+   "finding_key": "image_missing:171",
+   "type": "image_missing",
+   "severity": "medium",
+   "basis": "observed",
+   "product_id": 171
+  },
+  {
+   "finding_key": "image_missing:174",
+   "type": "image_missing",
+   "severity": "medium",
+   "basis": "observed",
+   "product_id": 174
+  },
+  {
+   "finding_key": "llms_txt:missing",
+   "type": "llms_txt_missing",
+   "severity": "low",
+   "basis": "observed",
+   "product_id": null
+  },
+  {
+   "finding_key": "price_missing:173",
+   "type": "price_missing",
+   "severity": "high",
+   "basis": "observed",
+   "product_id": 173
+  },
+  {
+   "finding_key": "schema_fields_missing:171",
+   "type": "schema_fields_missing",
+   "severity": "medium",
+   "basis": "observed",
+   "product_id": 171
+  },
+  {
+   "finding_key": "schema_fields_missing:174",
+   "type": "schema_fields_missing",
+   "severity": "medium",
+   "basis": "observed",
+   "product_id": 174
+  },
+  {
+   "finding_key": "schema_product_missing:173",
+   "type": "schema_product_missing",
+   "severity": "medium",
+   "basis": "observed",
+   "product_id": 173
+  }
+ ],
+ "sample": [
+  170,
+  171,
+  172,
+  173,
+  174,
+  175,
+  176,
+  177,
+  197,
+  198,
+  199,
+  200,
+  201
+ ]
+}
