@@ -35,7 +35,7 @@ export function verifySignature(token: string, timestamp: string, body: string, 
 
 // Same limits as the plugin's agsc_traffic table.
 const TEXT_LIMITS = { source: 40, category: 30, confidence: 30, route: 30 } as const;
-const TEXT_RE = /^[A-Za-z0-9 ._:\/()+-]+$/;
+const TEXT_RE = /^[A-Za-z0-9 ._:/()+-]+$/;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DATETIME_RE = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/;
 const DAY_MS = 86_400_000;

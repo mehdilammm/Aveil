@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [".next/**", "public/**", "wordpress/**"],
+  "overrides": [
+    { "files": ["**/*.test.ts", "lib/fixtures/**"], "rules": { "unicorn/no-thenable": "off" } }
+  ]
+}

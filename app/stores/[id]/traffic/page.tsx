@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { splitCheckerRows } from "@/lib/traffic";
 import { BotIdentity } from "@/components/bot-identity";
+import { getTranslations } from "next-intl/server";
 
 const DAYS = 30;
 
@@ -21,6 +22,7 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
   const { supabase } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
+  const t = await getTranslations("traffic");
 
   let connector: { last_ingest_at: string | null } | null = null;
   try {
@@ -75,7 +77,7 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
     <>
       {head}
       <div className="card">
-        <span className="badge basis-heuristic">Heuristic</span> <span className="muted">user agent only, not verified (see Bot identity below)</span>
+        <span className="badge basis-heuristic">{t("heuristic")}</span> <span className="muted">{t("uaOnly")}</span>
         <p className="muted">
           Counted by the plugin on WordPress: only requests handled by PHP, while capture is on. User agents and referrers can be faked, and pages served
           from a host or CDN cache are not counted. This is not proof of AI recommendations, real customers or sales.

@@ -68,5 +68,31 @@
     "heuristic": "Heuristic",
     "heuristicNote": "User agent only: the request says it is this bot, but its IP is not in the published list. It may be another tool using the name.",
     "minimum": "Last {days} days. Pages served from a host or CDN cache never reach WordPress, so these counts are a minimum."
+  },
+  "ownership": {
+    "title": "Ownership",
+    "verified": "Verified",
+    "notVerified": "Not verified",
+    "notVerifiedNote": "Run a scan (the API key proves it) or use one of the methods below.",
+    "until": "valid until {date}",
+    "intro": "Deep scans and, later, any change AgentScope makes to the store need proof that the store is yours. Each successful scan renews the API key proof.",
+    "other": "Other ways to verify (DNS, meta tag, file)",
+    "m_api_key": "API key",
+    "m_dns_txt": "DNS TXT record",
+    "m_meta_tag": "Meta tag on the home page",
+    "m_well_known_file": "File on the site",
+    "m_plugin": "Plugin",
+    "m_oauth": "App install",
+    "howDns": "Add a TXT record on {host}: {value}",
+    "howMeta": "Add inside the head of the home page: {tag}",
+    "howFile": "Create {url} containing: {token}",
+    "start": "Get my token",
+    "checkNow": "Check now",
+    "checking": "Checking…",
+    "lastCheck": "Last check {date}: {evidence}"
+  },
+  "traffic": {
+    "uaOnly": "user agent only, not verified (see Bot identity below)",
+    "heuristic": "Heuristic"
   }
 }
