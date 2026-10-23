@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "oxlint --deny-warnings app lib components i18n proxy.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -23,6 +24,7 @@
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "oxlint": "^1.89.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   }

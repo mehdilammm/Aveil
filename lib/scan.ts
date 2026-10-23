@@ -32,7 +32,7 @@ const STEP_BUDGET_MS = { products: 90_000, store: 120_000, schema: 60_000, finis
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = new Array(items.length);
+  const out: R[] = Array.from({ length: items.length });
   let next = 0;
   await Promise.all(
     Array.from({ length: Math.min(limit, items.length) }, async () => {

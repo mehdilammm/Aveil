@@ -6,7 +6,6 @@ import { describePage, pageGate, type Gate } from "./gate";
 import { detectProtection, ERROR_TITLE_RE, servedVia, type Protection } from "./protection";
 import { checkShopifyProducts, detectShopify, handleOf, SHOPIFY_LIST_NOTE, shopifyPricesByHandle, shopifyProductUrl } from "./shopify";
 import { checkStoreApiProducts, pathOf, STORE_API_NOTE } from "./woo-store-api";
-import type { Source } from "./pages";
 import { isAllowed, parseRobots, type Robots } from "./robots";
 import type { Finding, Severity } from "./rules";
 import { extractSchemaProducts, type SchemaProduct } from "./structured-data";

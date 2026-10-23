@@ -67,7 +67,7 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
   });
   const diagnosis = diagnose(stages);
   const bySource = new Map<string, { orders: number; revenue: { currency: string; total: number }[] }>();
-  for (const s of [...new Set(aiOrders.map((o) => o.source))]) {
+  for (const s of new Set(aiOrders.map((o) => o.source))) {
     const of = aiOrders.filter((o) => o.source === s);
     bySource.set(s, { orders: of.length, revenue: revenueByCurrency(of) });
   }

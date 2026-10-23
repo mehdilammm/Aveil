@@ -9,13 +9,16 @@ import { PluginOnboarding } from "@/components/plugin-onboarding";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "./run-scan-button";
+import { OwnershipCard } from "@/components/ownership-card";
+import { canEdit, storeAccess } from "@/lib/workspace";
 
 export default async function OverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase } = await getUser();
+  const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
   const scanJobId = await openJobId(supabase, store.id, "scan");
+  const access = user ? await storeAccess(supabase, user.id, store.id) : null;
 
   // Stores in the app are WooCommerce stores: show how to install the traffic plugin until it is connected.
   let pluginConnected = true;
@@ -115,6 +118,8 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
           )}
         </>
       )}
+
+      <OwnershipCard supabase={supabase} storeId={store.id} storeUrl={store.url} canEdit={Boolean(access && canEdit(access.role))} />
     </>
   );
 }

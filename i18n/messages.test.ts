@@ -20,6 +20,10 @@ describe("message catalogs", () => {
     }
   });
 
+  it("no raw < or > in messages (next-intl would read them as rich-text tags)", () => {
+    for (const k of keys(en)) for (const cat of [en, ar]) expect(get(cat, k), k).not.toMatch(/[<>]/);
+  });
+
   it("Arabic is right-to-left; only known locales are accepted", () => {
     expect(LOCALES).toEqual(["en", "ar"]);
     expect(dirOf("ar")).toBe("rtl");

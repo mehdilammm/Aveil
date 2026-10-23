@@ -79,7 +79,7 @@ function isOwnBrand(name: string, terms: BrandTerms): boolean {
   return (terms.keys ?? []).some((k) => key === k || (k.length >= 5 && key.includes(k)));
 }
 
-const URL_RE = /https?:\/\/[^\s<>()"'\]\[*`]+/gi;
+const URL_RE = /https?:\/\/[^\s<>()"'\][*`]+/gi;
 // Top-level list items only: nested bullets ("    * What they sell: ...") are details, not names.
 const LIST_ITEM_RE = /^(?: {0,3})(?:\d{1,2}[.)]|[-*•])\s+(.+)$/;
 const HEADING_RE = /^\s{0,3}(#{1,6})\s+(.*)$/;
