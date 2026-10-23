@@ -15,6 +15,7 @@ import { BROWSER_UA, AI_BOTS, retryAfterMs } from "./access";
 import { fetchPublicPage, MAX_PRODUCT_PAGES, WooError, type PageFetch, type WooCredentials } from "./woo";
 import { wooCommerceAdapter } from "./platform/woocommerce";
 import { recordVerification } from "./ownership-store";
+import { runAutoFix } from "./autofix-run";
 import { countRequests } from "./safe-fetch";
 import { pageUrlOf, sampleProducts } from "./sampling";
 import { detectSchemaSources, SOURCE_LABEL } from "./schema-source";
@@ -386,6 +387,14 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
     } catch (err) {
       console.error("order sync failed", store.id, err instanceof Error ? err.message : "unknown");
     }
+    // Auto-fix (only when the merchant turned it on after the preview): technical fixes, verified, logged.
+    await step("autofix", async () => {
+      const { data: setting } = await admin.from("stores").select("auto_fix_enabled").eq("id", store.id).maybeSingle();
+      if (!setting?.auto_fix_enabled) return { skipped: "off" };
+      need(STEP_BUDGET_MS.store);
+      await progress("autofix");
+      return runAutoFix(admin, store, scanId);
+    });
     await progress("done");
   } catch (err) {
     if (err instanceof JobYield) throw err;

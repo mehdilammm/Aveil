@@ -4,7 +4,7 @@ Tags: woocommerce, ai, chatgpt, structured data, analytics
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,6 +21,16 @@ AgentScope Core checks whether your WooCommerce store gives AI shopping agents a
 * **AI referral on orders (opt-in, off by default):** when a visitor arrives from an AI assistant (ChatGPT, Perplexity, Gemini, Copilot, Claude and others, by referrer or utm_source), the AI source, how it was matched and the landing path are kept in the WooCommerce session and saved on the order (classic and block checkout, HPOS compatible). A fallback for WooCommerce Order Attribution. No IP, user agent, name or email. When the WP Consent API is active, nothing is stored without "statistics" consent.
 * **Reports:** findings and traffic CSV with formula-injection protection, scan history (last 30 scans).
 * **Optional connection to the AgentScope app:** sends the daily totals to your AgentScope account (see External services).
+
+= Technical fixes from the app (1.6.0) =
+
+Only after you turn on "Auto-fix technical issues" in the AgentScope app and approve its preview, the app can send this plugin signed fixes (HMAC-SHA256 with your connection token, a one-time nonce and a timestamp checked within 5 minutes; anything else is refused):
+
+* Structured data: the product's existing Product node (WooCommerce, Yoast or Rank Math) gets a brand from the product's own brand, or your store's name when it has none. Same @id, never a second Product. Output is JSON-encoded by WooCommerce or your SEO plugin.
+* /llms.txt: served from text the app wrote from your store's data, unless a real llms.txt file exists.
+* robots.txt: AgentScope groups for AI search agents added to WordPress's virtual robots.txt (no effect when a robots.txt file exists).
+
+Prices, images, weights and barcodes are never filled in by the plugin. Each fix is listed in Settings → "Fixes applied by AgentScope" and can be removed there (administrators only), or undone in the app. Nothing is fetched from the network during page loads.
 
 = AI bot identity (1.5.0) =
 
@@ -95,6 +105,9 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 
 == Changelog ==
 
+= 1.6.0 =
+* Technical fixes from the AgentScope app, only from signed requests: brand in the existing Product structured data (same @id), /llms.txt, robots.txt groups for AI search agents. Listed and removable in Settings.
+
 = 1.5.0 =
 * AI bot identity: for known AI bot user agents only, the time, IP, full user agent, path, method and status are sent in signed batches from WP-Cron so the app can check the IP against the operators' published lists. Deleted locally after a successful send or after 7 days at the latest; never stored for people.
 
@@ -124,6 +137,9 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 * Clean rebuild: paginated scan, scan history, Emerald admin workspace.
 
 == Upgrade Notice ==
+
+= 1.6.0 =
+Adds signed technical fixes from the app (off until you approve auto-fix there).
 
 = 1.5.0 =
 Adds AI bot identity checks (AI bot user agents only; IPs deleted locally after sending or after 7 days).

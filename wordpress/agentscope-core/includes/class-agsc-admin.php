@@ -201,6 +201,7 @@ final class AGSC_Admin {
             'cleared'           => array('ok', 'Test data cleared: the chosen totals are now 0. See the list below.'),
             'clear-bad-day'     => array('bad', 'Nothing was cleared. Pick a valid day that is not in the future.'),
             'clear-unconfirmed' => array('bad', 'Nothing was cleared. Tick the confirmation box first.'),
+            'fix-removed'       => array('ok', 'Fix removed.'),
         );
         if (!isset($texts[$msg])) {
             return '';
@@ -421,6 +422,7 @@ final class AGSC_Admin {
         echo '<button type="submit" class="agsc-btn">Save settings</button></form>';
 
         AGSC_Sender::render_section();
+        AGSC_Fixes::render_section();
 
         $until = get_option(AGSC_Traffic::LEGACY);
         $cleared = get_option(AGSC_Traffic::CLEARED);

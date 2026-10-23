@@ -36,6 +36,8 @@ vi.mock("./platform/woocommerce", () => ({
 }));
 vi.mock("./agent-checks", () => ({ runStructuredChecks: async () => [] }));
 vi.mock("./orders-sync", () => ({ planOf: async () => "free", syncOrders: async () => ({}) }));
+const autoFix = vi.fn(async () => ({ applied: 1 }));
+vi.mock("./autofix-run", () => ({ runAutoFix: (...a: unknown[]) => autoFix(...(a as [])) }));
 vi.mock("./ownership-store", () => ({ recordVerification: vi.fn(async () => {}) }));
 vi.mock("./woo", async (orig) => ({ ...(await orig<typeof import("./woo")>()), fetchPublicPage: async (u: string) => page(u) }));
 
@@ -60,7 +62,7 @@ describe("scan as a background job", () => {
   it("runs every step: 2 product pages, store checks, the Free sample of 5 pages (2 + 3), finish", async () => {
     const { client, tables } = db();
     expect(await runClaimedJob(client, job(), JOB_HANDLERS, Date.now() + 600_000)).toBe("succeeded");
-    expect(tables.job_steps.map((s) => s.step_key)).toEqual(["start", "products:page:1", "products:page:2", "store", "schema:0", "finish"]);
+    expect(tables.job_steps.map((s) => s.step_key)).toEqual(["start", "products:page:1", "products:page:2", "store", "schema:0", "finish", "autofix"]);
     const scan = tables.scans[0];
     expect(scan).toMatchObject({ status: "complete", published_products: 13, scanned_products: 13, sampled_products: 5, sample_basis: "category_coverage", cost_usd_micros: 0 });
     // The sample's JSON-LD source: WooCommerce core, one Product per page.
@@ -94,6 +96,17 @@ describe("scan as a background job", () => {
     await runClaimedJob(client, job(2), JOB_HANDLERS, Date.now() + 600_000);
     expect(tables.findings.length).toBe(before);
   });
+
+  it("auto-fix runs after the scan only when the store turned it on", async () => {
+    const off = db();
+    await runClaimedJob(off.client, job(), JOB_HANDLERS, Date.now() + 600_000);
+    expect(autoFix).not.toHaveBeenCalled();
+    const on = db();
+    on.tables.stores[0].auto_fix_enabled = true;
+    await runClaimedJob(on.client, job(), JOB_HANDLERS, Date.now() + 600_000);
+    expect(autoFix).toHaveBeenCalledTimes(1);
+    expect(on.tables.job_steps.find((s) => s.step_key === "autofix")?.result).toEqual({ applied: 1 });
+  }, 30_000);
 
   it("a refused API key fails the scan at once with WooCommerce's reason (no retries)", async () => {
     const { client, tables } = db();
