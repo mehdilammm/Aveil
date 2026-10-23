@@ -5,13 +5,14 @@ import { PLANS } from "./plans";
 import { scanJob, type ScanTrigger } from "./scan";
 import { runVisibility } from "./visibility-run";
 import { purgeOldHits, refreshIpRanges, verifyStoreHits } from "./bot-jobs";
+import { verifyFindingJob } from "./verify-jobs";
 
 const VISIBILITY_MIN_MS = 150_000; // a run needs a fresh tick; it stops asking at its own time budget
 
 // Job kinds. orders_sync: reads the last 90 days of orders of one store (Pro and Agency).
 // scan: the full store scan, step by step. visibility: one AI Visibility run (all questions, both engines).
 // bot_ranges_refresh: reads the operators' IP lists (daily). bot_hits_verify: checks a store's new bot hits.
-// bot_hits_purge: deletes hits past each store's retention (daily).
+// bot_hits_purge: deletes hits past each store's retention (daily). verify_finding: re-checks one fixed finding.
 export const JOB_HANDLERS: Record<string, JobHandler> = {
   orders_sync: async ({ admin, job, step }) => {
     if (!job.store_id) throw new Error("orders_sync needs a store");
@@ -31,6 +32,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
     if (!store) throw new PermanentJobError("store not found");
     await scanJob(ctx, store, (job.progress?.trigger as ScanTrigger) === "scheduled" ? "scheduled" : "manual");
   },
+  verify_finding: verifyFindingJob,
   bot_ranges_refresh: async ({ admin, step }) => {
     await step("lists", () => refreshIpRanges(admin));
   },

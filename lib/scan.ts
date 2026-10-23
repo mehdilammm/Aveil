@@ -150,7 +150,7 @@ export function schemaPage(product: Slim, url: string, res: PageFetch): SchemaPa
 }
 
 // Waits between requests and retries a 429 once (Retry-After honoured), like the access test.
-async function politePage(url: string, ua: string, checkToken: string | null): Promise<{ res: PageFetch; retried: boolean }> {
+export async function politePage(url: string, ua: string, checkToken: string | null): Promise<{ res: PageFetch; retried: boolean }> {
   await sleep(PAGE_GAP_MS);
   const res = await fetchPublicPage(url, ua, checkToken);
   if (res.ok && res.status === 429) {

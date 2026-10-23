@@ -187,14 +187,15 @@ async function readCapped(res: Response): Promise<{ text: string; bytes: number 
 // Fetches a public page with a given User-Agent, like a visitor would. No credentials are sent.
 // Follows same-host redirects; a redirect to another host is reported, not followed.
 // checkToken: the store's traffic connection token, to sign X-AgentScope-Check so the plugin skips this request.
-export async function fetchPublicPage(target: string, userAgent: string, checkToken: string | null = null): Promise<PageFetch> {
+// noCache: asks caches for a fresh copy (Cache-Control / Pragma: no-cache), for re-checks after a fix.
+export async function fetchPublicPage(target: string, userAgent: string, checkToken: string | null = null, noCache = false): Promise<PageFetch> {
   try {
     let current = new URL(target);
     const startHost = current.host;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
       if (current.protocol !== "https:") return { ok: false, error: "redirected to a non-https address" };
       const res = (await guarded(current, {
-        headers: { "User-Agent": userAgent, Accept: "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "en", [CHECK_HEADER]: checkHeaderValue(checkToken) },
+        headers: { "User-Agent": userAgent, Accept: "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "en", [CHECK_HEADER]: checkHeaderValue(checkToken), ...(noCache ? { "Cache-Control": "no-cache", Pragma: "no-cache" } : {}) },
         timeoutMs: PAGE_TIMEOUT_MS,
       })) as unknown as Response;
       const location = res.headers.get("location");
@@ -441,4 +442,10 @@ export async function fetchProductFacts(baseUrl: string, creds: WooCredentials, 
   } catch (err) {
     return { ok: false, reason: reason("this product", err) };
   }
+}
+
+// One published product with the fields the scan rules read, or null when it is not published any more.
+export async function fetchPublishedProduct(baseUrl: string, creds: WooCredentials, productId: number): Promise<WooProduct | null> {
+  const { items } = await getPage<WooProduct>(baseUrl, "/products", { include: String(productId), status: "publish" }, creds);
+  return items[0] ?? null;
 }

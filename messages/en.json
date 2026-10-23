@@ -131,7 +131,17 @@
   "fixCenter": {
     "generatorsNote": "robots.txt patch, firewall guidance and llms.txt, from your store's data.",
     "generatorsLink": "Open fix generators",
-    "descriptionsLink": "Factual descriptions"
+    "descriptionsLink": "Factual descriptions",
+    "v_resolved": "Resolved (Observed)",
+    "v_still_open": "Still open",
+    "v_unavailable": "Unavailable",
+    "checkedAt": "checked {date}:",
+    "rechecksTitle": "Visibility re-checks",
+    "rechecksNote": "After a fix is verified, AI Visibility runs again 7, 14 and 30 days later. They show what the models answered on those days; they do not prove the fix changed anything, and an immediate re-check never does.",
+    "recheckRow": "Day {day} ({date}), after {n} fix(es)",
+    "recheckDone": "run done: see AI Visibility",
+    "recheckFailed": "not run:",
+    "recheckPending": "scheduled"
   },
   "descriptions": {
     "title": "Factual descriptions",
@@ -160,5 +170,11 @@
     "approvedTitle": "Approved descriptions ({n})",
     "exportHow": "WooCommerce → Products → Import, tick \"Update existing products\", and upload this file (columns ID and Description). AgentScope does not change your store.",
     "export": "Export CSV"
+  },
+  "verify": {
+    "verify": "Verify fix",
+    "checking": "Re-checking…",
+    "checkingNote": "The same check runs again on this item with caches bypassed, up to 3 times.",
+    "failed": "The re-check could not start."
   }
 }
