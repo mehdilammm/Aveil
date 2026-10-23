@@ -7,6 +7,9 @@ import { findingsForScan, getStore, listScans, sortForFixing, openJobId } from "
 import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "../run-scan-button";
 import { VerifyButton } from "./verify-button";
+import { AutoFixPanel, FixAction, UndoButton, WriteKeyForm } from "./autofix-ui";
+import { fixFor } from "@/lib/fix-catalog";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { fixQueue, weightsFrom } from "@/lib/fix-queue";
 import { canEdit, storeAccess } from "@/lib/workspace";
 
@@ -19,8 +22,20 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
   const t = await getTranslations("fixCenter");
   const access = user ? await storeAccess(supabase, user.id, store.id) : null;
   const editor = Boolean(access && canEdit(access.role));
+  const ta = await getTranslations("autofix");
+  const adminDb = createAdminClient();
+  const [{ data: setting }, { data: writeKey }, { data: audit }] = await Promise.all([
+    adminDb.from("stores").select("auto_fix_enabled, auto_fix_approved_at").eq("id", store.id).maybeSingle(),
+    adminDb.from("store_write_credentials").select("key_hint").eq("store_id", store.id).maybeSingle(),
+    supabase.from("fix_audit_log").select("id, batch_id, finding_key, kind, status, after, error, verify_status, automatic, applied_at").eq("store_id", store.id).order("applied_at", { ascending: false }).limit(30),
+  ]);
+  const auditRows = (audit ?? []) as { id: string; batch_id: string; finding_key: string; kind: string; status: string; after: { describe?: string } | null; error: string | null; verify_status: string | null; automatic: boolean; applied_at: string }[];
+  // The banner: the latest automatic batch of the last 7 days that still has applied fixes.
+  const lastAuto = auditRows.find((r) => r.automatic && r.status === "applied" && Date.now() - Date.parse(r.applied_at) < 7 * 86_400_000);
+  const bannerCount = lastAuto ? auditRows.filter((r) => r.batch_id === lastAuto.batch_id && r.status === "applied").length : 0;
+  const appliedFor = new Map(auditRows.filter((r) => r.status === "applied").map((r) => [r.finding_key, r]));
   const [{ data: vrows }, { data: rrows }] = await Promise.all([
-    supabase.from("finding_verifications").select("finding_key, status, evidence, checked_at, job_id").eq("store_id", store.id),
+    supabase.from("finding_verifications").select("finding_key, status, evidence, checked_at, job_id, scan_id").eq("store_id", store.id),
     supabase.from("visibility_rechecks").select("due_on, day, finding_keys, job_id").eq("store_id", store.id).order("due_on"),
   ]);
   const verifications = new Map((vrows ?? []).map((v) => [v.finding_key as string, v as { status: string; evidence: string | null; checked_at: string | null; job_id: string | null }]));
@@ -33,8 +48,12 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
   // Priority queue: (Impact × Confidence) / Effort; high-value products are the scan's sample.
   const { data: sampleRows } = lastComplete ? await supabase.from("scan_schema_pages").select("product_id").eq("scan_id", lastComplete.id) : { data: [] };
   const weights = weightsFrom(query);
-  const queue = fixQueue(findings, new Set((sampleRows ?? []).map((r) => Number(r.product_id))), weights);
-  const unavailable = findings.filter((f) => f.basis === "unavailable");
+  // Verified fixes leave the queue and wait in their own section until the next scan confirms them.
+  // Only a re-check of this scan's finding counts; a newer scan starts over.
+  const isResolved = (key: string) => { const v = verifications.get(key) as { status: string; scan_id?: string } | undefined; return v?.status === "resolved" && v.scan_id === lastComplete?.id; };
+  const queue = fixQueue(findings.filter((f) => !isResolved(f.finding_key)), new Set((sampleRows ?? []).map((r) => Number(r.product_id))), weights);
+  const resolvedNow = findings.filter((f) => isResolved(f.finding_key));
+  const unavailable = findings.filter((f) => f.basis === "unavailable" && !isResolved(f.finding_key));
 
   return (
     <>
@@ -56,6 +75,14 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
         </span>
       </p>
       {lastComplete && findings.length === 0 && <p className="notice">No open findings.</p>}
+      {lastAuto && (
+        <p className="notice row" style={{ justifyContent: "space-between" }}>
+          <span>{ta("banner", { n: bannerCount })}</span>
+          {editor && <UndoButton storeId={store.id} batchId={lastAuto.batch_id} />}
+        </p>
+      )}
+      {editor && <AutoFixPanel storeId={store.id} enabled={Boolean(setting?.auto_fix_enabled)} approvedAt={setting?.auto_fix_approved_at ?? null} />}
+      {editor && <WriteKeyForm storeId={store.id} hint={writeKey?.key_hint ?? null} />}
       {findings.length > 0 && (
         <details className="card">
           <summary className="small">{t("formula")}</summary>
@@ -86,6 +113,12 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
                       {v.checked_at ? t("checkedAt", { date: formatDate(v.checked_at) }) : ""} {v.evidence}
                     </p>
                   )}
+                  {appliedFor.get(f.finding_key) ? (
+                    <p className="small"><span className="badge basis-observed">{appliedFor.get(f.finding_key)!.automatic ? ta("chipAuto") : ta("chipOneClick")}</span> {appliedFor.get(f.finding_key)!.after?.describe} {editor && <UndoButton storeId={store.id} auditId={appliedFor.get(f.finding_key)!.id} />}</p>
+                  ) : editor && (() => {
+                    const spec = fixFor(f);
+                    return <FixAction storeId={store.id} findingKey={f.finding_key} type={spec.type} kind={spec.kind} field={spec.field} canWrite={Boolean(writeKey)} />;
+                  })()}
                   {editor && f.basis !== "unavailable" && <VerifyButton storeId={store.id} findingKey={f.finding_key} openJobId={v?.status === "running" ? v.job_id : null} />}
                 </FindingCard>
               );
@@ -99,6 +132,41 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
           <p className="muted small">{t("checkNote")}</p>
           {unavailable.map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} />)}
         </section>
+      )}
+
+      {resolvedNow.length > 0 && (
+        <section>
+          <h2>{t("g_resolved")} ({resolvedNow.length})</h2>
+          {resolvedNow.map((f) => {
+            const v = verifications.get(f.finding_key)!;
+            return (
+              <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} resolvedLabel={t("v_resolved")}>
+                <p className="small">{v.checked_at ? t("checkedAt", { date: formatDate(v.checked_at) }) : ""} {v.evidence}</p>
+              </FindingCard>
+            );
+          })}
+        </section>
+      )}
+
+      {auditRows.length > 0 && (
+        <>
+          <h2>{ta("auditTitle")}</h2>
+          <div className="card table-wrap">
+            <table>
+              <thead><tr><th colSpan={4} className="muted small">{ta("auditCols")}</th></tr></thead>
+              <tbody>
+                {auditRows.map((r) => (
+                  <tr key={r.id}>
+                    <td>{formatDate(r.applied_at)}</td>
+                    <td style={{ whiteSpace: "normal" }}>{r.after?.describe ?? r.kind}{r.error ? ` · ${r.error}` : ""}</td>
+                    <td>{r.automatic ? ta("byAuto") : ta("byYou")}</td>
+                    <td>{r.status === "reverted" ? ta("reverted") : r.status === "failed" ? ta("failedRow") : r.verify_status ? ta(`v_${r.verify_status}`) : ""} {editor && r.status === "applied" && <UndoButton storeId={store.id} auditId={r.id} />}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {rechecks.length > 0 && (

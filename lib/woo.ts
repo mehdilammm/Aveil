@@ -449,3 +449,29 @@ export async function fetchPublishedProduct(baseUrl: string, creds: WooCredentia
   const { items } = await getPage<WooProduct>(baseUrl, "/products", { include: String(productId), status: "publish" }, creds);
   return items[0] ?? null;
 }
+
+// ---- Writes (only with the store's separate write key, for fixes the merchant approved) -----------------------
+
+// One WooCommerce REST write (PUT/POST). No redirects are followed for writes: a redirect is an error.
+export async function wooWrite<T>(baseUrl: string, method: "PUT" | "POST", path: string, body: unknown, creds: WooCredentials): Promise<T> {
+  const url = new URL(`${baseUrl}/wp-json/wc/v3${path}`);
+  const basic = Buffer.from(`${creds.consumerKey}:${creds.consumerSecret}`).toString("base64");
+  const res = (await guarded(url, { method, headers: { Authorization: `Basic ${basic}`, Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify(body), timeoutMs: TIMEOUT_MS })) as unknown as Response;
+  if (res.status >= 300 && res.status < 400) throw new WooError(`The store redirected the write (HTTP ${res.status}).`, res.status);
+  if (res.status === 401 || res.status === 403) throw new WooError("WooCommerce refused the write key. Check it has Read/Write permission.", res.status);
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new WooError(`WooCommerce answered HTTP ${res.status}${data && typeof data === "object" && "message" in data ? `: ${String((data as { message: unknown }).message).slice(0, 200)}` : ""}.`, res.status);
+  return data as T;
+}
+
+// Reads one settings option (group/id) with a key: its current value, for the before-snapshot of a fix.
+export async function fetchSetting(baseUrl: string, group: string, id: string, creds: WooCredentials): Promise<unknown> {
+  const { items } = await getPage<SettingRow>(baseUrl, `/settings/${group}`, {}, creds);
+  return items.find((r) => r.id === id)?.value ?? null;
+}
+
+// Product brands (WooCommerce 9.6+ taxonomy) matching a name.
+export async function findBrands(baseUrl: string, creds: WooCredentials, name: string): Promise<{ id: number; name: string }[]> {
+  const { items } = await getPage<{ id: number; name: string }>(baseUrl, "/products/brands", { search: name, _fields: "id,name" }, creds);
+  return items.map((b) => ({ id: b.id, name: decodeName(b.name ?? "") }));
+}

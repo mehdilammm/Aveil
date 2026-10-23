@@ -1,9 +1,9 @@
 {
-  "version": "1.5.0",
-  "file": "agentscope-core-1.5.0.zip",
-  "sha256": "bfaa73793d16a20eaebd987eef517b729b47039a1c889d4bdd7a2e345bdd8bd0",
+  "version": "1.6.0",
+  "file": "agentscope-core-1.6.0.zip",
+  "sha256": "2d7b55c988b9a49466b8543fa0e90ca3c28c9362911764a4223a2b514edcb01e",
   "changelog": [
-    "AI bot identity: for known AI bot user agents only, the time, IP, full user agent, path, method and status are sent in signed batches from WP-Cron so the app can check the IP against the operators' published lists. Deleted locally after a successful send or after 7 days at the latest; never stored for people."
+    "Technical fixes from the AgentScope app, only from signed requests: brand in the existing Product structured data (same @id), /llms.txt, robots.txt groups for AI search agents. Listed and removable in Settings."
   ],
   "requires": "6.0",
   "requires_php": "7.4",

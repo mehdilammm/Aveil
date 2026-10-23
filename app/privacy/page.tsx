@@ -34,6 +34,12 @@ export default function PrivacyPage() {
             address or IP address is requested or stored.
           </li>
           <li>
+            <strong>Fixes (only after you approve them):</strong> with a separate write key you add, or through the plugin with signed requests,
+            AgentScope can apply the technical fixes you approved (llms.txt, robots.txt groups, the store&apos;s name as brand) and the one-click
+            or typed fixes you confirm. Each change is logged with who made it, when, the value before and after, so it can be undone. The write key
+            is stored encrypted, apart from the read key.
+          </li>
+          <li>
             <strong>AI bot identity (plugin 1.5 or later, with traffic capture on and the plugin connected):</strong> the IP address is stored only
             for requests whose user agent is a known AI bot (GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, Claude-SearchBot, Claude-User,
             PerplexityBot, Perplexity-User), never for people. For those requests the plugin sends the time, IP address, full user agent, page path
