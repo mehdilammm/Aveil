@@ -1,20 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 
 const ITEMS = [
-  { label: "Overview", path: "" },
-  { label: "AI Traffic", path: "/traffic" },
-  { label: "Store Readiness", path: "/readiness" },
-  { label: "Fix Center", path: "/fix" },
-  { label: "AI Visibility", path: "/visibility" },
-  { label: "AI Revenue", path: "/revenue" },
-  { label: "Reports", path: "/reports" },
+  { label: "overview", path: "" },
+  { label: "traffic", path: "/traffic" },
+  { label: "readiness", path: "/readiness" },
+  { label: "fix", path: "/fix" },
+  { label: "visibility", path: "/visibility" },
+  { label: "impact", path: "/impact" },
+  { label: "revenue", path: "/revenue" },
+  { label: "reports", path: "/reports" },
 ];
 
 export function Nav({ storeId }: { storeId: string | null }) {
   const pathname = usePathname();
+  const t = useTranslations("nav");
   return (
     <nav aria-label="Main">
       {ITEMS.map((item) => {
@@ -22,11 +25,11 @@ export function Nav({ storeId }: { storeId: string | null }) {
         const active = storeId !== null && (item.path === "" ? pathname === href : pathname.startsWith(href));
         return (
           <Link key={item.label} href={href} aria-current={active ? "page" : undefined} className={storeId ? undefined : "disabled"}>
-            {item.label}
+            {t(item.label)}
           </Link>
         );
       })}
-      <Link href="/settings" aria-current={pathname.startsWith("/settings") ? "page" : undefined}>Settings</Link>
+      <Link href="/settings" aria-current={pathname.startsWith("/settings") ? "page" : undefined}>{t("settings")}</Link>
     </nav>
   );
 }

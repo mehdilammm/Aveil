@@ -202,5 +202,24 @@
     "provenance": "{engine} · {model} · {method} · market: {market} · language: {language} · {date}",
     "notRecorded": "not recorded",
     "apiNote": "What the model returned on {date}, through its API. The consumer apps (ChatGPT, Gemini…) can answer differently: they know the user's location, history and settings."
+  },
+  "impact": {
+    "title": "Product Impact",
+    "sub": "For each product of the last scan's sample: readiness gaps, what AI answers said for questions about it, and AI bot visits to its page.",
+    "noScan": "Run a scan first: the summary uses its product sample.",
+    "noKey": "No API key is saved for this store, so its products cannot be read.",
+    "note": "Each part has its own badge: Observed (seen), Heuristic (likely, not proven), Unavailable (no data, with the reason). It does not predict sales.",
+    "fix": "Fix in Fix Center"
+  },
+  "nav": {
+    "overview": "Overview",
+    "traffic": "AI Traffic",
+    "readiness": "Store Readiness",
+    "fix": "Fix Center",
+    "visibility": "AI Visibility",
+    "impact": "Product Impact",
+    "revenue": "AI Revenue",
+    "reports": "Reports",
+    "settings": "Settings"
   }
 }
