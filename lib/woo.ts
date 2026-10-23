@@ -381,3 +381,34 @@ export async function verifyReadKey(baseUrl: string, creds: WooCredentials): Pro
     return { ok: false, reason: err instanceof WooError ? err.message : "The WooCommerce API could not be reached." };
   }
 }
+
+// Site title and tagline from the public WordPress API index. No credentials are sent.
+export async function fetchSiteInfo(baseUrl: string): Promise<Source<{ name: string | null; description: string | null }>> {
+  try {
+    const url = new URL(`${baseUrl}/wp-json/`);
+    url.searchParams.set("_fields", "name,description");
+    const res = await safeFetch(url, { Accept: "application/json" });
+    if (!res.ok) return { ok: false, reason: `The public WordPress API answered HTTP ${res.status}.` };
+    const b = (await res.json()) as { name?: unknown; description?: unknown };
+    return { ok: true, data: { name: typeof b.name === "string" ? b.name : null, description: typeof b.description === "string" ? b.description : null } };
+  } catch (err) {
+    return { ok: false, reason: `The site title could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
+  }
+}
+
+// Product categories with their public links, from the public WordPress API (product_cat). No credentials are sent.
+export async function fetchPublicCategories(baseUrl: string): Promise<Source<{ id: number; name: string; count: number; link: string }[]>> {
+  try {
+    const url = new URL(`${baseUrl}/wp-json/wp/v2/product_cat`);
+    url.searchParams.set("per_page", "100");
+    url.searchParams.set("_fields", "id,name,count,link");
+    const res = await safeFetch(url, { Accept: "application/json" });
+    if (!res.ok) return { ok: false, reason: `The public category list answered HTTP ${res.status}.` };
+    const body = (await res.json()) as { id: number; name: string; count: number; link: string }[];
+    if (!Array.isArray(body)) return { ok: false, reason: "The public category list returned an unexpected response." };
+    const host = new URL(baseUrl).host;
+    return { ok: true, data: body.filter((c) => { try { return new URL(c.link).host === host; } catch { return false; } }).map((c) => ({ id: c.id, name: decodeName(c.name ?? ""), count: Number(c.count ?? 0), link: c.link })) };
+  } catch (err) {
+    return { ok: false, reason: `Categories could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
+  }
+}

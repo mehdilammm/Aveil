@@ -44,7 +44,7 @@ new code, this file updated, commit + push).
 
 | # | Ticket | Status | Notes |
 | --- | --- | --- | --- |
-| D1 | robots.txt patch, WAF guidance, llms.txt generator | Missing | Guidance text exists in findings |
+| D1 | robots.txt patch, WAF guidance, llms.txt generator | Done (2026-10-23) | `/stores/[id]/fix/generators` (owners/admins), copy or download, nothing written to the store. robots.txt: the live file with only the AI agents' lines rewritten (`lib/fixes/robots-patch.ts`), search/shopping agents allowed, training crawlers allow/block by the merchant's choice, the "*" closures copied to the AI groups, idempotent, checked with the scan's parser (verdicts as intended, other bots and sitemaps unchanged), WordPress steps (file, Yoast, Rank Math, virtual file). WAF: copy-only steps from the detected vendor and the last scan's blocked / challenged / 429 bots, allow by the official IP lists. llms.txt: from the site title and tagline, public pages, categories with their public links and counts, sampled products with price (`lib/fixes/llms-txt.ts`), nothing invented, missing parts listed. Tests `lib/fixes/*.test.ts` (matha.site catalog) |
 | D2 | Per-product JSON-LD via plugin from signed payloads | Missing | `JSON_HEX_TAG | JSON_HEX_AMP`, `</script>` test |
 | D3 | Factual description optimizer with diff + approval | Missing | |
 | D4 | Export + opt-in apply (write key), audit log, 1-click undo | Partial | Findings CSV export exists; no apply/undo |

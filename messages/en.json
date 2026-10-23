@@ -94,5 +94,42 @@
   "traffic": {
     "uaOnly": "user agent only, not verified (see Bot identity below)",
     "heuristic": "Heuristic"
+  },
+  "copyBox": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "download": "Download {filename}"
+  },
+  "generators": {
+    "title": "Fix generators",
+    "sub": "Built from your store's own data. Copy them; AgentScope changes nothing on the store.",
+    "back": "Fix Center",
+    "editorsOnly": "Only owners and admins can use the generators.",
+    "noKey": "No API key is saved for this store, so its data cannot be read.",
+    "robotsTitle": "robots.txt patch",
+    "robotsIntro": "Your current robots.txt with the AI agents' rules rewritten. Search and shopping agents are allowed; your other rules, sitemaps and other bots stay as they are. Pages you closed for all bots (\"*\") stay closed for the AI agents too.",
+    "trainingLabel": "AI training crawlers ({bots}):",
+    "trainingAllow": "Allow",
+    "trainingBlock": "Block",
+    "robotsUnchanged": "Your robots.txt already does this. Nothing to change.",
+    "robotsRemoved": "Replaced lines: {lines}",
+    "robotsValid": "Checked with the scan's own parser: {n} bot and page verdicts as intended, other bots unchanged.",
+    "robotsInvalid": "Check failed, do not use this file: {problems}",
+    "wpHow": "How to change robots.txt on WordPress",
+    "wp1": "If a robots.txt file exists in your site's root folder (hosting file manager or FTP), replace its content.",
+    "wp2": "Yoast SEO: Yoast SEO → Tools → File editor. Rank Math: Rank Math → General Settings → Edit robots.txt.",
+    "wp3": "Without a file or SEO plugin, WordPress serves a virtual robots.txt: create the file in the root folder with this content.",
+    "wp4": "Clear the site and CDN cache, open /robots.txt in a browser to check, then run a new scan.",
+    "wafTitle": "Firewall and bot protection",
+    "wafIntro": "Guidance to copy, from what the last scan saw. Protection detected: {vendor}.",
+    "wafLists": "Official IP lists to allow by (a user agent alone can be faked):",
+    "llmsTitle": "llms.txt",
+    "llmsIntro": "A summary of your store for AI tools, written only from your store's data: title, tagline, shop page, categories, products and policy pages. Nothing is invented.",
+    "llmsMissing": "Missing in your store, so left out: {list}.",
+    "llmsHow": "Upload it as {url} (site root, hosting file manager or FTP), then run a new scan."
+  },
+  "fixCenter": {
+    "generatorsNote": "robots.txt patch, firewall guidance and llms.txt, from your store's data.",
+    "generatorsLink": "Open fix generators"
   }
 }
