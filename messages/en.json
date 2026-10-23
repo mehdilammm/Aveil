@@ -130,6 +130,35 @@
   },
   "fixCenter": {
     "generatorsNote": "robots.txt patch, firewall guidance and llms.txt, from your store's data.",
-    "generatorsLink": "Open fix generators"
+    "generatorsLink": "Open fix generators",
+    "descriptionsLink": "Factual descriptions"
+  },
+  "descriptions": {
+    "title": "Factual descriptions",
+    "sub": "Your product text, plus a details list made only of your store's data and what you type. No AI writes it, so nothing is invented.",
+    "back": "Fix Center",
+    "editorsOnly": "Only owners and admins can use this.",
+    "noKey": "No API key is saved for this store, so its products cannot be read.",
+    "pick": "Pick a product (best sellers first, else one per category):",
+    "inputsIntro": "Facts only you know. Leave empty what you are not sure of: it is flagged, never guessed.",
+    "f_material": "Material",
+    "f_use": "Use",
+    "f_care": "Care instructions",
+    "f_warranty": "Warranty",
+    "f_included": "In the box",
+    "f_other": "Other facts",
+    "build": "Build the proposal",
+    "building": "Reading the product…",
+    "review": "Review: current and proposed",
+    "unknowns": "Still unknown (add them to the product or above): {list}.",
+    "current": "Current",
+    "proposed": "Proposed",
+    "onlyFacts": "Every line on the right comes from your product data or your inputs above.",
+    "approve": "Approve",
+    "discard": "Discard",
+    "approvedOn": "Approved on {date}. Copy it into the product, or export all approved texts.",
+    "approvedTitle": "Approved descriptions ({n})",
+    "exportHow": "WooCommerce → Products → Import, tick \"Update existing products\", and upload this file (columns ID and Description). AgentScope does not change your store.",
+    "export": "Export CSV"
   }
 }
