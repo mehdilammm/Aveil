@@ -114,3 +114,4 @@ export async function verifyHit(
 }
 
 export const RETENTION_DEFAULT_DAYS = 90;
+export const RETENTION_MAX_DAYS = 90;

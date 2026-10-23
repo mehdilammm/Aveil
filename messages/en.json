@@ -62,11 +62,11 @@
     "claim": "User agent only",
     "pending": "Being checked",
     "unavailable": "Unavailable",
-    "none": "No bot hits received yet. They need plugin 1.5 or later with traffic capture on.",
+    "none": "No bot hits received yet. They need plugin 1.5.0 or later, with traffic capture on and the plugin connected.",
     "observed": "Observed",
     "observedNote": "Verified: the request's IP is in the operator's published list (OpenAI, Anthropic, Perplexity, Google), or Google's reverse DNS confirms it.",
     "heuristic": "Heuristic",
-    "heuristicNote": "User agent only: the request says it is this bot, but its IP is not in the published list. It may be another tool using the name.",
+    "heuristicNote": "User agent only: the request says it is this bot, but its IP is not in the published list, so the IP was deleted right after the check (it may be a person using the name).",
     "minimum": "Last {days} days. Pages served from a host or CDN cache never reach WordPress, so these counts are a minimum."
   },
   "ownership": {

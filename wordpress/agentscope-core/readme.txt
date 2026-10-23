@@ -4,7 +4,7 @@ Tags: woocommerce, ai, chatgpt, structured data, analytics
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,11 +16,20 @@ AgentScope Core checks whether your WooCommerce store gives AI shopping agents a
 
 * **Store Readiness:** price (missing, zero, invalid, negative, sale not lower than regular), variable product prices, description length (heuristic), featured image, shipping weight, stock consistency, Shop/Cart/Checkout pages and policy pages.
 * **Fix Center:** each finding with evidence, guidance and a link to the product editor. Rescan to confirm.
-* **AI Traffic (opt-in, off by default):** counts requests whose user agent or referrer names a known AI service (OpenAI, Anthropic, Perplexity, Google Gemini, Microsoft Copilot). Daily totals only: no IP address, no full user agent, no page URL, no cookie.
+* **AI Traffic (opt-in, off by default):** counts requests whose user agent or referrer names a known AI service (OpenAI, Anthropic, Perplexity, Google Gemini, Microsoft Copilot). Daily totals: no IP address, no full user agent, no page URL, no cookie (AI bot identity, below, is the only exception, for AI bot user agents only).
 * **Checks and checker tools are kept apart:** requests from the AgentScope app carry an X-AgentScope-Check header and are not counted. Bursts of several AI bots within a minute are counted apart as "likely checker tool" (a heuristic).
 * **AI referral on orders (opt-in, off by default):** when a visitor arrives from an AI assistant (ChatGPT, Perplexity, Gemini, Copilot, Claude and others, by referrer or utm_source), the AI source, how it was matched and the landing path are kept in the WooCommerce session and saved on the order (classic and block checkout, HPOS compatible). A fallback for WooCommerce Order Attribution. No IP, user agent, name or email. When the WP Consent API is active, nothing is stored without "statistics" consent.
 * **Reports:** findings and traffic CSV with formula-injection protection, scan history (last 30 scans).
 * **Optional connection to the AgentScope app:** sends the daily totals to your AgentScope account (see External services).
+
+= AI bot identity (1.5.0) =
+
+Only when traffic capture is on and the plugin is connected to the AgentScope app:
+
+* The IP address is stored only for requests whose user agent is a known AI bot (GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, Claude-SearchBot, Claude-User, PerplexityBot, Perplexity-User). It is never stored for people. For those requests the plugin keeps: time, IP address, full user agent, page path (no query string), method and HTTP status. AgentScope's own checks and checker-tool bursts are not kept.
+* These rows are sent to the AgentScope app in signed batches by WP-Cron (every 15 minutes), never during a page load, and deleted from your site after a successful send, or at the latest 7 days after the request if they could not be sent. Deactivating or deleting the plugin deletes them at once.
+* The app checks each IP against the lists the bot operators publish (OpenAI, Anthropic, Perplexity, and Google's reverse DNS). If the IP is not in the official list, only "user agent only" is kept and the IP is deleted immediately, since it may be a person using a bot's name. Verified bot IPs are kept for at most 90 days.
+* The IP is the one your web server sees (REMOTE_ADDR). Behind a CDN or proxy it is the proxy's address, so the request cannot be verified and is kept as "user agent only".
 
 = Limits =
 
@@ -68,6 +77,7 @@ No. Readiness checks and traffic counts work inside WordPress. The account is on
 
 This plugin connects to the AgentScope app (https://agentscope-peach.vercel.app) in these cases only:
 
+* **Sending AI bot hits** (1.5.0, only with traffic capture on and the app connected) — every 15 minutes from WP-Cron, to /api/ingest/bot-hits: for requests with a known AI bot user agent only, the time, IP address, full user agent, page path without query string, method and HTTP status, signed with the connection token. Never for people. Deleted locally after a successful send, or after 7 days at the latest. See "AI bot identity" above.
 * **Sending traffic totals** — only after you paste a connection code and click Connect. Once a day, and when you click "Send now" or clear test data, it sends the daily totals of the last days: day, AI source, type, confidence, page type, HTTP status, number of requests and the time of the last request. It also sends your store ID and an HMAC signature made with the connection token. No IP address, user agent, page URL, cookie, customer or order data is sent.
 * **Checking for plugin updates** (builds distributed from the AgentScope app only, not the WordPress.org build) — once a day from WP-Cron (never during a page load), a GET request to /api/plugin/latest that returns the latest version, its download link and SHA-256 checksum. It sends no store data and no token; the request's user agent is "AgentScope-Core/<version>". Like any web request, it reveals your server's IP address to the app's host.
 
@@ -84,6 +94,9 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 * GET /wp-json/agentscope-core/v1/selftest
 
 == Changelog ==
+
+= 1.5.0 =
+* AI bot identity: for known AI bot user agents only, the time, IP, full user agent, path, method and status are sent in signed batches from WP-Cron so the app can check the IP against the operators' published lists. Deleted locally after a successful send or after 7 days at the latest; never stored for people.
 
 = 1.4.0 =
 * Optional AI referral note on orders (session → order meta), classic and block checkout; HPOS and block checkout compatibility declared.
@@ -111,6 +124,9 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 * Clean rebuild: paginated scan, scan history, Emerald admin workspace.
 
 == Upgrade Notice ==
+
+= 1.5.0 =
+Adds AI bot identity checks (AI bot user agents only; IPs deleted locally after sending or after 7 days).
 
 = 1.4.0 =
 Adds an optional AI referral note on orders, and moves all network calls to background tasks.

@@ -34,14 +34,14 @@ describe("bot verification jobs", () => {
     });
     const ctx = { admin: client, job: {} as never, step: (async () => null) as never, timeLeft: () => 100_000 };
     await verifyStoreHits(ctx, "s1", async () => ({ hostnames: [], forward: async () => [] }));
-    expect(tables.bot_hits.map((h) => [h.hit_id, h.verified, h.verify_method])).toEqual([["a", true, "ip_range"], ["b", false, null]]);
+    expect(tables.bot_hits.map((h) => [h.hit_id, h.verified, h.verify_method, h.ip])).toEqual([["a", true, "ip_range", "216.73.216.10"], ["b", false, null, null]]);
     await expect(verifyStoreHits({ ...ctx, timeLeft: () => 1000 }, "s1")).rejects.toBeInstanceOf(JobYield);
   });
 
-  it("purge: hits past the store's retention are deleted", async () => {
+  it("purge: hits past the store's retention are deleted, never kept past 90 days", async () => {
     const now = Date.parse("2026-10-23T00:00:00Z");
     const { client, tables } = fakeSupabase({
-      stores: [{ id: "s1", bot_hit_retention_days: 90 }, { id: "s2", bot_hit_retention_days: 7 }],
+      stores: [{ id: "s1", bot_hit_retention_days: 365 }, { id: "s2", bot_hit_retention_days: 7 }],
       bot_hits: [
         { store_id: "s1", hit_id: "old", seen_at: "2026-07-01T00:00:00.000Z" },
         { store_id: "s1", hit_id: "new", seen_at: "2026-10-01T00:00:00.000Z" },
