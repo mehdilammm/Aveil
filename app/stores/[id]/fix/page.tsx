@@ -32,7 +32,10 @@ export default async function FixCenterPage({ params }: { params: Promise<{ id: 
       </div>
       <p className="card row" style={{ justifyContent: "space-between" }}>
         <span className="muted">{t("generatorsNote")}</span>
-        <Link className="button secondary" href={`/stores/${store.id}/fix/generators`}>{t("generatorsLink")}</Link>
+        <span className="row">
+          <Link className="button secondary" href={`/stores/${store.id}/fix/generators`}>{t("generatorsLink")}</Link>
+          <Link className="button secondary" href={`/stores/${store.id}/fix/descriptions`}>{t("descriptionsLink")}</Link>
+        </span>
       </p>
       {lastComplete && findings.length === 0 && <p className="notice">No open findings.</p>}
       {findings.map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} />)}

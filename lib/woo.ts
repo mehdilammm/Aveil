@@ -412,3 +412,33 @@ export async function fetchPublicCategories(baseUrl: string): Promise<Source<{ i
     return { ok: false, reason: `Categories could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
   }
 }
+
+type RawProduct = {
+  id: number; name: string; description?: string; short_description?: string; categories?: { name: string }[];
+  attributes?: { name: string; options?: string[] }[]; sku?: string; global_unique_id?: string; brands?: { name: string }[];
+  weight?: string; dimensions?: { length: string; width: string; height: string };
+};
+
+// One product's facts for the description optimizer, with the store's weight and size units.
+export async function fetchProductFacts(baseUrl: string, creds: WooCredentials, productId: number): Promise<Source<import("./fixes/description").ProductFacts>> {
+  try {
+    const [{ items }, units] = await Promise.all([
+      getPage<RawProduct>(baseUrl, "/products", { include: String(productId), _fields: "id,name,description,short_description,categories,attributes,sku,global_unique_id,brands,weight,dimensions" }, creds),
+      fetchSettings(baseUrl, ["products"], creds),
+    ]);
+    const p = items[0];
+    if (!p) return { ok: false, reason: `Product #${productId} was not found.` };
+    const u = units.ok ? units.data : {};
+    return {
+      ok: true,
+      data: {
+        id: p.id, name: decodeName(p.name ?? ""), description: p.description ?? null, short_description: p.short_description ?? null,
+        categories: (p.categories ?? []).map((c) => decodeName(c.name)), attributes: (p.attributes ?? []).map((a) => ({ name: a.name, options: a.options ?? [] })),
+        sku: p.sku || null, gtin: p.global_unique_id || null, brand: p.brands?.[0]?.name ? decodeName(p.brands[0].name) : null, weight: p.weight || null,
+        dimensions: p.dimensions ?? null, weightUnit: u.woocommerce_weight_unit || null, dimensionUnit: u.woocommerce_dimension_unit || null,
+      },
+    };
+  } catch (err) {
+    return { ok: false, reason: reason("this product", err) };
+  }
+}
