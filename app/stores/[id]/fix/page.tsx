@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { formatDate } from "@/components/badges";
 import { FindingCard } from "@/components/finding-card";
 import { findingsForScan, getStore, listScans, sortForFixing, openJobId } from "@/lib/data";
@@ -11,6 +13,7 @@ export default async function FixCenterPage({ params }: { params: Promise<{ id: 
   const store = await getStore(supabase, id);
   if (!store) notFound();
   const scanJobId = await openJobId(supabase, store.id, "scan");
+  const t = await getTranslations("fixCenter");
 
   const lastComplete = (await listScans(supabase, id, 20)).find((s) => s.status === "complete");
   const findings = lastComplete ? sortForFixing(await findingsForScan(supabase, lastComplete.id)) : [];
@@ -27,6 +30,10 @@ export default async function FixCenterPage({ params }: { params: Promise<{ id: 
         <span className="muted">Fixed something? Scan again to confirm it is resolved.</span>
         <RunScanButton storeId={store.id} openJobId={scanJobId} label="Rescan to verify" />
       </div>
+      <p className="card row" style={{ justifyContent: "space-between" }}>
+        <span className="muted">{t("generatorsNote")}</span>
+        <Link className="button secondary" href={`/stores/${store.id}/fix/generators`}>{t("generatorsLink")}</Link>
+      </p>
       {lastComplete && findings.length === 0 && <p className="notice">No open findings.</p>}
       {findings.map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} />)}
     </>
