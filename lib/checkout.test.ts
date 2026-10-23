@@ -46,6 +46,16 @@ describe("checkout rules", () => {
   it("checkout blocked for GPTBot, or behind a captcha", () => {
     expect(keys({ ...matha, checkoutPage: { url: "https://matha.site/checkout/", browser: page(200), bot: page(403) } })).toContain("checkout:blocked_bots/high/observed");
     expect(keys({ ...matha, checkoutPage: { url: "https://matha.site/checkout/", browser: page(200), bot: page(200, "", true) } })).toContain("checkout:blocked_bots/high/observed");
+    // A 429 is a rate limit, not a block (seen on matha.site right after the access test): heuristic, medium.
+    const limited = keys({ ...matha, checkoutPage: { url: "https://matha.site/checkout/", browser: page(200), bot: page(429), botRetried: true } });
+    expect(limited).toContain("checkout:rate_limited_bots/medium/heuristic");
+    expect(limited).not.toContain("checkout:blocked_bots/high/observed");
+    const ev = checkCheckout({ ...matha, checkoutPage: { url: "https://matha.site/checkout/", browser: page(200), bot: page(429), botRetried: true } }).find((x) => x.type === "checkout_rate_limited_bots")!.evidence;
+    expect(ev).toContain("even after waiting and one retry");
+    // 401 and a challenge page in the body are blocks, like in the access test; 503 is not counted as a block.
+    expect(keys({ ...matha, checkoutPage: { url: "x", browser: page(200), bot: page(401) } })).toContain("checkout:blocked_bots/high/observed");
+    expect(keys({ ...matha, checkoutPage: { url: "x", browser: page(200), bot: page(200, "<title>Just a moment...</title>") } })).toContain("checkout:blocked_bots/high/observed");
+    expect(keys({ ...matha, checkoutPage: { url: "x", browser: page(200), bot: page(503) } })).not.toContain("checkout:blocked_bots/high/observed");
     expect(keys({ ...matha, checkoutPage: { url: "x", browser: page(200, '<div class="cf-turnstile" data-sitekey="1"></div>'), bot: page(200) } })).toContain("checkout:captcha/medium/heuristic");
   });
 

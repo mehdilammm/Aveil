@@ -29,7 +29,7 @@ const strip = ({ type: _t, ...r }: FunnelFinding): Reason => r;
 const blocking = (f: FunnelFinding) => f.basis !== "unavailable" && (f.severity === "high" || (f.severity === "medium" && f.basis === "observed"));
 
 export function stageOfFinding(f: { type: string; finding_key: string }): "access" | "understand" | "buy" {
-  if (f.type === "checkout_blocked_bots" || f.type.startsWith("access_") || f.type.startsWith("robots_")) return "access";
+  if (f.type === "checkout_blocked_bots" || f.type === "checkout_rate_limited_bots" || f.type.startsWith("access_") || f.type.startsWith("robots_")) return "access";
   if (f.type.startsWith("checkout_")) return "buy";
   const area = areaOf(f);
   return area === "access" ? "access" : "understand";
