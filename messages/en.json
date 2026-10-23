@@ -141,7 +141,21 @@
     "recheckRow": "Day {day} ({date}), after {n} fix(es)",
     "recheckDone": "run done: see AI Visibility",
     "recheckFailed": "not run:",
-    "recheckPending": "scheduled"
+    "recheckPending": "scheduled",
+    "score": "Priority {score} = impact {impact} × confidence {confidence} ÷ effort {effort}",
+    "formula": "How the order is computed (weights you can change)",
+    "w_high": "Critical",
+    "w_medium": "Warning",
+    "w_low": "Low",
+    "w_store": "Store-wide ×",
+    "w_heuristic": "Heuristic confidence",
+    "apply": "Apply",
+    "formulaNote": "Priority = (Impact × Confidence) ÷ Effort. Impact = severity weight, × store-wide factor when it affects the whole store. Confidence: Observed 1.0, Heuristic 0.5 by default. Effort: 1 a setting or a copied file, 2 content in the store, 3 a developer or host change. Unavailable findings are not ranked: they need a check first.",
+    "g_store": "Store-wide blockers",
+    "g_high_value": "High-value product fixes",
+    "g_product": "Other product fixes",
+    "g_check": "To check first (unavailable)",
+    "checkNote": "These could not be checked, so they are not ranked. The evidence says why."
   },
   "descriptions": {
     "title": "Factual descriptions",

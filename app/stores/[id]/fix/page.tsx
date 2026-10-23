@@ -7,10 +7,11 @@ import { findingsForScan, getStore, listScans, sortForFixing, openJobId } from "
 import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "../run-scan-button";
 import { VerifyButton } from "./verify-button";
+import { fixQueue, weightsFrom } from "@/lib/fix-queue";
 import { canEdit, storeAccess } from "@/lib/workspace";
 
-export default async function FixCenterPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function FixCenterPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
@@ -29,6 +30,11 @@ export default async function FixCenterPage({ params }: { params: Promise<{ id: 
 
   const lastComplete = (await listScans(supabase, id, 20)).find((s) => s.status === "complete");
   const findings = lastComplete ? sortForFixing(await findingsForScan(supabase, lastComplete.id)) : [];
+  // Priority queue: (Impact × Confidence) / Effort; high-value products are the scan's sample.
+  const { data: sampleRows } = lastComplete ? await supabase.from("scan_schema_pages").select("product_id").eq("scan_id", lastComplete.id) : { data: [] };
+  const weights = weightsFrom(query);
+  const queue = fixQueue(findings, new Set((sampleRows ?? []).map((r) => Number(r.product_id))), weights);
+  const unavailable = findings.filter((f) => f.basis === "unavailable");
 
   return (
     <>
@@ -50,20 +56,50 @@ export default async function FixCenterPage({ params }: { params: Promise<{ id: 
         </span>
       </p>
       {lastComplete && findings.length === 0 && <p className="notice">No open findings.</p>}
-      {findings.map((f) => {
-        const v = verifications.get(f.finding_key);
+      {findings.length > 0 && (
+        <details className="card">
+          <summary className="small">{t("formula")}</summary>
+          <form className="row small" style={{ flexWrap: "wrap", gap: 8 }}>
+            {(["w_high", "w_medium", "w_low", "w_store", "w_heuristic"] as const).map((k) => (
+              <label key={k} className="small">{t(k)} <input name={k} type="number" step="0.5" min="0" max="10" defaultValue={String(k === "w_high" ? weights.severity.high : k === "w_medium" ? weights.severity.medium : k === "w_low" ? weights.severity.low : k === "w_store" ? weights.storeWide : weights.confidence.heuristic)} style={{ width: 70 }} /></label>
+            ))}
+            <button className="secondary">{t("apply")}</button>
+          </form>
+          <p className="muted small">{t("formulaNote")}</p>
+        </details>
+      )}
+      {(["store", "high_value", "product"] as const).map((g) => {
+        const items = queue.filter((q) => q.group === g);
+        if (!items.length) return null;
         return (
-          <FindingCard key={f.finding_key} finding={f} storeUrl={store.url}>
-            {v && v.status !== "running" && (
-              <p className="small">
-                <span className={`badge ${v.status === "resolved" ? "state-resolved" : v.status === "still_open" ? "sev-medium" : "basis-unavailable"}`}>{t(`v_${v.status}`)}</span>{" "}
-                {v.checked_at ? t("checkedAt", { date: formatDate(v.checked_at) }) : ""} {v.evidence}
-              </p>
-            )}
-            {editor && f.basis !== "unavailable" && <VerifyButton storeId={store.id} findingKey={f.finding_key} openJobId={v?.status === "running" ? v.job_id : null} />}
-          </FindingCard>
+          <section key={g}>
+            <h2>{t(`g_${g}`)} ({items.length})</h2>
+            {items.map((item) => {
+              const f = item.finding;
+              const v = verifications.get(f.finding_key);
+              return (
+                <FindingCard key={f.finding_key} finding={f} storeUrl={store.url}>
+                  {item && <p className="small muted">{t("score", { score: item.score, impact: item.impact, confidence: item.confidence, effort: item.effort })}</p>}
+                  {v && v.status !== "running" && (
+                    <p className="small">
+                      <span className={`badge ${v.status === "resolved" ? "state-resolved" : v.status === "still_open" ? "sev-medium" : "basis-unavailable"}`}>{t(`v_${v.status}`)}</span>{" "}
+                      {v.checked_at ? t("checkedAt", { date: formatDate(v.checked_at) }) : ""} {v.evidence}
+                    </p>
+                  )}
+                  {editor && f.basis !== "unavailable" && <VerifyButton storeId={store.id} findingKey={f.finding_key} openJobId={v?.status === "running" ? v.job_id : null} />}
+                </FindingCard>
+              );
+            })}
+          </section>
         );
       })}
+      {unavailable.length > 0 && (
+        <section>
+          <h2>{t("g_check")} ({unavailable.length})</h2>
+          <p className="muted small">{t("checkNote")}</p>
+          {unavailable.map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} />)}
+        </section>
+      )}
 
       {rechecks.length > 0 && (
         <>
