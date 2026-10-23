@@ -5,6 +5,28 @@ Every milestone ends with the verification gate (tsc, lint (`npm run lint`: oxli
 review, plugin performance and escaping checks, no `TODO`/`mock`/`dummy`/`placeholder` or hardcoded UI strings in
 new code, this file updated, commit + push).
 
+## Approvals on record (see MASTER_PROMPT.md)
+
+- APPROVED: workspaces / workspace_members as the tenant — 2026-10-22
+- APPROVED: Gemini free tier (ungrounded) — 2026-10-22
+- APPROVED: Groq / NVIDIA helper models (internal tasks) — 2026-10-22
+- APPROVED: ai_orders + order_syncs — 2026-10-23
+- APPROVED: jobs + pg_cron / pg_net tick — 2026-10-23
+- APPROVED: bot_hits + official IP lists (IP rules in B5) — 2026-10-23
+- APPROVED: write key + Auto-fix + FixAuditLog + undo — 2026-10-23
+- APPROVED: pg_net to the extensions schema — 2026-10-23 (to do from the dashboard)
+
+## Gaps from the master prompt (in priority order)
+
+| # | Gap | Status |
+| --- | --- | --- |
+| G1 | Data export + hard delete for the workspace owner | Missing |
+| G2 | Tenant isolation tests | Missing |
+| G3 | Safe shareable report | Partial (only /check reports) |
+| G4 | Arabic clause templates for impact sentences | Missing |
+| G5 | Visibility outcome track (7/14/30 days) | Partial (runs scheduled, no comparison view) |
+| G6 | /check → full scan conversion | Partial (sign-up link only) |
+
 ## Milestone A — Do agents buy? If not, why?
 
 | # | Ticket | Status | What exists | Acceptance criteria |
