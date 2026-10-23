@@ -4,6 +4,7 @@ import { getStore } from "@/lib/data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { splitCheckerRows } from "@/lib/traffic";
+import { BotIdentity } from "@/components/bot-identity";
 
 const DAYS = 30;
 
@@ -74,13 +75,15 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
     <>
       {head}
       <div className="card">
-        <span className="badge basis-observed">Observed</span> <span className="muted">unverified user agent</span>
+        <span className="badge basis-heuristic">Heuristic</span> <span className="muted">user agent only, not verified (see Bot identity below)</span>
         <p className="muted">
           Counted by the plugin on WordPress: only requests handled by PHP, while capture is on. User agents and referrers can be faked, and pages served
           from a host or CDN cache are not counted. This is not proof of AI recommendations, real customers or sales.
         </p>
         <p className="muted">Last data received: {connector?.last_ingest_at ? new Date(connector.last_ingest_at).toUTCString() : "none yet"}</p>
       </div>
+
+      <BotIdentity supabase={supabase} storeId={store.id} />
 
       {checkerTotal > 0 && (
         <>

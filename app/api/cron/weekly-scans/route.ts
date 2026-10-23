@@ -56,6 +56,8 @@ export async function GET(request: Request) {
       results.push({ storeId: store.id, error: "could not queue" });
     }
   }
+  // Daily housekeeping jobs: the bots' IP lists, and old bot hits.
+  await admin.from("jobs").insert([{ kind: "bot_ranges_refresh" }, { kind: "bot_hits_purge" }]);
   const ticked = await tick(admin, JOB_HANDLERS, Math.max(0, TIME_BUDGET_MS - (Date.now() - started))).catch(() => ({ ran: 0, results: [] }));
   return NextResponse.json({ queued: results.filter((r) => r.jobId && !r.error).length, results, ran: ticked.ran });
 }
