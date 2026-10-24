@@ -10,6 +10,8 @@ import { VerifyButton } from "./verify-button";
 import { AutoFixPanel, FixAction, UndoButton, WriteKeyForm } from "./autofix-ui";
 import { fixFor } from "@/lib/fix-catalog";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PlanLock } from "@/components/plan-lock";
+import { storePlan } from "@/lib/plan-gate";
 import { fixQueue, weightsFrom } from "@/lib/fix-queue";
 import { canEdit, storeAccess } from "@/lib/workspace";
 
@@ -24,6 +26,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
   const editor = Boolean(access && canEdit(access.role));
   const ta = await getTranslations("autofix");
   const adminDb = createAdminClient();
+  const plan = await storePlan(adminDb, store.id);
   const [{ data: setting }, { data: writeKey }, { data: audit }] = await Promise.all([
     adminDb.from("stores").select("auto_fix_enabled, auto_fix_approved_at").eq("id", store.id).maybeSingle(),
     adminDb.from("store_write_credentials").select("key_hint").eq("store_id", store.id).maybeSingle(),
@@ -81,7 +84,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
           {editor && <UndoButton storeId={store.id} batchId={lastAuto.batch_id} />}
         </p>
       )}
-      {editor && <AutoFixPanel storeId={store.id} enabled={Boolean(setting?.auto_fix_enabled)} approvedAt={setting?.auto_fix_approved_at ?? null} />}
+      {editor && (plan.autoFix ? <AutoFixPanel storeId={store.id} enabled={Boolean(setting?.auto_fix_enabled)} approvedAt={setting?.auto_fix_approved_at ?? null} /> : <PlanLock feature="autoFix" />)}
       {editor && <WriteKeyForm storeId={store.id} hint={writeKey?.key_hint ?? null} />}
       {findings.length > 0 && (
         <details className="card">

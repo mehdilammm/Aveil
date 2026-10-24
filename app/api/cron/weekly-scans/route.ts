@@ -4,6 +4,7 @@ import { JOB_HANDLERS } from "@/lib/job-handlers";
 import { tick } from "@/lib/jobs";
 import { enqueueScan } from "@/lib/scan";
 import { dueForWeeklyScan } from "@/lib/schedule";
+import { PLANS, RUN_DAYS, type PlanId } from "@/lib/plans";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -22,7 +23,7 @@ function authorized(header: string | null): boolean {
 }
 
 // Called daily by Vercel Cron (see vercel.json). Queues a scan job for each store whose last complete scan is
-// 7+ days old, then runs the queue for the rest of its time (pg_cron's minute tick does the same all day).
+// older than its plan's interval (7 days on Pro and Agency, 30 on Free), then runs the queue for the rest of its time (pg_cron's minute tick does the same all day).
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) return NextResponse.json({ error: "CRON_SECRET is not set; scheduled scans are off." }, { status: 503 });
   if (!authorized(request.headers.get("authorization"))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
   const started = Date.now();
   const now = new Date();
   const admin = createAdminClient();
-  const { data: stores, error } = await admin.from("stores").select("id, owner_id, url, workspace_id").order("created_at");
+  const { data: stores, error } = await admin.from("stores").select("id, owner_id, url, workspace_id, workspaces(plan)").order("created_at");
   if (error) return NextResponse.json({ error: "Could not list stores" }, { status: 500 });
 
   const results: { storeId: string; jobId?: string; error?: string }[] = [];
@@ -48,9 +49,11 @@ export async function GET(request: Request) {
       lastScheduledAt: list.find((s) => s.trigger === "scheduled")?.created_at ?? null,
       running: list.some((s) => (s.status === "running" || s.status === "queued") && Date.now() - Date.parse(s.created_at) < STALE_RUNNING_MS),
     };
-    if (!dueForWeeklyScan(state, now)) continue;
+    const ws = (store as { workspaces?: { plan?: string } | { plan?: string }[] }).workspaces;
+    const planId = ((Array.isArray(ws) ? ws[0]?.plan : ws?.plan) ?? "free") as PlanId;
+    if (!dueForWeeklyScan(state, now, RUN_DAYS[(PLANS[planId] ?? PLANS.free).scanEvery])) continue;
     try {
-      results.push({ storeId: store.id, ...(await enqueueScan(admin, store, "scheduled", null)) });
+      results.push({ storeId: store.id, ...(await enqueueScan(admin, { id: store.id, owner_id: store.owner_id, url: store.url, workspace_id: store.workspace_id }, "scheduled", null)) });
     } catch (err) {
       console.error("scheduled scan could not be queued", store.id, err instanceof Error ? err.message : "unknown");
       results.push({ storeId: store.id, error: "could not queue" });

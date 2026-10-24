@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { applyFixes, fixContext, planAuto } from "@/lib/autofix";
 import { fixAccess } from "@/lib/fix-access";
+import { lockedReason, storePlan } from "@/lib/plan-gate";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -33,6 +34,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await a.admin.from("stores").update({ auto_fix_enabled: false }).eq("id", a.store.id);
     return NextResponse.json({ enabled: false });
   }
+  if (!(await storePlan(a.admin, a.store.id)).autoFix) return NextResponse.json({ error: lockedReason("autoFix") }, { status: 403 });
   if (body.action !== "enable" || body.confirm !== true) return NextResponse.json({ error: "Confirm the preview to turn on auto-fix." }, { status: 400 });
   const findings = await lastFindings(a.admin, a.store.id);
   if (!findings) return NextResponse.json({ error: "Run a scan first." }, { status: 409 });

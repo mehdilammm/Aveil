@@ -67,6 +67,7 @@ Reporting: two lines after each part; the long report after G6 and after G10.
 - APPROVED: bot_hits + official IP lists (IP only for AI bot user agents; unverified IPs deleted at once; verified kept ≤ 90 days; plugin deletes after send or ≤ 7 days) — 2026-10-23
 - APPROVED: write key + Auto-fix + FixAuditLog + undo (preview and one approval; plugin 1.6.0 signed fixes) — 2026-10-23
 - APPROVED: moving pg_net to the extensions schema — 2026-10-23 (pending: must be done from the Supabase dashboard)
+- APPROVED: G7 plans — Free $0 (1 store, full readiness audit monthly, full Fix Center: manual + one-click + input + CSV, funnel without orders, 3 AI visibility questions per month, CSV export), Pro $29 (3 stores, weekly scans, auto-fix, 25 visibility questions/week, verified bot traffic, AI orders + full funnel + why agents aren't buying, share links + weekly report), Agency $49 (10 stores, everything in Pro + workspaces, team, client reports). Prices unchanged. Locked features show "Unavailable: needs Pro plan" with an Upgrade button (waitlist for now). matha.site workspace stays a pro test override — 2026-10-24
 
 ## Reconciliation (2026-10-23)
 

@@ -93,7 +93,8 @@
   },
   "traffic": {
     "uaOnly": "user agent only, not verified (see Bot identity below)",
-    "heuristic": "Heuristic"
+    "heuristic": "Heuristic",
+    "lockedNote": "The plugin keeps sending daily totals: they still feed the AI Revenue funnel on every plan."
   },
   "copyBox": {
     "copy": "Copy",
@@ -237,7 +238,8 @@
       "needsPlugin": "AI bot visits per page need plugin 1.5.0 with traffic capture on",
       "verified": "{verified, plural, one {# verified AI bot visit} other {# verified AI bot visits}} to its page in {days} days{claim, plural, =0 {} other { (+# user-agent only)}}",
       "claimed": "{claim, plural, one {# AI bot visit} other {# AI bot visits}} claimed by user agent only in {days} days, none verified",
-      "noVisit": "no AI bot visit to its page seen in {days} days (cached pages are not seen)"
+      "noVisit": "no AI bot visit to its page seen in {days} days (cached pages are not seen)",
+      "needsPro": "verified AI bot visits per page: Unavailable, needs Pro plan"
     },
     "sep": "; "
   },
@@ -369,7 +371,8 @@
       "structured_data": "Structured data",
       "store_pages": "Store pages",
       "checkout": "Checkout"
-    }
+    },
+    "preparedBy": "Prepared by {name}"
   },
   "outcome": {
     "title": "After your fixes",
@@ -394,5 +397,41 @@
     "title": "From your free check of {host}",
     "body": "Add a read-only WooCommerce key to run the full scan. It starts as soon as the store is saved.",
     "submit": "Add store and start the full scan"
+  },
+  "plan": {
+    "locked": "Unavailable: needs {plan} plan",
+    "upgrade": "Upgrade",
+    "why": {
+      "autoFix": "Auto-fix applies safe fixes on every scan, with a preview, one approval and undo.",
+      "botTraffic": "Verified AI bot visits per bot and page, checked against the official IP lists.",
+      "shareReports": "Read-only share links and the weekly report.",
+      "aiRevenue": "AI-referred orders and revenue.",
+      "workspaceMembers": "Workspaces for clients, team members and invites.",
+      "clientReports": "Client reports with your workspace name."
+    }
+  },
+  "pricingPage": {
+    "title": "Pricing",
+    "sub": "Start free. Paid plans open soon: join the waitlist and we will email you when payments are ready.",
+    "perMonth": "/month",
+    "signup": "Sign up free",
+    "foot": "Prices in US dollars. No plan promises AI visibility or sales: AgentScope shows what it observed and how to fix it.",
+    "f": {
+      "publicCheck": "Free check of any store, no account",
+      "stores": "{stores, plural, one {# store} other {# stores}}",
+      "monthlyScan": "Full readiness audit every month (and on demand to check fixes)",
+      "weeklyScan": "Weekly scans",
+      "fixCenter": "Full Fix Center: manual, one-click and input fixes, CSV exports",
+      "autoFix": "Auto-fix with preview, one approval and undo",
+      "visibility": "AI visibility: {questions} questions a{per, select, week { week} other { month}}",
+      "funnelNoOrders": "AI Revenue funnel and \"why agents aren't buying\" (without orders)",
+      "csv": "CSV export of findings",
+      "botTraffic": "Verified AI bot traffic (official IP lists)",
+      "aiOrders": "AI-referred orders, full funnel and \"why agents aren't buying\"",
+      "shareReports": "Read-only share links and the weekly report",
+      "everythingPro": "Everything in Pro",
+      "workspaces": "Client workspaces, team members and invites",
+      "clientReports": "Client reports with your workspace name"
+    }
   }
 }

@@ -39,6 +39,7 @@ export default async function SharedReportPage({ params }: { params: Promise<{ t
         <h1>{t("pageTitle", { host: s.store.host })}</h1>
         <p className="sub">{t("scannedOn", { date: formatDate(s.scan.finished_at), count: s.scan.scanned_products ?? 0 })}</p>
       </div>
+      {s.preparedBy && <p><strong>{t("preparedBy", { name: s.preparedBy })}</strong></p>}
       <p className="muted">{t("snapshotNote")}</p>
       <div className="card row">
         <span><SeverityBadge severity="high" /> {s.counts.high}</span>

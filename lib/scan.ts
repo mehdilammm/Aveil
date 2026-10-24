@@ -391,6 +391,7 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
     await step("autofix", async () => {
       const { data: setting } = await admin.from("stores").select("auto_fix_enabled").eq("id", store.id).maybeSingle();
       if (!setting?.auto_fix_enabled) return { skipped: "off" };
+      if (!PLANS[await planOf(admin, store.id)].autoFix) return { skipped: "plan" };
       need(STEP_BUDGET_MS.store);
       await progress("autofix");
       return runAutoFix(admin, store, scanId);

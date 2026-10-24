@@ -6,6 +6,8 @@ import { getUser } from "@/lib/supabase/server";
 import { splitCheckerRows } from "@/lib/traffic";
 import { BotIdentity } from "@/components/bot-identity";
 import { getTranslations } from "next-intl/server";
+import { PlanLock } from "@/components/plan-lock";
+import { storePlan } from "@/lib/plan-gate";
 
 const DAYS = 30;
 
@@ -51,6 +53,8 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
       <p className="sub">Visits from AI assistants and shopping agents, last {DAYS} days.</p>
     </div>
   );
+
+  if (!(await storePlan(createAdminClient(), store.id)).botTraffic) return <>{head}<PlanLock feature="botTraffic" note={t("lockedNote")} /></>;
 
   // Bursts the plugin marked as likely checker tools are shown apart, never in the main numbers.
   const { main: rows, checker } = splitCheckerRows(all.filter((r) => r.hits > 0));

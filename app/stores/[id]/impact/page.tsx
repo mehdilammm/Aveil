@@ -9,6 +9,7 @@ import { pageUrlOf } from "@/lib/sampling";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { storeAccess } from "@/lib/workspace";
+import { storePlan } from "@/lib/plan-gate";
 
 export const dynamic = "force-dynamic";
 const DAYS = 30;
@@ -40,6 +41,7 @@ export default async function ProductImpactPage({ params }: { params: Promise<{ 
     supabase.from("visibility_runs").select("id").eq("store_id", store.id).eq("status", "complete").order("created_at", { ascending: false }).limit(1),
   ]);
   const { data: results } = runs?.[0] ? await supabase.from("visibility_results").select("prompt, mentioned, error").eq("run_id", runs[0].id) : { data: [] };
+  const trafficLocked = !(await storePlan(admin, store.id)).botTraffic;
   const since = new Date(Date.now() - DAYS * 86_400_000).toISOString();
   const { data: hitRows } = await supabase.from("bot_hits").select("url_path, verified").eq("store_id", store.id).gte("seen_at", since).limit(20_000);
   const anyHits = (hitRows ?? []).length > 0;
@@ -60,6 +62,7 @@ export default async function ProductImpactPage({ params }: { params: Promise<{ 
         answers: (results ?? []) as { prompt: string; mentioned: boolean | null; error: string | null }[],
         hits: anyHits ? { verified: mine.filter((h) => h.verified === true).length, claim: mine.filter((h) => h.verified === false).length, pending: mine.filter((h) => h.verified === null).length } : null,
         days: DAYS,
+        trafficLocked,
       }),
     };
   });

@@ -17,3 +17,13 @@ describe("dueForWeeklyScan", () => {
     expect(dueForWeeklyScan({ ...base, running: true }, now)).toBe(false);
   });
 });
+
+describe("scheduled scans follow the plan", () => {
+  it("Free is due after 30 days, Pro after 7", () => {
+    const now = new Date("2026-10-24T03:00:00Z");
+    const s = (daysAgo: number) => ({ storeId: "s", lastCompleteAt: new Date(now.getTime() - daysAgo * 86_400_000).toISOString(), lastScheduledAt: null, running: false });
+    expect(dueForWeeklyScan(s(10), now, 30)).toBe(false);
+    expect(dueForWeeklyScan(s(30), now, 30)).toBe(true);
+    expect(dueForWeeklyScan(s(10), now, 7)).toBe(true);
+  });
+});

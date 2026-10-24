@@ -5,6 +5,9 @@ import { shareState } from "@/lib/share-report";
 import { getUser } from "@/lib/supabase/server";
 import { canEdit, storeAccess } from "@/lib/workspace";
 import { ShareLinks } from "./share-links";
+import { PlanLock } from "@/components/plan-lock";
+import { workspacePlan } from "@/lib/plan-gate";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function ReportsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,6 +20,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
   const lastComplete = scans.find((s) => s.status === "complete");
   const weekly = await weeklyReport(supabase, scans);
   const access = user ? await storeAccess(supabase, user.id, store.id) : null;
+  const plan = access ? await workspacePlan(createAdminClient(), access.workspace_id) : null;
   const { data: shareRows } = await supabase.from("share_reports").select("id, created_at, expires_at, revoked_at, views").eq("store_id", store.id).order("created_at", { ascending: false }).limit(50);
   const now = Date.now();
   const links = (shareRows ?? []).map((r) => ({ ...r, state: shareState(r, now) as "ok" | "expired" | "revoked" }));
@@ -37,10 +41,12 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
         {lastComplete && <a className="button" href={`/api/stores/${store.id}/report.csv`} download>Download CSV</a>}
       </div>
 
-      <ShareLinks storeId={store.id} links={links} canShare={Boolean(access && canEdit(access.role))} hasScan={Boolean(lastComplete)} />
+      {plan?.shareReports ? <ShareLinks storeId={store.id} links={links} canShare={Boolean(access && canEdit(access.role))} hasScan={Boolean(lastComplete)} /> : <PlanLock feature="shareReports" />}
 
       <h2>Weekly report</h2>
-      {weekly ? (
+      {!plan?.shareReports ? (
+        <PlanLock feature="shareReports" />
+      ) : weekly ? (
         <div className="card">
           <p className="muted">
             {formatDate(weekly.summary.fromDate)} → {formatDate(weekly.summary.toDate)} · {weekly.summary.open} open findings now
