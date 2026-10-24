@@ -1,7 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findingState } from "./history";
-import { runStructuredChecks } from "./agent-checks";
+import { fetchText, runStructuredChecks } from "./agent-checks";
+import { checkAgenticSupport } from "./agentic-protocols";
 import { connectionAfterScan } from "./connection";
 import { checkFeedProduct, checkFeedStore } from "./feed";
 import { checkStoreGate, describePage, pageGate } from "./gate";
@@ -12,7 +13,7 @@ import { checkCheckout } from "./checkout";
 import { planOf, syncOrders } from "./orders-sync";
 import { PLANS } from "./plans";
 import { BROWSER_UA, AI_BOTS, retryAfterMs } from "./access";
-import { fetchPublicPage, MAX_PRODUCT_PAGES, WooError, type PageFetch, type WooCredentials } from "./woo";
+import { fetchActivePlugins, fetchPublicPage, MAX_PRODUCT_PAGES, WooError, type PageFetch, type WooCredentials } from "./woo";
 import { wooCommerceAdapter } from "./platform/woocommerce";
 import { recordVerification } from "./ownership-store";
 import { runAutoFix } from "./autofix-run";
@@ -299,6 +300,12 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
             outOfStock: products.filter((p) => p.stock_status === "outofstock").length,
             needShipping: products.filter((p) => !p.virtual).length,
           },
+        }));
+        // Agentic checkout support (information only): the two protocols' well-known documents and plugins.
+        findings.push(checkAgenticSupport(store.url, {
+          ucp: await fetchText(`${store.url}/.well-known/ucp`, checkToken),
+          acp: await fetchText(`${store.url}/.well-known/acp.json`, checkToken),
+          plugins: await fetchActivePlugins(store.url, creds),
         }));
         await saveFindings(admin, store, scanId, "store", findings);
         return { currency, sample, basis: picked.basis, findings: findings.length };

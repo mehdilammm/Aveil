@@ -74,7 +74,7 @@ export async function runAccessCheck(
 
 const CHECKER_UA = "AgentScope/0.3 (+store readiness check)";
 
-async function fetchText(url: string, checkToken: string | null): Promise<Source<RobotsFetch>> {
+export async function fetchText(url: string, checkToken: string | null): Promise<Source<RobotsFetch>> {
   const res = await fetchPublicPage(url, CHECKER_UA, checkToken);
   if (!res.ok) return { ok: false, reason: `${url} could not be loaded: ${res.error}.` };
   if (res.redirectedTo) return { ok: true, data: { status: 404, text: "" } };

@@ -3,6 +3,7 @@
 import { createHmac } from "node:crypto";
 import { ACCESS_NOTE, checkAccess, type BotName, type PageResult } from "./access";
 import { describePage, pageGate, type Gate } from "./gate";
+import { checkAgenticSupport } from "./agentic-protocols";
 import { detectProtection, ERROR_TITLE_RE, servedVia, type Protection } from "./protection";
 import { checkShopifyProducts, detectShopify, handleOf, SHOPIFY_LIST_NOTE, shopifyPricesByHandle, shopifyProductUrl } from "./shopify";
 import { checkStoreApiProducts, pathOf, STORE_API_NOTE } from "./woo-store-api";
@@ -474,6 +475,7 @@ export type PublicReport = {
   agentScopeBlocked: boolean;
   robots: { status: string; detail: string; verdicts: RobotsVerdict[]; sitemaps: string[] };
   llmsTxt: "present" | "missing" | "unavailable";
+  agentic?: { title: string; basis: string; evidence: string } | null;
   accessTested: boolean;
   accessResults: { bot: string; seen: string }[];
   productSource: "home page links" | "sitemap" | "products.json" | "Store API" | "none";
@@ -491,6 +493,9 @@ export type PublicScanInput = {
   requestLog?: RequestLogEntry[];
   robots: PageFetch | null;
   llms: PageFetch | null;
+  // Agentic checkout discovery documents (information only).
+  ucp?: PageFetch | null;
+  acp?: PageFetch | null;
   home: PageFetch | null;
   bots: Partial<Record<BotName, PageFetch>>;
   products: { url: string; fetch: PageFetch }[];
@@ -504,6 +509,15 @@ type F = Finding & { area: string };
 
 function f(area: string, key: string, x: Omit<Finding, "finding_key" | "product_id" | "type"> & { type?: string }): F {
   return { area, finding_key: key, type: x.type ?? key.split(":")[0], product_id: null, ...x };
+}
+
+// The public check reads the two well-known documents only; plugins need the store's API key.
+function agenticPublic(input: PublicScanInput): { title: string; basis: string; evidence: string } {
+  const src = (r: PageFetch | null | undefined, name: string) =>
+    !r ? { ok: false as const, reason: `${name} not requested (robots.txt).` } : !r.ok ? { ok: false as const, reason: `${name}: ${r.error}` } : r.redirectedTo ? { ok: true as const, data: { status: 404, text: "" } } : { ok: true as const, data: { status: r.status, text: r.body } };
+  const origin = input.url.replace(/\/$/, "");
+  const x = checkAgenticSupport(origin, { ucp: src(input.ucp, "/.well-known/ucp"), acp: src(input.acp, "/.well-known/acp.json"), plugins: { ok: false, reason: "the list of plugins needs the store's read-only key (full scan)." } });
+  return { title: x.title, basis: x.basis, evidence: x.evidence };
 }
 
 export function buildPublicReport(input: PublicScanInput): PublicReport {
@@ -741,6 +755,7 @@ export function buildPublicReport(input: PublicScanInput): PublicReport {
     agentScopeBlocked,
     robots: { status: robotsStatus, detail: robotsDetail, verdicts, sitemaps: robots?.sitemaps ?? [] },
     llmsTxt,
+    agentic: input.ucp !== undefined || input.acp !== undefined ? agenticPublic(input) : null,
     accessTested,
     accessResults: Object.entries(input.bots).map(([bot, r]) => ({ bot, seen: describePage(r!) })),
     productSource: input.productSource,
