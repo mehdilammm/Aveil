@@ -35,7 +35,8 @@ vi.mock("./platform/woocommerce", () => ({
   }),
 }));
 vi.mock("./agent-checks", () => ({ runStructuredChecks: async () => [] }));
-vi.mock("./orders-sync", () => ({ planOf: async () => "free", syncOrders: async () => ({}) }));
+let plan = "free";
+vi.mock("./orders-sync", () => ({ planOf: async () => plan, syncOrders: async () => ({}) }));
 const autoFix = vi.fn(async () => ({ applied: 1 }));
 vi.mock("./autofix-run", () => ({ runAutoFix: (...a: unknown[]) => autoFix(...(a as [])) }));
 vi.mock("./ownership-store", () => ({ recordVerification: vi.fn(async () => {}) }));
@@ -97,15 +98,22 @@ describe("scan as a background job", () => {
     expect(tables.findings.length).toBe(before);
   });
 
-  it("auto-fix runs after the scan only when the store turned it on", async () => {
+  it("auto-fix runs after the scan only when the store turned it on, on a plan with auto-fix", async () => {
     const off = db();
     await runClaimedJob(off.client, job(), JOB_HANDLERS, Date.now() + 600_000);
     expect(autoFix).not.toHaveBeenCalled();
+    const free = db();
+    free.tables.stores[0].auto_fix_enabled = true;
+    await runClaimedJob(free.client, job(), JOB_HANDLERS, Date.now() + 600_000);
+    expect(autoFix).not.toHaveBeenCalled();
+    expect(free.tables.job_steps.find((s) => s.step_key === "autofix")?.result).toEqual({ skipped: "plan" });
     const on = db();
     on.tables.stores[0].auto_fix_enabled = true;
+    plan = "pro";
     await runClaimedJob(on.client, job(), JOB_HANDLERS, Date.now() + 600_000);
     expect(autoFix).toHaveBeenCalledTimes(1);
     expect(on.tables.job_steps.find((s) => s.step_key === "autofix")?.result).toEqual({ applied: 1 });
+    plan = "free";
   }, 30_000);
 
   it("a refused API key fails the scan at once with WooCommerce's reason (no retries)", async () => {

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { deleteAccount, deleteWorkspace } from "@/lib/data-export";
+import { lockedReason, workspacePlan } from "@/lib/plan-gate";
 import { hashInviteToken, INVITE_DAYS, inviteProblem, newInviteToken, type InviteRow } from "@/lib/workspace";
 
 export type WsState = { error?: string; link?: string; done?: string };
@@ -27,7 +28,14 @@ export async function createWorkspace(_: WsState, form: FormData): Promise<WsSta
   const name = String(form.get("name") ?? "").replace(/\s+/g, " ").trim();
   if (name.length < 1 || name.length > 80) return { error: "Enter a name (up to 80 characters)." };
   const admin = createAdminClient();
-  const { data: ws, error } = await admin.from("workspaces").insert({ name, personal: false, created_by: user.id }).select("id").single();
+  // Client workspaces are an Agency feature: the creator must own an Agency workspace, and the new one shares it.
+  const { data: owned } = await admin.from("workspace_members").select("workspaces(plan)").eq("user_id", user.id).eq("role", "owner");
+  const agency = (owned ?? []).some((m) => {
+    const w = (m as { workspaces?: { plan?: string } | { plan?: string }[] }).workspaces;
+    return (Array.isArray(w) ? w[0]?.plan : w?.plan) === "agency";
+  });
+  if (!agency) return { error: lockedReason("workspaceMembers") };
+  const { data: ws, error } = await admin.from("workspaces").insert({ name, personal: false, created_by: user.id, plan: "agency" }).select("id").single();
   if (error || !ws) return { error: "Could not create the workspace." };
   const { error: mErr } = await admin.from("workspace_members").insert({ workspace_id: ws.id, user_id: user.id, role: "owner" });
   if (mErr) {
@@ -47,6 +55,7 @@ export async function createInvite(_: WsState, form: FormData): Promise<WsState>
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "That email does not look valid." };
   const { user, isOwner } = await ownerOf(workspaceId);
   if (!isOwner) return { error: "Only the workspace owner can invite members." };
+  if (!(await workspacePlan(createAdminClient(), workspaceId)).workspaceMembers) return { error: lockedReason("workspaceMembers") };
   const { token, hash } = newInviteToken();
   const { error } = await createAdminClient().from("workspace_invites").insert({
     workspace_id: workspaceId, role, email, token_hash: hash, created_by: user.id, expires_at: new Date(Date.now() + INVITE_DAYS * 86_400_000).toISOString(),

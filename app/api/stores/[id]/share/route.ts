@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { findingsForScan } from "@/lib/data";
+import { lockedReason, workspacePlan } from "@/lib/plan-gate";
 import { buildSnapshot, newShareToken, SHARE_DAYS } from "@/lib/share-report";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
@@ -27,6 +28,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true });
   }
 
+  const plan = await workspacePlan(admin, store.workspace_id);
+  if (!plan.shareReports) return NextResponse.json({ error: lockedReason("shareReports") }, { status: 403 });
   const days = Number(body.days);
   if (!(SHARE_DAYS as readonly number[]).includes(days)) return NextResponse.json({ error: "Choose 7, 30 or 90 days." }, { status: 400 });
   const now = new Date();
@@ -35,7 +38,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data: scan } = await admin.from("scans").select("id, finished_at, scanned_products").eq("store_id", store.id).eq("status", "complete").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (!scan) return NextResponse.json({ error: "Run a complete scan first." }, { status: 409 });
   const findings = await findingsForScan(admin, scan.id);
-  const snapshot = buildSnapshot(store, scan, findings);
+  const { data: ws } = plan.clientReports ? await admin.from("workspaces").select("name, personal").eq("id", store.workspace_id).maybeSingle() : { data: null };
+  const snapshot = buildSnapshot(store, scan, findings, ws && !ws.personal ? ws.name : undefined);
   const { token, hash } = newShareToken();
   const expires = new Date(now.getTime() + days * 86_400_000).toISOString();
   const { data: row, error } = await admin.from("share_reports").insert({ store_id: store.id, owner_id: store.owner_id, scan_id: scan.id, token_hash: hash, snapshot, created_by: user.id, expires_at: expires }).select("id").single();

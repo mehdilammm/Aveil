@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { HANDOFF_COOKIE } from "@/lib/check-handoff";
+import { workspacePlan } from "@/lib/plan-gate";
 import { kickJobs } from "@/lib/job-kick";
 import { enqueueScan } from "@/lib/scan";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -45,6 +46,9 @@ export async function addStore(_: AddStoreState, form: FormData): Promise<AddSto
   }
   const { data: member } = await supabase.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", user.id).maybeSingle();
   if (!canEdit(member?.role)) return { error: "You can add stores only to a workspace where you are owner or admin." };
+  const plan = await workspacePlan(createAdminClient(), workspaceId);
+  const { count } = await createAdminClient().from("stores").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId);
+  if ((count ?? 0) >= plan.stores) return { error: `Unavailable: needs ${plan.id === "free" ? "Pro" : "Agency"} plan. The ${plan.name} plan has ${plan.stores} ${plan.stores === 1 ? "store" : "stores"} per workspace.` };
 
   // Insert as the user so RLS checks the role.
   const { data: store, error } = await supabase.from("stores").insert({ name, url: parsed.url, owner_id: user.id, workspace_id: workspaceId }).select("id").single();

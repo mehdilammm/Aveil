@@ -15,7 +15,7 @@ import { PromptsForm } from "./prompts-form";
 import { RereadButton, RunVisibilityButton, TestRunButton } from "./run-button";
 import { storeAccess } from "@/lib/workspace";
 import { UsageAlert } from "@/components/usage-alert";
-import { PLANS, type PlanId } from "@/lib/plans";
+import { PLANS, RUN_DAYS, type PlanId } from "@/lib/plans";
 import { groundingEnabled } from "@/lib/grounding";
 
 type Run = { id: string; status: string; model: string; created_at: string; finished_at: string | null; requests_count: number; input_tokens: number; output_tokens: number; error: string | null };
@@ -97,8 +97,8 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
       ? "Add at least one question first."
       : running
         ? "A run is in progress."
-        : lastCounted && lastCounted.status === "complete" && !canRun(lastCounted.created_at, new Date())
-          ? `Once a week. Next run: ${formatDate(nextRunAt(lastCounted.created_at)!.toISOString())}.`
+        : lastCounted && lastCounted.status === "complete" && !canRun(lastCounted.created_at, new Date(), RUN_DAYS[PLANS[planId].visibilityPer])
+          ? `Once a ${PLANS[planId].visibilityPer} on the ${PLANS[planId].name} plan. Next run: ${formatDate(nextRunAt(lastCounted.created_at, RUN_DAYS[PLANS[planId].visibilityPer])!.toISOString())}.`
           : null;
 
   // Usage this month per engine, from the result rows (extraction requests are counted on the answer's row).

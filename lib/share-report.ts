@@ -12,6 +12,8 @@ export type ShareSnapshot = {
   counts: { high: number; medium: number; low: number; unavailable: number };
   areas: { key: string; label: string; open: number }[];
   findings: { title: string; severity: "high" | "medium" | "low"; basis: "observed" | "heuristic" | "unavailable"; area: string }[];
+  // Agency client reports: the workspace that prepared it.
+  preparedBy?: string;
 };
 
 export function newShareToken(): { token: string; hash: string } {
@@ -23,7 +25,7 @@ export const isShareToken = (t: string) => /^agsr_[A-Za-z0-9_-]{32}$/.test(t);
 
 type F = { title: string; type: string; finding_key: string; severity: "high" | "medium" | "low"; basis: "observed" | "heuristic" | "unavailable"; product_id: number | null };
 
-export function buildSnapshot(store: { name: string; url: string }, scan: { finished_at: string | null; scanned_products: number | null }, findings: F[]): ShareSnapshot {
+export function buildSnapshot(store: { name: string; url: string }, scan: { finished_at: string | null; scanned_products: number | null }, findings: F[], preparedBy?: string): ShareSnapshot {
   const rank = { high: 0, medium: 1, low: 2 } as const;
   const list = [...findings].sort((a, b) => rank[a.severity] - rank[b.severity] || a.title.localeCompare(b.title));
   return {
@@ -38,6 +40,7 @@ export function buildSnapshot(store: { name: string; url: string }, scan: { fini
     },
     areas: AREAS.map((a) => ({ key: a.key, label: a.label, open: findings.filter((f) => areaOf(f) === a.key).length })),
     findings: list.map((f) => ({ title: f.title.slice(0, 200), severity: f.severity, basis: f.basis, area: areaOf(f) })),
+    ...(preparedBy ? { preparedBy: preparedBy.slice(0, 80) } : {}),
   };
 }
 

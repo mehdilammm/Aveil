@@ -364,14 +364,15 @@ export function parseGeminiResponse(body: unknown): EngineAnswer {
   };
 }
 
-// When the next run is allowed: one run per store every RUN_INTERVAL_DAYS (failed runs do not count).
-export function nextRunAt(lastRunAt: string | null): Date | null {
+// When the next run is allowed: one run per store every `days` (the plan's: 7 on Pro and Agency, 30 on Free;
+// failed runs do not count).
+export function nextRunAt(lastRunAt: string | null, days = RUN_INTERVAL_DAYS): Date | null {
   if (!lastRunAt) return null;
-  return new Date(Date.parse(lastRunAt) + RUN_INTERVAL_DAYS * 86_400_000);
+  return new Date(Date.parse(lastRunAt) + days * 86_400_000);
 }
 
-export function canRun(lastRunAt: string | null, now: Date): boolean {
-  const next = nextRunAt(lastRunAt);
+export function canRun(lastRunAt: string | null, now: Date, days = RUN_INTERVAL_DAYS): boolean {
+  const next = nextRunAt(lastRunAt, days);
   return !next || now >= next;
 }
 

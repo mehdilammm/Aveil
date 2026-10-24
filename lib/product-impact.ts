@@ -6,12 +6,14 @@ import type { Basis } from "./rules";
 // Each clause is a catalog message (impact.clause.<msg>) with its values, so it reads natively in English and
 // Arabic (ICU plurals, incl. Arabic dual/few/many). Values are real data only: counts, days, category, titles.
 export type Clause = { key: "readiness" | "visibility" | "traffic"; msg: ClauseMsg; values: Record<string, string | number>; basis: Basis };
-export type ClauseMsg = "gaps" | "notChecked" | "noGap" | "noQuestion" | "noQuestionProduct" | "noAnswer" | "named" | "namedProduct" | "needsPlugin" | "verified" | "claimed" | "noVisit";
+export type ClauseMsg = "gaps" | "notChecked" | "noGap" | "noQuestion" | "noQuestionProduct" | "noAnswer" | "named" | "namedProduct" | "needsPlugin" | "needsPro" | "verified" | "claimed" | "noVisit";
 export type ImpactInput = {
   product: { id: number; name: string; categories: string[] };
   findings: { title: string; severity: "high" | "medium" | "low"; basis: Basis }[];
   answers: { prompt: string; mentioned: boolean | null; error: string | null }[];
   hits: { verified: number; claim: number; pending: number } | null;
+  // Verified bot traffic is a Pro feature (G7).
+  trafficLocked?: boolean;
   days: number;
 };
 
@@ -46,7 +48,9 @@ export function productImpact(i: ImpactInput): Clause[] {
       : { key: "visibility", basis: "observed", msg: topic ? "named" : "namedProduct", values: { named, total: answered.length, ...(topic ? { topic } : {}) } };
 
   const h = i.hits;
-  const traffic: Clause = !h
+  const traffic: Clause = i.trafficLocked
+    ? { key: "traffic", basis: "unavailable", msg: "needsPro", values: {} }
+    : !h
     ? { key: "traffic", basis: "unavailable", msg: "needsPlugin", values: {} }
     : h.verified
       ? { key: "traffic", basis: "observed", msg: "verified", values: { verified: h.verified, claim: h.claim, days: i.days } }

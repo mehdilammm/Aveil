@@ -5,7 +5,7 @@ import { geminiConfigured } from "./gemini";
 import { askVisibilityQuestion } from "./grounded-question";
 import { GROUNDING_MODEL } from "./grounding";
 import { planOf } from "./orders-sync";
-import { PLANS } from "./plans";
+import { PLANS, RUN_DAYS } from "./plans";
 import { ACCESS_METHOD } from "./markets";
 import { capStatus, fitsCap } from "./usage";
 import { recordUsage, usageToday } from "./usage-store";
@@ -36,6 +36,9 @@ export const TEST_RUNS_PER_DAY = 3;
 // The checks that decide whether a run may start (also used before a run is queued as a job).
 export async function visibilityPrecheck(admin: SupabaseClient, store: Store, options: { test?: boolean; recheck?: boolean } = {}): Promise<{ runId?: string; error?: string } | null> {
   if (!ENGINES.some(engineConfigured)) return { error: "AI Visibility is not set up on the server (no AI engine key)." };
+  const plan = PLANS[await planOf(admin, store.id)];
+  // Test re-runs skip the plan's wait, so they are a paid-plan tool (Free: 3 questions once a month).
+  if (options.test && plan.id === "free") return { error: "Unavailable: needs Pro plan." };
   if (options.test) {
     const { count } = await admin.from("visibility_runs").select("id", { count: "exact", head: true }).eq("store_id", store.id).gte("created_at", new Date(Date.now() - 86_400_000).toISOString());
     if ((count ?? 0) >= TEST_RUNS_PER_DAY) return { error: `At most ${TEST_RUNS_PER_DAY} runs per store in 24 hours.` };
@@ -50,8 +53,9 @@ export async function visibilityPrecheck(admin: SupabaseClient, store: Store, op
     .limit(1);
   const last = recent?.[0];
   if (last?.status === "running" && Date.now() - Date.parse(last.created_at) < STALE_RUN_MS) return { runId: last.id, error: "A run is already in progress." };
-  if (!options.test && !options.recheck && last && last.status === "complete" && !canRun(last.created_at, new Date())) {
-    return { error: `Questions can be run once a week. Next run: ${nextRunAt(last.created_at)!.toUTCString()}.` };
+  const days = RUN_DAYS[plan.visibilityPer];
+  if (!options.test && !options.recheck && last && last.status === "complete" && !canRun(last.created_at, new Date(), days)) {
+    return { error: `Questions can be run once a ${plan.visibilityPer} on the ${plan.name} plan. Next run: ${nextRunAt(last.created_at, days)!.toUTCString()}.` };
   }
   return null;
 }
@@ -63,7 +67,7 @@ export async function runVisibility(admin: SupabaseClient, store: Store, options
   if (refused) return refused;
   const budget = Math.min(TIME_BUDGET_MS, options.budgetMs ?? TIME_BUDGET_MS);
 
-  // Smart sampling: the plan's number of questions (Free 5, Pro and Agency 25), oldest first.
+  // Smart sampling: the plan's number of questions (Free 3, Pro and Agency 25), oldest first.
   const plan = await planOf(admin, store.id);
   const { data: prompts } = await admin.from("visibility_prompts").select("id, prompt, market, language").eq("store_id", store.id).order("created_at").limit(PLANS[plan].visibilityQuestions);
   if (!prompts?.length) return { error: "Add at least one question first." };
