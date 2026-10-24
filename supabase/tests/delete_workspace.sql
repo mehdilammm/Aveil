@@ -11,7 +11,7 @@ insert into public.workspace_invites (workspace_id, role, token_hash, created_by
 insert into public.stores (id, name, url, owner_id, workspace_id) select store, 'Delete test', 'https://delete-test.example', owner, ws from t_ids;
 select public.save_store_credentials(store, owner, 'ck_test0000000000000000000000', 'cs_test0000000000000000000000', 'ck_…0000') from t_ids;
 select public.save_store_write_credentials(store, owner, 'ck_test1111111111111111111111', 'cs_test1111111111111111111111', 'ck_…1111') from t_ids;
-select public.save_traffic_connector(store, owner, 'agsc_test', md5('agsc_test'), 'agsc_…test') from t_ids;
+select public.save_traffic_connector(store, owner, 'agsc_test', encode(sha256('agsc_test'::bytea), 'hex'), 'agsc_…test') from t_ids;
 insert into public.scans (id, store_id, owner_id, status) select gen_random_uuid(), store, owner, 'complete' from t_ids;
 insert into public.findings (scan_id, store_id, owner_id, finding_key, type, title, severity, evidence, guidance, basis)
   select s.id, i.store, i.owner, 'k', 't', 'T', 'low', 'e', 'g', 'observed' from t_ids i join public.scans s on s.store_id = i.store;
