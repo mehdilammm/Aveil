@@ -1,5 +1,6 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import { afterAuthPath } from "@/lib/check-handoff";
 import { createClient } from "@/lib/supabase/server";
 
 // Target of the confirmation email link.
@@ -17,5 +18,5 @@ export async function GET(request: NextRequest) {
       : { error: new Error("Missing confirmation token") };
 
   if (error) return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent("Email link is invalid or expired.")}`);
-  return NextResponse.redirect(`${origin}/stores`);
+  return NextResponse.redirect(`${origin}${await afterAuthPath()}`);
 }

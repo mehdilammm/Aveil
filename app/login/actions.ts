@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { afterAuthPath } from "@/lib/check-handoff";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState = { error?: string; notice?: string };
@@ -15,7 +16,7 @@ export async function logIn(_: AuthState, form: FormData): Promise<AuthState> {
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: error.message };
-  redirect("/stores");
+  redirect(await afterAuthPath());
 }
 
 export async function signUp(_: AuthState, form: FormData): Promise<AuthState> {
@@ -30,6 +31,6 @@ export async function signUp(_: AuthState, form: FormData): Promise<AuthState> {
     options: { emailRedirectTo: `${origin}/auth/confirm` },
   });
   if (error) return { error: error.message };
-  if (data.session) redirect("/stores");
+  if (data.session) redirect(await afterAuthPath());
   return { notice: "Check your email to confirm your account, then log in." };
 }

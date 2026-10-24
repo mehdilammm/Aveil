@@ -2,12 +2,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
 import { SITE } from "@/lib/site";
+import { afterAuthPath } from "@/lib/check-handoff";
 import { getUser } from "@/lib/supabase/server";
 import { AuthForm } from "./auth-form";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; mode?: string }> }) {
   const { user } = await getUser();
-  if (user) redirect("/stores");
+  if (user) redirect(await afterAuthPath());
   const { error, mode } = await searchParams;
   const signup = mode === "signup";
   return (

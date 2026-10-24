@@ -389,5 +389,10 @@
     "failed": "The re-check did not complete:",
     "noBaseline": "No AI Visibility run before the fix, so there is nothing to compare with.",
     "noOverlap": "No question was answered both before the fix and on the re-check."
+  },
+  "handoff": {
+    "title": "From your free check of {host}",
+    "body": "Add a read-only WooCommerce key to run the full scan. It starts as soon as the store is saved.",
+    "submit": "Add store and start the full scan"
   }
 }

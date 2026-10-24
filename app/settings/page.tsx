@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { checkPrefill, HANDOFF_COOKIE } from "@/lib/check-handoff";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listStores } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
@@ -9,7 +10,7 @@ import { DeleteStoreForm } from "./delete-store-form";
 import { TrafficConnect } from "./traffic-connect";
 import { PluginOnboarding } from "@/components/plugin-onboarding";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ from_check?: string }> }) {
   const { supabase, user } = await getUser();
   if (user) await ensurePersonalWorkspace(createAdminClient(), user.id).catch(() => null);
   const workspaces = user ? await listWorkspaces(supabase, user.id) : [];
@@ -17,6 +18,8 @@ export default async function SettingsPage() {
   const stores = await listStores(supabase);
   const host = (await headers()).get("host") ?? "";
   const endpoint = `https://${host}/api/ingest/traffic`;
+  const { from_check } = await searchParams;
+  const prefill = user ? await checkPrefill(createAdminClient(), from_check ?? (await cookies()).get(HANDOFF_COOKIE)?.value) : null;
 
   // Connector rows are server-only; read them for the stores RLS returned to this user.
   const connectors = new Map<string, { hint: string; lastIngestAt: string | null }>();
@@ -65,8 +68,8 @@ export default async function SettingsPage() {
         </div>
       ))}
 
-      <h2>Add store</h2>
-      <AddStoreForm workspaces={workspaces.filter((w) => canEdit(w.role)).map((w) => ({ id: w.id, name: w.personal ? `${w.name} (personal)` : w.name }))} />
+      <h2 id="add-store">Add store</h2>
+      <AddStoreForm prefill={prefill} workspaces={workspaces.filter((w) => canEdit(w.role)).map((w) => ({ id: w.id, name: w.personal ? `${w.name} (personal)` : w.name }))} />
     </>
   );
 }
