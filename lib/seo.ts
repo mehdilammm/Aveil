@@ -24,7 +24,7 @@ export function sitemapEntries(base = SITE.url, lastModified = SITE.legalLastUpd
   }));
 }
 
-export const SEO_DESCRIPTION = "Product-level readiness checks, AI visibility tracking and verified fixes for WooCommerce stores.";
+export const SEO_DESCRIPTION = "Others give you a score. AgentScope shows why AI agents don't buy from your WooCommerce store, fixes it with your approval, and proves it with real AI-referred orders.";
 
 // Offers come from the plans config; no aggregateRating or review.
 export function softwareApplicationJsonLd(base = SITE.url) {

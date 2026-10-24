@@ -6,5 +6,5 @@ export const SITE = {
   // Placeholder contact address, shown in Terms and Privacy.
   contactEmail: "contact@example.com",
   legalLastUpdated: "2026-10-22",
-  tagline: "See why AI shopping agents skip your store. Fix it. Prove it's fixed.",
+  tagline: "See why AI shopping agents skip your WooCommerce products. Fix without breaking the store. Prove it with real AI-referred orders.",
 } as const;
