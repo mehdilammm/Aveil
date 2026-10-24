@@ -2,7 +2,11 @@
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { HANDOFF_COOKIE } from "@/lib/check-handoff";
+import { kickJobs } from "@/lib/job-kick";
+import { enqueueScan } from "@/lib/scan";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { hashToken } from "@/lib/traffic";
@@ -70,6 +74,14 @@ export async function addStore(_: AddStoreState, form: FormData): Promise<AddSto
     if (rollbackErr) console.error("add store: rollback failed", store.id, rollbackErr.code);
     return { error: SAVE_FAILED };
   }
+  // The first scan starts right away (G6); if it cannot be queued the store page still offers "Run scan".
+  try {
+    await enqueueScan(createAdminClient(), { id: store.id, owner_id: user.id, url: parsed.url, workspace_id: workspaceId }, "manual", user.id);
+    kickJobs();
+  } catch (err) {
+    console.error("add store: first scan not queued", err instanceof Error ? err.message : "unknown error");
+  }
+  (await cookies()).delete(HANDOFF_COOKIE);
   redirect(`/stores/${store.id}`);
 }
 

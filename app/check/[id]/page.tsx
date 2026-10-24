@@ -293,7 +293,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                 <strong>Full scan with a read-only key.</strong> Prices, stock, weights, feed readiness and weekly tracking for every product need a read-only
                 WooCommerce key from the store owner.
               </p>
-              <Link className="button" href="/login">Sign up</Link>
+              <a className="button" href={`/check/${row.id}/continue`}>Run the full scan</a>
             </>
           )}
         </div>
