@@ -57,10 +57,11 @@ export async function storesBlockingAccountDelete(admin: SupabaseClient, userId:
   return (mine ?? []).filter((s) => !ownedIds.has(s.workspace_id as string)).map((s) => ({ id: s.id as string, name: s.name as string }));
 }
 
-// Hard delete: the workspace row; its stores and everything under them go by foreign-key cascade, and the
-// triggers delete the Vault secrets (API keys, write keys, plugin tokens).
-export async function deleteWorkspace(admin: SupabaseClient, workspaceId: string) {
-  const { error } = await admin.from("workspaces").delete().eq("id", workspaceId);
+// Hard delete in one database transaction (public.delete_workspace): owner check, the workspace row with its
+// stores and everything under them (foreign-key cascade), the Vault secrets (delete triggers), then a check that
+// no row with its workspace_id or store ids and no secret is left; anything left rolls the whole delete back.
+export async function deleteWorkspace(admin: SupabaseClient, workspaceId: string, userId: string) {
+  const { error } = await admin.rpc("delete_workspace", { p_workspace_id: workspaceId, p_user_id: userId });
   if (error) throw new Error(error.message);
 }
 
@@ -68,12 +69,10 @@ export async function deleteWorkspace(admin: SupabaseClient, workspaceId: string
 export async function deleteAccount(admin: SupabaseClient, userId: string, email: string | null) {
   const blocking = await storesBlockingAccountDelete(admin, userId);
   if (blocking.length) throw new Error(`First remove the stores you added to other workspaces: ${blocking.map((s) => s.name).join(", ")}.`);
-  const { data: owned } = await admin.from("workspace_members").select("workspace_id").eq("user_id", userId).eq("role", "owner");
-  for (const w of owned ?? []) await deleteWorkspace(admin, w.workspace_id as string);
-  if (email) {
-    await admin.from("plan_waitlist").delete().ilike("email", email);
-    await admin.from("shopify_waitlist").delete().ilike("email", email);
-  }
+  // Every owned workspace and the waitlist sign-ups in one transaction (public.delete_account_data); the auth user
+  // only after it succeeded, so a failure leaves the account whole and the delete can be run again.
+  const { error: dataErr } = await admin.rpc("delete_account_data", { p_user_id: userId, p_email: email });
+  if (dataErr) throw new Error(dataErr.message);
   const { error } = await admin.auth.admin.deleteUser(userId);
   if (error) throw new Error(error.message);
 }
