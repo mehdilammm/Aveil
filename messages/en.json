@@ -10,7 +10,7 @@
     "bot": "Our bot",
     "terms": "Terms",
     "privacy": "Privacy",
-    "note": "© {year} {name}. Read-only checks; no promise of AI visibility or sales."
+    "note": "© {year} {name}. Read-only by default; changes only with your approval, and undo. No promise of AI visibility or sales."
   },
   "scan": {
     "run": "Run scan",
@@ -458,5 +458,80 @@
     "rowError": "Not imported",
     "csvConfirm": "I checked the {n, plural, one {# product} other {# products}} that will change",
     "csvApply": "Import {n, plural, one {# product} other {# products}}"
+  },
+  "landing": {
+    "metaTitle": "AgentScope: why AI shopping agents skip your WooCommerce products",
+    "hero": "See why AI shopping agents skip your WooCommerce products. Fix without breaking the store. Prove it with real AI-referred orders.",
+    "edge": "Others give you a score. We show why AI agents don't buy, fix it, and prove it with real orders.",
+    "ctaCheck": "Run a free check",
+    "ctaSignup": "Sign up free",
+    "pointsTitle": "Why stores and agencies use it",
+    "points": {
+      "multi": {
+        "t": "Multi-store for agencies",
+        "d": "Client workspaces, team members with roles, and read-only report links with your name on them."
+      },
+      "bots": {
+        "t": "Verified AI bot traffic",
+        "d": "Visits from AI bots checked against the official IP lists of each AI company. A user agent alone is labeled as a claim, not a fact."
+      },
+      "check": {
+        "t": "Free check on any store",
+        "d": "Paste a store address: no account, no key. A few public pages, loaded slowly and politely, like a visitor would."
+      },
+      "noScore": {
+        "t": "No magic score",
+        "d": "No single number that hides the reasons. Each finding says what was seen, where, and how sure we are."
+      }
+    },
+    "stepsTitle": "See it. Fix it. Prove it.",
+    "steps": {
+      "see": {
+        "t": "See why agents skip you",
+        "d": "Every product checked: price, stock, weight, images, brand, GTIN, structured data and the ChatGPT feed fields. Bot access, robots.txt, checkout rules and where the path to a purchase breaks first."
+      },
+      "fix": {
+        "t": "Fix without breaking the store",
+        "d": "Read-only by default. Each change is shown before it happens, applied only after your approval, logged with the value before and after, and undone in one click. Facts only you know, like a GTIN, are asked for, never made up."
+      },
+      "prove": {
+        "t": "Prove it with real orders",
+        "d": "Orders that came from ChatGPT, Perplexity, Gemini, Claude or Copilot, read from WooCommerce order attribution. Fixed findings are re-checked at once, and AI answers again after 7, 14 and 30 days."
+      }
+    },
+    "loopTitle": "Fix → Rescan → Resolved",
+    "loopFound": "issues found",
+    "loopAfter": "after fixes",
+    "loopText": "Including 13 critical issues fixed in one change. A finding is marked resolved only when the same check passes again.",
+    "loopNote": "Case study: our own test store, not a customer. Your numbers will differ.",
+    "honestTitle": "Honest data",
+    "honestIntro": "Every number has a label, so you know how much to trust it:",
+    "observed": "seen in your store, in your orders or in a real AI answer",
+    "heuristic": "a rule of thumb, shown as one",
+    "unavailable": "we could not check it, and say exactly why",
+    "honestNote": "AI answers are shown as what the model returned on a date, not as facts. Nothing here promises rankings, visibility or sales.",
+    "faqTitle": "Questions",
+    "faq": {
+      "change": {
+        "q": "Do you change my store?",
+        "a": "Not unless you ask. The scan only reads. A fix that writes to the store needs a separate write key or the signed AgentScope plugin, your approval of a preview, and it can be undone."
+      },
+      "shopify": {
+        "q": "Does it work with Shopify?",
+        "a": "The free public check works with Shopify stores. The full scan is for WooCommerce today; Shopify is coming."
+      },
+      "need": {
+        "q": "What do you need from me?",
+        "a": "A WooCommerce API key with Read permission. It is stored encrypted and never shown again. The plugin is optional, for AI bot visits and referrals."
+      }
+    },
+    "ctaTitle": "See what AI agents see on your store.",
+    "ctaSub": "Free, no account needed.",
+    "ctaPricing": "See pricing",
+    "nav": {
+      "check": "Free check",
+      "pricing": "Pricing",
+      "login": "Log in"
+    }
   }
 }
