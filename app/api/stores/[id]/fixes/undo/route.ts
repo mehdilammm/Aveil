@@ -3,9 +3,9 @@ import { fixContext, revertFix } from "@/lib/autofix";
 import { fixAccess } from "@/lib/fix-access";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
-// Undo one applied fix ({audit_id}) or a whole automatic batch ({batch_id}).
+// Undo one applied fix ({audit_id}) or a whole batch ({batch_id}: automatic, bulk one-click or CSV import).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const a = await fixAccess((await params).id);
   if (!a.ok) return NextResponse.json({ error: a.error }, { status: a.status });

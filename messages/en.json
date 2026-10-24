@@ -433,5 +433,30 @@
       "workspaces": "Client workspaces, team members and invites",
       "clientReports": "Client reports with your workspace name"
     }
+  },
+  "bulk": {
+    "bulkTitle": "Apply several fixes at once",
+    "bulkSub": "The auto and one-click fixes of the last scan that are not applied yet. Each line says what it changes. One approval, one Undo for all (at most {max} at a time).",
+    "load": "Show the fixes",
+    "loading": "Loading…",
+    "none": "No auto or one-click fix is waiting.",
+    "confirm": "I checked the {n, plural, one {# change} other {# changes}} above",
+    "apply": "Apply {n, plural, one {# fix} other {# fixes}}",
+    "applying": "Applying…",
+    "failed": "Something went wrong. Try again.",
+    "doneLine": "{ok} applied, {failed} not applied.",
+    "undoAll": "Undo all",
+    "csvTitle": "Import GTIN, SKU and weight (CSV)",
+    "csvSub": "Columns: product_id (or sku alone to find products by SKU), gtin, sku, weight. Empty cells change nothing. Values are written as you typed them after the same checks as one fix (GTIN check digit, weight above 0, unique SKU). At most 200 lines.",
+    "needWrite": "Add a write key above to apply the import; the preview works without it.",
+    "line": "Line",
+    "product": "Product",
+    "changes": "Changes",
+    "status": "Status",
+    "rowOk": "Ready",
+    "rowSame": "No change",
+    "rowError": "Not imported",
+    "csvConfirm": "I checked the {n, plural, one {# product} other {# products}} that will change",
+    "csvApply": "Import {n, plural, one {# product} other {# products}}"
   }
 }

@@ -475,3 +475,12 @@ export async function findBrands(baseUrl: string, creds: WooCredentials, name: s
   const { items } = await getPage<{ id: number; name: string }>(baseUrl, "/products/brands", { search: name, _fields: "id,name" }, creds);
   return items.map((b) => ({ id: b.id, name: decodeName(b.name ?? "") }));
 }
+
+// Published products by id or by SKU (bulk CSV import), 100 per request.
+export async function fetchProductsFor(baseUrl: string, creds: WooCredentials, by: { ids?: number[]; skus?: string[] }): Promise<WooProduct[]> {
+  const out: WooProduct[] = [];
+  const chunks = <T,>(xs: T[]) => Array.from({ length: Math.ceil(xs.length / 100) }, (_, i) => xs.slice(i * 100, i * 100 + 100));
+  for (const ids of chunks(by.ids ?? [])) out.push(...(await getPage<WooProduct>(baseUrl, "/products", { include: ids.join(","), per_page: "100", status: "publish" }, creds)).items);
+  for (const skus of chunks(by.skus ?? [])) out.push(...(await getPage<WooProduct>(baseUrl, "/products", { sku: skus.join(","), per_page: "100", status: "publish" }, creds)).items);
+  return out;
+}

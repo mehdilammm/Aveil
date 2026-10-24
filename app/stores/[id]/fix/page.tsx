@@ -8,6 +8,7 @@ import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "../run-scan-button";
 import { VerifyButton } from "./verify-button";
 import { AutoFixPanel, FixAction, UndoButton, WriteKeyForm } from "./autofix-ui";
+import { BulkApply, CsvImport } from "./bulk-ui";
 import { fixFor } from "@/lib/fix-catalog";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PlanLock } from "@/components/plan-lock";
@@ -86,6 +87,8 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
       )}
       {editor && (plan.autoFix ? <AutoFixPanel storeId={store.id} enabled={Boolean(setting?.auto_fix_enabled)} approvedAt={setting?.auto_fix_approved_at ?? null} /> : <PlanLock feature="autoFix" />)}
       {editor && <WriteKeyForm storeId={store.id} hint={writeKey?.key_hint ?? null} />}
+      {editor && lastComplete && <BulkApply storeId={store.id} />}
+      {editor && <CsvImport storeId={store.id} canWrite={Boolean(writeKey)} />}
       {findings.length > 0 && (
         <details className="card">
           <summary className="small">{t("formula")}</summary>
