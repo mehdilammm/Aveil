@@ -114,7 +114,7 @@ export async function deleteWorkspaceAction(_: DeleteState, form: FormData): Pro
   const { data: ws } = await admin.from("workspaces").select("name").eq("id", id).maybeSingle();
   if (!ws || String(form.get("confirm_name") ?? "").trim() !== ws.name) return { error: "Type the workspace name exactly to confirm." };
   try {
-    await deleteWorkspace(admin, id);
+    await deleteWorkspace(admin, id, user.id);
   } catch {
     return { error: "Could not delete the workspace. Please try again." };
   }

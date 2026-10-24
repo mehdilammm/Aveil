@@ -91,7 +91,13 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rpcs: Record<st
     return q;
   };
   const rpc = (name: string, args: Record<string, unknown>) => {
-    const r = { data: rpcs[name] ? rpcs[name](args) : null, error: null };
+    // An RPC that throws answers like PostgREST does for a raised exception: no data, the error message.
+    let r: { data: unknown; error: { message: string } | null };
+    try {
+      r = { data: rpcs[name] ? rpcs[name](args) : null, error: null };
+    } catch (err) {
+      r = { data: null, error: { message: err instanceof Error ? err.message : String(err) } };
+    }
     const p = Promise.resolve(r) as Promise<typeof r> & { maybeSingle: () => Promise<typeof r>; single: () => Promise<typeof r> };
     p.maybeSingle = () => Promise.resolve(r);
     p.single = () => Promise.resolve(r);
