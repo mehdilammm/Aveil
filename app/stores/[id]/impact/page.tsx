@@ -74,7 +74,7 @@ export default async function ProductImpactPage({ params }: { params: Promise<{ 
           <p>
             {r.clauses.map((c, i) => (
               <span key={c.key}>
-                <BasisBadge basis={c.basis} /> {c.text}{i < r.clauses.length - 1 ? "; " : "."}{" "}
+                <BasisBadge basis={c.basis} /> {t(`clause.${c.msg}`, c.values)}{i < r.clauses.length - 1 ? t("sep") : "."}{" "}
               </span>
             ))}
           </p>
