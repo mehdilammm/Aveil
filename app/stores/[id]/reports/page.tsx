@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import { formatDate } from "@/components/badges";
 import { deltasForScans, getStore, listScans, weeklyReport } from "@/lib/data";
+import { shareState } from "@/lib/share-report";
 import { getUser } from "@/lib/supabase/server";
+import { canEdit, storeAccess } from "@/lib/workspace";
+import { ShareLinks } from "./share-links";
 
 export default async function ReportsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase } = await getUser();
+  const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
 
@@ -13,6 +16,10 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
   const deltas = await deltasForScans(supabase, scans);
   const lastComplete = scans.find((s) => s.status === "complete");
   const weekly = await weeklyReport(supabase, scans);
+  const access = user ? await storeAccess(supabase, user.id, store.id) : null;
+  const { data: shareRows } = await supabase.from("share_reports").select("id, created_at, expires_at, revoked_at, views").eq("store_id", store.id).order("created_at", { ascending: false }).limit(50);
+  const now = Date.now();
+  const links = (shareRows ?? []).map((r) => ({ ...r, state: shareState(r, now) as "ok" | "expired" | "revoked" }));
   const titleList = (keys: string[]) => (keys.length ? <ul>{keys.map((k) => <li key={k}>{weekly?.titles.get(k) ?? k}</li>)}</ul> : <p className="muted">None.</p>);
 
   return (
@@ -29,6 +36,8 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
         </div>
         {lastComplete && <a className="button" href={`/api/stores/${store.id}/report.csv`} download>Download CSV</a>}
       </div>
+
+      <ShareLinks storeId={store.id} links={links} canShare={Boolean(access && canEdit(access.role))} hasScan={Boolean(lastComplete)} />
 
       <h2>Weekly report</h2>
       {weekly ? (
