@@ -484,3 +484,19 @@ export async function fetchProductsFor(baseUrl: string, creds: WooCredentials, b
   for (const skus of chunks(by.skus ?? [])) out.push(...(await getPage<WooProduct>(baseUrl, "/products", { sku: skus.join(","), per_page: "100", status: "publish" }, creds)).items);
   return out;
 }
+
+// Active plugins (name, slug path, version) from WooCommerce's system status report (read access is enough).
+export async function fetchActivePlugins(baseUrl: string, creds: WooCredentials): Promise<Source<{ plugin: string; name: string; version: string }[]>> {
+  try {
+    const url = new URL(`${baseUrl}/wp-json/wc/v3/system_status`);
+    url.searchParams.set("_fields", "active_plugins");
+    const basic = Buffer.from(`${creds.consumerKey}:${creds.consumerSecret}`).toString("base64");
+    const res = await safeFetch(url, { Authorization: `Basic ${basic}`, Accept: "application/json" });
+    if (!res.ok) return { ok: false, reason: `The list of active plugins could not be read (WooCommerce system status, HTTP ${res.status}).` };
+    const body = (await res.json()) as { active_plugins?: { plugin?: string; name?: string; version?: string }[] };
+    if (!Array.isArray(body?.active_plugins)) return { ok: false, reason: "WooCommerce's system status did not include the active plugins." };
+    return { ok: true, data: body.active_plugins.map((p) => ({ plugin: String(p.plugin ?? ""), name: String(p.name ?? ""), version: String(p.version ?? "") })) };
+  } catch (err) {
+    return { ok: false, reason: `The list of active plugins could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
+  }
+}

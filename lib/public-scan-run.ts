@@ -9,7 +9,7 @@ import { PublicFetcher } from "./public-fetch";
 import { checkShopifyProducts, detectShopify, SHOPIFY_PRODUCTS_LIMIT, shopifyProductLinks, shopifyProductSitemap } from "./shopify";
 import { checkStoreApiProducts, STORE_API_PATH } from "./woo-store-api";
 import {
-  ACCESS_BOTS, detectPlatform, knowledgeQuestion, titleTopic, topicPrompt, trustedHomeHtml, topicFromHome, validateTopic, visibilityQuestion, type GeminiParts, type TaskRecord, type Topic, agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, LIMITS, productLinks, productSitemapUrl, PUBLIC_UA,
+  ACCESS_BOTS, detectPlatform, knowledgeQuestion, titleTopic, topicPrompt, trustedHomeHtml, topicFromHome, validateTopic, visibilityQuestion, type GeminiParts, type TaskRecord, type Topic, agentScopeAllowed, buildPublicReport, geminiAllowedForDomain, LIMITS, NOT_CHECKED, productLinks, productSitemapUrl, PUBLIC_UA,
   robotsFrom, sitemapProductUrls, type GeminiPart, type PublicReport, type PublicScanInput,
 } from "./public-scan";
 import { brandTerms, registrableDomain } from "./visibility";
@@ -256,6 +256,11 @@ export async function runPublicScan(
       for (const bot of ACCESS_BOTS) input.bots[bot] = await fetcher.get(`${site}/`, UA[bot], `home page as ${bot}`);
       if (agentScopeAllowed(robots, "/llms.txt")) input.llms = await fetcher.get(`${site}/llms.txt`, PUBLIC_UA, "llms.txt");
       if (productUrls[1]) input.products.push({ url: productUrls[1], fetch: await fetcher.get(productUrls[1], PUBLIC_UA, "product page 2") });
+      // Information only, and only with requests left: the 10-request limit is never raised for these.
+      const spare = (path: string, step: string) =>
+        !agentScopeAllowed(robots, path) ? null : fetcher.remaining > 0 ? fetcher.get(`${origin}${path}`, PUBLIC_UA, step) : Promise.resolve({ ok: false as const, error: NOT_CHECKED, skipped: true });
+      input.ucp = await spare("/.well-known/ucp", "UCP profile");
+      input.acp = await spare("/.well-known/acp.json", "ACP discovery");
     } else if (agentScopeAllowed(robots, "/llms.txt")) {
       input.llms = await fetcher.get(`${origin}/llms.txt`, PUBLIC_UA, "llms.txt");
     }

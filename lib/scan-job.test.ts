@@ -34,13 +34,13 @@ vi.mock("./platform/woocommerce", () => ({
     fetchProductSchema: async (url: string) => ({ url, page: page(url) }),
   }),
 }));
-vi.mock("./agent-checks", () => ({ runStructuredChecks: async () => [] }));
+vi.mock("./agent-checks", () => ({ runStructuredChecks: async () => [], fetchText: async () => ({ ok: true, data: { status: 404, text: "" } }) }));
 let plan = "free";
 vi.mock("./orders-sync", () => ({ planOf: async () => plan, syncOrders: async () => ({}) }));
 const autoFix = vi.fn(async () => ({ applied: 1 }));
 vi.mock("./autofix-run", () => ({ runAutoFix: (...a: unknown[]) => autoFix(...(a as [])) }));
 vi.mock("./ownership-store", () => ({ recordVerification: vi.fn(async () => {}) }));
-vi.mock("./woo", async (orig) => ({ ...(await orig<typeof import("./woo")>()), fetchPublicPage: async (u: string) => page(u) }));
+vi.mock("./woo", async (orig) => ({ ...(await orig<typeof import("./woo")>()), fetchPublicPage: async (u: string) => page(u), fetchActivePlugins: async () => ({ ok: true, data: [] }) }));
 
 const { runClaimedJob } = await import("./jobs");
 const { JOB_HANDLERS } = await import("./job-handlers");

@@ -104,6 +104,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             </table>
           )}
           <p className="muted small">llms.txt: {r.llmsTxt}.</p>
+          {r.agentic && <p className="small"><BasisBadge basis={r.agentic.basis} /> {r.agentic.title}. <span className="muted">{r.agentic.evidence}</span></p>}
         </div>
 
         <h2>Bot access</h2>
