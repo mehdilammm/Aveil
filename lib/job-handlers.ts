@@ -49,7 +49,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
     if (!store) throw new PermanentJobError("store not found");
     const r = await step("run", async () => {
       if (timeLeft() < VISIBILITY_MIN_MS) throw new JobYield();
-      return runVisibility(admin, store, { test: job.progress?.test === true, budgetMs: timeLeft() - 20_000 });
+      return runVisibility(admin, store, { test: job.progress?.test === true, recheck: typeof job.progress?.recheck_day === "number", budgetMs: timeLeft() - 20_000 });
     });
     await admin.from("jobs").update({ progress: { ...job.progress, run_id: r.runId ?? null, step: "done" } }).eq("id", job.id);
     // A refusal (weekly limit, daily cap, no questions) is the job's result, not something to retry.

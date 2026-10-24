@@ -10,6 +10,7 @@ import { GEMINI_DISCLAIMER } from "@/lib/public-scan";
 import { getUser } from "@/lib/supabase/server";
 import { canRun, ENGINE_LABEL, ENGINE_NAME, ENGINES, nextRunAt, TASK_BY_LABEL, type EngineId, type TaskById } from "@/lib/visibility";
 import { deletePrompt } from "./actions";
+import { OutcomeSection } from "./outcome-section";
 import { PromptsForm } from "./prompts-form";
 import { RereadButton, RunVisibilityButton, TestRunButton } from "./run-button";
 import { storeAccess } from "@/lib/workspace";
@@ -159,6 +160,8 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
           This month: {ENGINES.map((e) => `${ENGINE_NAME[e]} ${usage[e].requests} requests, ${usage[e].input} input and ${usage[e].output} output tokens`).join(" · ")}.
         </p>
       </div>
+
+      <OutcomeSection storeId={store.id} />
 
       <h2>Results</h2>
       {!latestRun ? (
