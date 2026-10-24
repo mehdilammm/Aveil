@@ -370,5 +370,24 @@
       "store_pages": "Store pages",
       "checkout": "Checkout"
     }
+  },
+  "outcome": {
+    "title": "After your fixes",
+    "note": "What the models returned before a verified fix compared with the re-checks 7, 14 and 30 days later, on the same questions and engines. Only questions answered both times count. Model answers vary between runs and ungrounded models do not read your store live, so a change is not proof that the fix caused it. It does not predict rankings or sales.",
+    "fixed": "Fix verified",
+    "recheck": "Re-check",
+    "before": "Before the fix",
+    "after": "On the re-check",
+    "changes": "Changes",
+    "fixes": "{n, plural, one {# fix} other {# fixes}}",
+    "day": "Day {day}",
+    "named": "named in {named} of {total}",
+    "noChange": "No change in the compared answers",
+    "gained": "Now named ({n})",
+    "lost": "No longer named ({n})",
+    "pending": "Not run yet: due on {date}",
+    "failed": "The re-check did not complete:",
+    "noBaseline": "No AI Visibility run before the fix, so there is nothing to compare with.",
+    "noOverlap": "No question was answered both before the fix and on the re-check."
   }
 }

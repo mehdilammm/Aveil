@@ -30,9 +30,11 @@ function isFatal(error: string): boolean {
 // rate limits are respected while both engines progress side by side.
 // options.test: "Re-run with citations (test)" for the workspace owner: skips the weekly wait (at most
 // TEST_RUNS_PER_DAY runs per store in 24 h), keeps the grounding caps, and is stored as a normal run.
+// options.recheck: a 7/14/30-day re-check after a verified fix: skips the weekly wait (it must run on its day to be
+// compared), keeps the plan's daily request caps.
 export const TEST_RUNS_PER_DAY = 3;
 // The checks that decide whether a run may start (also used before a run is queued as a job).
-export async function visibilityPrecheck(admin: SupabaseClient, store: Store, options: { test?: boolean } = {}): Promise<{ runId?: string; error?: string } | null> {
+export async function visibilityPrecheck(admin: SupabaseClient, store: Store, options: { test?: boolean; recheck?: boolean } = {}): Promise<{ runId?: string; error?: string } | null> {
   if (!ENGINES.some(engineConfigured)) return { error: "AI Visibility is not set up on the server (no AI engine key)." };
   if (options.test) {
     const { count } = await admin.from("visibility_runs").select("id", { count: "exact", head: true }).eq("store_id", store.id).gte("created_at", new Date(Date.now() - 86_400_000).toISOString());
@@ -48,14 +50,14 @@ export async function visibilityPrecheck(admin: SupabaseClient, store: Store, op
     .limit(1);
   const last = recent?.[0];
   if (last?.status === "running" && Date.now() - Date.parse(last.created_at) < STALE_RUN_MS) return { runId: last.id, error: "A run is already in progress." };
-  if (!options.test && last && last.status === "complete" && !canRun(last.created_at, new Date())) {
+  if (!options.test && !options.recheck && last && last.status === "complete" && !canRun(last.created_at, new Date())) {
     return { error: `Questions can be run once a week. Next run: ${nextRunAt(last.created_at)!.toUTCString()}.` };
   }
   return null;
 }
 
 // options.budgetMs: time this run may use (a job passes what is left of its tick).
-export async function runVisibility(admin: SupabaseClient, store: Store, options: { test?: boolean; budgetMs?: number } = {}): Promise<{ runId?: string; error?: string }> {
+export async function runVisibility(admin: SupabaseClient, store: Store, options: { test?: boolean; recheck?: boolean; budgetMs?: number } = {}): Promise<{ runId?: string; error?: string }> {
   const engines = ENGINES.filter(engineConfigured);
   const refused = await visibilityPrecheck(admin, store, options);
   if (refused) return refused;
