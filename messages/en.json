@@ -224,7 +224,22 @@
     "noScan": "Run a scan first: the summary uses its product sample.",
     "noKey": "No API key is saved for this store, so its products cannot be read.",
     "note": "Each part has its own badge: Observed (seen), Heuristic (likely, not proven), Unavailable (no data, with the reason). It does not predict sales.",
-    "fix": "Fix in Fix Center"
+    "fix": "Fix in Fix Center",
+    "clause": {
+      "gaps": "{count, plural, one {# readiness gap} other {# readiness gaps}}{critical, plural, =0 {} other { (# critical)}}: {titles}",
+      "notChecked": "readiness not fully checked in the last scan",
+      "noGap": "no readiness gap in the last scan",
+      "noQuestion": "no AI Visibility question about {topic} yet",
+      "noQuestionProduct": "no AI Visibility question about this product yet",
+      "noAnswer": "the questions about it have no usable answer yet",
+      "named": "the store was named in {named} of {total, plural, one {# AI answer} other {# AI answers}} to questions about {topic} (model answers, not rankings)",
+      "namedProduct": "the store was named in {named} of {total, plural, one {# AI answer} other {# AI answers}} to questions about it (model answers, not rankings)",
+      "needsPlugin": "AI bot visits per page need plugin 1.5.0 with traffic capture on",
+      "verified": "{verified, plural, one {# verified AI bot visit} other {# verified AI bot visits}} to its page in {days} days{claim, plural, =0 {} other { (+# user-agent only)}}",
+      "claimed": "{claim, plural, one {# AI bot visit} other {# AI bot visits}} claimed by user agent only in {days} days, none verified",
+      "noVisit": "no AI bot visit to its page seen in {days} days (cached pages are not seen)"
+    },
+    "sep": "; "
   },
   "nav": {
     "overview": "Overview",

@@ -3,7 +3,10 @@
 // its page. A clause without data says why (Unavailable), never a guess.
 import type { Basis } from "./rules";
 
-export type Clause = { key: "readiness" | "visibility" | "traffic"; text: string; basis: Basis };
+// Each clause is a catalog message (impact.clause.<msg>) with its values, so it reads natively in English and
+// Arabic (ICU plurals, incl. Arabic dual/few/many). Values are real data only: counts, days, category, titles.
+export type Clause = { key: "readiness" | "visibility" | "traffic"; msg: ClauseMsg; values: Record<string, string | number>; basis: Basis };
+export type ClauseMsg = "gaps" | "notChecked" | "noGap" | "noQuestion" | "noQuestionProduct" | "noAnswer" | "named" | "namedProduct" | "needsPlugin" | "verified" | "claimed" | "noVisit";
 export type ImpactInput = {
   product: { id: number; name: string; categories: string[] };
   findings: { title: string; severity: "high" | "medium" | "low"; basis: Basis }[];
@@ -25,28 +28,30 @@ export function relatedAnswers(input: Pick<ImpactInput, "product" | "answers">) 
 export function productImpact(i: ImpactInput): Clause[] {
   const open = i.findings.filter((f) => f.basis !== "unavailable");
   const high = open.filter((f) => f.severity === "high").length;
+  const titles = `${open.slice(0, 3).map((f) => f.title).join("; ")}${open.length > 3 ? "; …" : ""}`;
   const readiness: Clause = open.length
-    ? { key: "readiness", basis: open.some((f) => f.basis === "observed") ? "observed" : "heuristic", text: `${open.length} readiness gap${open.length === 1 ? "" : "s"}${high ? ` (${high} critical)` : ""}: ${open.slice(0, 3).map((f) => f.title).join("; ")}${open.length > 3 ? "; …" : ""}` }
+    ? { key: "readiness", basis: open.some((f) => f.basis === "observed") ? "observed" : "heuristic", msg: "gaps", values: { count: open.length, critical: high, titles } }
     : i.findings.length
-      ? { key: "readiness", basis: "unavailable", text: "readiness not fully checked in the last scan" }
-      : { key: "readiness", basis: "observed", text: "no readiness gap in the last scan" };
+      ? { key: "readiness", basis: "unavailable", msg: "notChecked", values: {} }
+      : { key: "readiness", basis: "observed", msg: "noGap", values: {} };
 
   const related = relatedAnswers(i);
   const answered = related.filter((a) => !a.error && a.mentioned !== null);
   const named = answered.filter((a) => a.mentioned).length;
+  const topic = i.product.categories[0];
   const visibility: Clause = !related.length
-    ? { key: "visibility", basis: "unavailable", text: `no AI Visibility question about ${i.product.categories[0] ?? "this product"} yet` }
+    ? topic ? { key: "visibility", basis: "unavailable", msg: "noQuestion", values: { topic } } : { key: "visibility", basis: "unavailable", msg: "noQuestionProduct", values: {} }
     : !answered.length
-      ? { key: "visibility", basis: "unavailable", text: "the questions about it have no usable answer yet" }
-      : { key: "visibility", basis: "observed", text: `the store was named in ${named} of ${answered.length} AI answer${answered.length === 1 ? "" : "s"} to questions about ${i.product.categories[0] ?? "it"} (model answers, not rankings)` };
+      ? { key: "visibility", basis: "unavailable", msg: "noAnswer", values: {} }
+      : { key: "visibility", basis: "observed", msg: topic ? "named" : "namedProduct", values: { named, total: answered.length, ...(topic ? { topic } : {}) } };
 
   const h = i.hits;
   const traffic: Clause = !h
-    ? { key: "traffic", basis: "unavailable", text: "AI bot visits per page need plugin 1.5.0 with traffic capture on" }
+    ? { key: "traffic", basis: "unavailable", msg: "needsPlugin", values: {} }
     : h.verified
-      ? { key: "traffic", basis: "observed", text: `${h.verified} verified AI bot visit${h.verified === 1 ? "" : "s"} to its page in ${i.days} days${h.claim ? ` (+${h.claim} user-agent only)` : ""}` }
+      ? { key: "traffic", basis: "observed", msg: "verified", values: { verified: h.verified, claim: h.claim, days: i.days } }
       : h.claim
-        ? { key: "traffic", basis: "heuristic", text: `${h.claim} AI bot visit${h.claim === 1 ? "" : "s"} claimed by user agent only in ${i.days} days, none verified` }
-        : { key: "traffic", basis: "observed", text: `no AI bot visit to its page seen in ${i.days} days (cached pages are not seen)` };
+        ? { key: "traffic", basis: "heuristic", msg: "claimed", values: { claim: h.claim, days: i.days } }
+        : { key: "traffic", basis: "observed", msg: "noVisit", values: { days: i.days } };
   return [readiness, visibility, traffic];
 }
