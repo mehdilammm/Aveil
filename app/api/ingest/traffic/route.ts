@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { MAX_BODY_BYTES, validateRows, verifySignature } from "@/lib/traffic";
+import { isReplay } from "@/lib/rate-limit";
+import { MAX_BODY_BYTES, MAX_CLOCK_SKEW_SECONDS, validateRows, verifySignature } from "@/lib/traffic";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,9 @@ export async function POST(request: Request) {
   if (!connector || !verifySignature(connector.token, timestamp, body, signature, Math.floor(Date.now() / 1000))) {
     return fail(401, "Invalid signature");
   }
+  // Replay: the same signed request (same timestamp and body) a second time inside the clock window is answered
+  // as already received and not stored again (the plugin re-signs every send, so it never sends one twice).
+  if (await isReplay(admin, `${storeId}:${signature}`, 2 * MAX_CLOCK_SKEW_SECONDS)) return NextResponse.json({ ok: true, duplicate: true });
 
   let parsed: unknown;
   try {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { kickJobs } from "@/lib/job-kick";
+import { storeLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { canEdit, storeAccess } from "@/lib/workspace";
@@ -18,6 +19,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = (await request.json().catch(() => ({}))) as { finding_key?: unknown };
   const key = typeof body.finding_key === "string" ? body.finding_key.slice(0, 300) : "";
   const admin = createAdminClient();
+  const limited = await storeLimit(admin, store.id, "verify");
+  if (limited) return NextResponse.json({ error: limited }, { status: 429 });
   const { data: scan } = await admin.from("scans").select("id").eq("store_id", store.id).eq("status", "complete").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: finding } = scan ? await admin.from("findings").select("finding_key").eq("scan_id", scan.id).eq("finding_key", key).maybeSingle() : { data: null };
   if (!scan || !finding) return NextResponse.json({ error: "This finding is not in the last scan." }, { status: 404 });

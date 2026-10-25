@@ -1,17 +1,20 @@
 import Link from "next/link";
 import { cookies, headers } from "next/headers";
+import { getTranslations } from "next-intl/server";
 import { checkPrefill, HANDOFF_COOKIE } from "@/lib/check-handoff";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listStores } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
 import { canEdit, ensurePersonalWorkspace, listWorkspaces } from "@/lib/workspace";
 import { AddStoreForm } from "./add-store-form";
+import { ChangeUrlForm } from "./change-url-form";
 import { DeleteStoreForm } from "./delete-store-form";
 import { TrafficConnect } from "./traffic-connect";
 import { PluginOnboarding } from "@/components/plugin-onboarding";
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ from_check?: string }> }) {
   const { supabase, user } = await getUser();
+  const tu = await getTranslations("urlChange");
   if (user) await ensurePersonalWorkspace(createAdminClient(), user.id).catch(() => null);
   const workspaces = user ? await listWorkspaces(supabase, user.id) : [];
   const roleOf = new Map(workspaces.map((w) => [w.id, w]));
@@ -57,6 +60,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                   <TrafficConnect storeId={s.id} connected={connectors.get(s.id) ?? null} endpoint={endpoint} />
                 </PluginOnboarding>
               </details>
+              {roleOf.get(s.workspace_id)?.role === "owner" && (
+                <details>
+                  <summary className="muted">{tu("title")}</summary>
+                  <ChangeUrlForm storeId={s.id} />
+                </details>
+              )}
               <details>
                 <summary className="muted">Delete this store</summary>
                 <DeleteStoreForm storeId={s.id} storeName={s.name} />

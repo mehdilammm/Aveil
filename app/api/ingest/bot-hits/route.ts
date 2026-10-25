@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { validateHits } from "@/lib/bot-hits";
 import { kickJobs } from "@/lib/job-kick";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { verifySignature } from "@/lib/traffic";
+import { isReplay } from "@/lib/rate-limit";
+import { MAX_CLOCK_SKEW_SECONDS, verifySignature } from "@/lib/traffic";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
 
   const { data: connector } = await admin.rpc("get_traffic_connector_secret", { p_store_id: storeId }).maybeSingle<{ owner_id: string; token: string }>();
   if (!connector || !verifySignature(connector.token, timestamp, body, signature, Math.floor(Date.now() / 1000))) return fail(401, "Invalid signature");
+  // Replay of the same signed request inside the clock window: answered as already received, not stored again.
+  if (await isReplay(admin, `${storeId}:${signature}`, 2 * MAX_CLOCK_SKEW_SECONDS)) return NextResponse.json({ ok: true, duplicate: true });
 
   let parsed: unknown;
   try {

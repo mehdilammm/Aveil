@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { kickJobs } from "@/lib/job-kick";
+import { storeLimit } from "@/lib/rate-limit";
 import { enqueueScan } from "@/lib/scan";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
@@ -19,6 +20,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!store) return NextResponse.json({ error: "Store not found." }, { status: 404 });
   if (!canEdit(store.role)) return NextResponse.json({ error: "Viewers cannot run checks. Ask a workspace admin." }, { status: 403 });
 
+  const limited = await storeLimit(createAdminClient(), store.id, "scan");
+  if (limited) return NextResponse.json({ error: limited }, { status: 429 });
   try {
     const result = await enqueueScan(createAdminClient(), store, "manual", user.id);
     kickJobs();

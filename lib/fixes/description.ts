@@ -1,3 +1,5 @@
+import { FORMULA_START } from "../csv";
+
 // Factual description optimizer: the product's current description, kept as written, plus a "Details" list made
 // only of what the store already has (category, attributes, size, weight, SKU, GTIN, brand, price) and what the
 // merchant typed in. No model writes text here, so nothing can be invented. Missing facts buyers and agents look
@@ -103,6 +105,6 @@ export function diffLines(a: string, b: string): DiffRow[] {
 export function descriptionsCsv(rows: { productId: number; html: string }[]): string {
   const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
   // A leading = + - @ would make a spreadsheet run it as a formula.
-  const safe = (v: string) => (/^[=+\-@\t\r]/.test(v) ? `'${v}` : v);
+  const safe = (v: string) => (FORMULA_START.test(v) ? `'${v}` : v);
   return ["ID,Description", ...rows.map((r) => `${r.productId},${q(safe(r.html))}`)].join("\r\n") + "\r\n";
 }

@@ -533,5 +533,19 @@
       "pricing": "Pricing",
       "login": "Log in"
     }
+  },
+  "urlChange": {
+    "title": "Change the store address",
+    "note": "Owner only. Put the token on the new address first; the address changes only when the check passes. Earlier ownership checks are removed and auto-fix is turned off (approve it again for the new address).",
+    "newUrl": "New address",
+    "start": "Get the token",
+    "dns": "DNS TXT record on {host}:",
+    "meta": "Or a meta tag in the home page head:",
+    "file": "Or a file at {url} with:",
+    "check_dns_txt": "Check DNS",
+    "check_meta_tag": "Check meta tag",
+    "check_well_known_file": "Check file",
+    "done": "Verified. The store address has changed.",
+    "failed": "Something went wrong. Try again."
   }
 }
