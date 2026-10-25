@@ -1,6 +1,8 @@
 -- Column lock-down test (migration lock_down_column_updates). As a signed-in workspace owner (the role a browser
 -- gets with the public key), in one transaction that is rolled back. Expected: rename and retention allowed;
--- plan, auto_fix_enabled, owner_id, connection_status and truncate refused (42501); member role rows=0 (no policy).
+-- plan, auto_fix_enabled, owner_id, connection_status, url and truncate refused (42501); member role rows=0 (no
+-- policy); adding a store with only name/url/owner/workspace allowed, with auto_fix_enabled refused (42501).
+-- Migrations: lock_down_column_updates, lock_down_store_insert_and_url.
 begin;
 create temp table t_res (test text, outcome text);
 grant all on t_res to authenticated;
@@ -23,6 +25,12 @@ begin
   exception when others then insert into t_res values ('stores.connection_status', 'refused ' || sqlstate); end;
   begin update public.workspace_members set role = 'owner' where workspace_id = 'cd674fa4-58ce-41aa-a61d-81462a47dd91'; get diagnostics n = row_count; insert into t_res values ('workspace_members.role', 'rows=' || n);
   exception when others then insert into t_res values ('workspace_members.role', 'refused ' || sqlstate); end;
+  begin update public.stores set url = 'https://attacker.example' where id = 'c2ab0cfe-d60a-4d93-ae3e-983598108948'; insert into t_res values ('stores.url', 'ALLOWED');
+  exception when others then insert into t_res values ('stores.url', 'refused ' || sqlstate); end;
+  begin insert into public.stores (name, url, owner_id, workspace_id) values ('t', 'https://t.example', 'd402b434-591f-40d7-b7f5-326a456d301e', 'cd674fa4-58ce-41aa-a61d-81462a47dd91'); insert into t_res values ('insert store (basic columns)', 'allowed');
+  exception when others then insert into t_res values ('insert store (basic columns)', 'refused ' || sqlstate); end;
+  begin insert into public.stores (name, url, owner_id, workspace_id, auto_fix_enabled, auto_fix_approved_at) values ('x', 'https://x.example', 'd402b434-591f-40d7-b7f5-326a456d301e', 'cd674fa4-58ce-41aa-a61d-81462a47dd91', true, now()); insert into t_res values ('insert store with auto_fix_enabled', 'ALLOWED');
+  exception when others then insert into t_res values ('insert store with auto_fix_enabled', 'refused ' || sqlstate); end;
   begin truncate public.findings; insert into t_res values ('truncate findings', 'ALLOWED');
   exception when others then insert into t_res values ('truncate findings', 'refused ' || sqlstate); end;
 end $$;

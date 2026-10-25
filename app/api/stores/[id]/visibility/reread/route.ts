@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { storeLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { canEdit, storeAccess } from "@/lib/workspace";
@@ -15,6 +16,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const store = await storeAccess(supabase, user.id, id);
   if (!store) return NextResponse.json({ error: "Store not found." }, { status: 404 });
   if (!canEdit(store.role)) return NextResponse.json({ error: "Viewers cannot run checks. Ask a workspace admin." }, { status: 403 });
+  const limited = await storeLimit(createAdminClient(), store.id, "reread");
+  if (limited) return NextResponse.json({ error: limited }, { status: 429 });
   try {
     const result = await rereadStoredAnswers(createAdminClient(), store);
     return NextResponse.json(result, { status: result.error ? 409 : 200 });

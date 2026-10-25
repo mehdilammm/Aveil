@@ -81,8 +81,11 @@ export function hashIp(ip: string, secret: string, now: Date): string {
   return createHmac("sha256", secret).update(`${now.toISOString().slice(0, 10)}|${ip.trim()}`).digest("hex");
 }
 
+// The client IP as Vercel sets it: x-real-ip (what @vercel/functions ipAddress() reads), then Vercel's own
+// x-vercel-forwarded-for; x-forwarded-for (overwritten by Vercel) only as a last resort, e.g. local dev.
 export function clientIp(headers: Headers): string {
-  return (headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || headers.get("x-real-ip")?.trim() || "unknown";
+  const first = (v: string | null) => (v ?? "").split(",")[0].trim();
+  return first(headers.get("x-real-ip")) || first(headers.get("x-vercel-forwarded-for")) || first(headers.get("x-forwarded-for")) || "unknown";
 }
 
 export const withinRateLimit = (countInWindow: number) => countInWindow <= LIMITS.scansPerHourPerIp;

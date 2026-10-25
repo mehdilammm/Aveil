@@ -25,14 +25,11 @@ function isHttpsUrl(v: string) {
 const looksLikeKey = (v: string) => /^sb_(publishable|secret)_/.test(v) || v.split(".").length === 3;
 
 // Shows whether configuration is present and working. Never returns secret values (the grounding on/off flag is shown).
-// Signed-in users only; if ADMIN_EMAILS (comma separated) is set, only those users.
+// Only the users in ADMIN_EMAILS (comma separated); everyone else, and everyone when it is not set, gets 404.
 export async function GET() {
   const { user } = await getUser().catch(() => ({ user: null }));
-  if (!user) return NextResponse.json({ error: "Log in first." }, { status: 401 });
   const admins = (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
-  if (admins.length && !admins.includes((user.email ?? "").toLowerCase())) {
-    return NextResponse.json({ error: "Not allowed." }, { status: 403 });
-  }
+  if (!user || !admins.includes((user.email ?? "").toLowerCase())) return new NextResponse(null, { status: 404 });
 
   const env = {
     NEXT_PUBLIC_SUPABASE_URL: envCheck("NEXT_PUBLIC_SUPABASE_URL", isHttpsUrl),
