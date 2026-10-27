@@ -7,6 +7,8 @@ import { runVisibility } from "./visibility-run";
 import { purgeOldHits, refreshIpRanges, verifyStoreHits } from "./bot-jobs";
 import { breakageCheck, productCheck } from "./store-checks";
 import { verifyFindingJob } from "./verify-jobs";
+import { NotVerifiedError, runAgentSim } from "./agent-sim-run";
+import { marketOf } from "./markets";
 
 const VISIBILITY_MIN_MS = 150_000; // a run needs a fresh tick; it stops asking at its own time budget
 
@@ -15,7 +17,8 @@ const VISIBILITY_MIN_MS = 150_000; // a run needs a fresh tick; it stops asking 
 // bot_ranges_refresh: reads the operators' IP lists (daily). bot_hits_verify: checks a store's new bot hits.
 // bot_hits_purge: deletes hits past each store's retention (daily). verify_finding: re-checks one fixed finding.
 // breakage_check: mini-scan after a plugin / theme / core change (F2). product_check: one product just published
-// or updated (F3).
+// or updated (F3). agent_sim: the agent purchase test through the Store API, never placing an order (F7); one
+// attempt only, so a cart is never filled twice.
 export const JOB_HANDLERS: Record<string, JobHandler> = {
   orders_sync: async ({ admin, job, step }) => {
     if (!job.store_id) throw new Error("orders_sync needs a store");
@@ -52,6 +55,21 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
     if (!Number.isInteger(productId) || productId <= 0) throw new PermanentJobError("product_check needs a product");
     const ids = Array.isArray(job.progress?.event_ids) ? (job.progress.event_ids as string[]) : [];
     await step("check", () => productCheck(admin, store, productId, job.id, ids));
+  },
+  agent_sim: async ({ admin, job, step }) => {
+    if (!job.store_id) throw new PermanentJobError("agent_sim needs a store");
+    const { data: store } = await admin.from("stores").select("id, url").eq("id", job.store_id).maybeSingle();
+    if (!store) throw new PermanentJobError("store not found");
+    const market = marketOf(job.progress?.market);
+    if (!market) throw new PermanentJobError("agent_sim needs a market");
+    await step("simulate", async () => {
+      try {
+        return await runAgentSim(admin, store, market.id);
+      } catch (err) {
+        if (err instanceof NotVerifiedError) throw new PermanentJobError(err.message);
+        throw err;
+      }
+    });
   },
   bot_ranges_refresh: async ({ admin, step }) => {
     await step("lists", () => refreshIpRanges(admin));

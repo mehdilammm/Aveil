@@ -18,6 +18,7 @@ export const STORE_LIMITS = {
   scan: { max: 6, windowSeconds: 3600, label: "6 scans an hour" },
   verify: { max: 30, windowSeconds: 3600, label: "30 re-checks an hour" },
   reread: { max: 5, windowSeconds: 3600, label: "5 re-reads an hour" },
+  simulate: { max: 5, windowSeconds: 3600, label: "5 agent purchase tests an hour" },
 } as const;
 
 export async function storeLimit(admin: SupabaseClient, storeId: string, action: keyof typeof STORE_LIMITS): Promise<string | null> {
