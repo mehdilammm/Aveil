@@ -14,6 +14,7 @@ const ITEMS = [
   { label: "visibility", path: "/visibility" },
   { label: "impact", path: "/impact" },
   { label: "revenue", path: "/revenue" },
+  { label: "markets", path: "/markets" },
   { label: "reports", path: "/reports" },
 ];
 

@@ -525,3 +525,17 @@ export async function fetchStoreApiItems(baseUrl: string, ids: number[], checkTo
     return null;
   }
 }
+
+// How many states / regions WooCommerce lists for a country (it then shows a State field at checkout).
+export async function fetchCountryStates(baseUrl: string, creds: WooCredentials, cc: string): Promise<number | null> {
+  try {
+    const url = new URL(`${baseUrl}/wp-json/wc/v3/data/countries/${encodeURIComponent(cc.toLowerCase())}`);
+    const basic = Buffer.from(`${creds.consumerKey}:${creds.consumerSecret}`).toString("base64");
+    const res = await safeFetch(url, { Authorization: `Basic ${basic}`, Accept: "application/json" });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { states?: unknown[] };
+    return Array.isArray(body?.states) ? body.states.length : null;
+  } catch {
+    return null;
+  }
+}
