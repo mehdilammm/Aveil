@@ -4,7 +4,7 @@ Tags: woocommerce, ai, chatgpt, structured data, analytics
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -106,7 +106,7 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 
 == Changelog ==
 
-= 1.7.0 (not released yet) =
+= 1.7.0 =
 * Store changes: plugin / theme / WordPress updates, theme switches, plugins turned on or off and products published or updated are sent by WP-Cron (signed), so the app can alert when an update breaks what AI agents need and check new products at once. Names and versions only.
 
 = 1.6.0 =

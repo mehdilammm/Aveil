@@ -1,9 +1,9 @@
 {
-  "version": "1.6.0",
-  "file": "agentscope-core-1.6.0.zip",
-  "sha256": "2d7b55c988b9a49466b8543fa0e90ca3c28c9362911764a4223a2b514edcb01e",
+  "version": "1.7.0",
+  "file": "agentscope-core-1.7.0.zip",
+  "sha256": "bdf83b589637d101dd994f4fda71c9a8f63846bdde419972cb1369430f57b9e6",
   "changelog": [
-    "Technical fixes from the AgentScope app, only from signed requests: brand in the existing Product structured data (same @id), /llms.txt, robots.txt groups for AI search agents. Listed and removable in Settings."
+    "Store changes: plugin / theme / WordPress updates, theme switches, plugins turned on or off and products published or updated are sent by WP-Cron (signed), so the app can alert when an update breaks what AI agents need and check new products at once. Names and versions only."
   ],
   "requires": "6.0",
   "requires_php": "7.4",

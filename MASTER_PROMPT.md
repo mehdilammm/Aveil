@@ -68,6 +68,9 @@ Reporting: two lines after each part; the long report after G6 and after G10.
 - APPROVED: write key + Auto-fix + FixAuditLog + undo (preview and one approval; plugin 1.6.0 signed fixes) — 2026-10-23
 - APPROVED: moving pg_net to the extensions schema — 2026-10-23 (pending: must be done from the Supabase dashboard)
 - APPROVED: G7 plans — Free $0 (1 store, full readiness audit monthly, full Fix Center: manual + one-click + input + CSV, funnel without orders, 3 AI visibility questions per month, CSV export), Pro $29 (3 stores, weekly scans, auto-fix, 25 visibility questions/week, verified bot traffic, AI orders + full funnel + why agents aren't buying, share links + weekly report), Agency $49 (10 stores, everything in Pro + workspaces, team, client reports). Prices unchanged. Locked features show "Unavailable: needs Pro plan" with an Upgrade button (waitlist for now). matha.site workspace stays a pro test override — 2026-10-24
+- APPROVED: store_events_alerts migration — 2026-10-26 (applied by the owner from Claude chat)
+- APPROVED: plugin 1.7.0 release via update checker — 2026-10-26
+- APPROVED: F2 test on matha by updating Site Kit (1.189 → 1.190) after 1.7.0 is installed — 2026-10-26
 
 ## Reconciliation (2026-10-23)
 
