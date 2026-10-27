@@ -254,7 +254,8 @@
     "reports": "Reports",
     "settings": "Settings",
     "bots": "Bots × products",
-    "alerts": "Alerts"
+    "alerts": "Alerts",
+    "markets": "Checkout by market"
   },
   "autofix": {
     "title": "Auto-fix technical issues",
@@ -623,6 +624,47 @@
       "hostinger": "In hPanel, check that Under Attack mode is off (Websites → Dashboard), and in the Hostinger CDN settings check the country and IP blocking rules and the list of blocked bots. Hostinger's own rate limits for crawlers (HTTP 429) cannot be changed in hPanel: if bots keep getting 429, ask Hostinger support to review it, with the time and the bot name from the scan.",
       "litespeed": "LiteSpeed Web Server can limit or challenge bots with settings your host controls. Ask your host whether bot protection or request limits are on for your site.",
       "wordfence": "In WordPress, open Wordfence → Firewall → All Firewall Options and check Rate Limiting, then Wordfence → Tools → Live Traffic to see whether these bots were blocked. Allow the AI bots you want, or raise the limit."
+    }
+  },
+  "markets": {
+    "title": "Checkout by market",
+    "sub": "For each market your AI Visibility questions target: can an AI agent complete a checkout there, and if not, why.",
+    "note": "From the store's own WooCommerce settings, read only: selling and shipping locations, shipping zones and methods, payment methods, guest checkout and the address fields. A setting is Observed; what it means for an agent is sometimes only likely (Heuristic). Payment or shipping plugins that change these rules at checkout are not seen.",
+    "noKey": "No API key is saved for this store, so its settings cannot be read.",
+    "noSettings": "The store settings could not be read: {reason}",
+    "defaultMarket": "No AI Visibility question yet: the store's own country is shown ({market}).",
+    "market": "Market",
+    "can": "Can an agent complete checkout?",
+    "why": "Why not",
+    "fix": "Fix",
+    "noBarrier": "No barrier found in the settings.",
+    "verdict": {
+      "yes": "Yes",
+      "probably": "Probably, with limits",
+      "no": "No",
+      "unknown": "Not known"
+    },
+    "reason": {
+      "notSold": "The store does not sell to {cc} (Selling location(s)).",
+      "shippingDisabled": "Shipping is turned off for the whole store, but the products need shipping.",
+      "notShipped": "The store does not ship to {cc} (Shipping location(s)).",
+      "noZone": "No shipping zone covers {cc}.",
+      "noMethods": "The shipping zone \"{zone}\" has no shipping method turned on.",
+      "partialZone": "Only addresses in the zone \"{zone}\" get a shipping method; elsewhere in this country there is none.",
+      "zoneGap": "Addresses in the zone \"{zone}\" get no shipping method; the rest of this country does.",
+      "noPayment": "No payment method is turned on.",
+      "offlineOnly": "Only offline payment ({methods}): an agent can place the order but cannot pay online.",
+      "guestOff": "Guest checkout is off: the buyer must create an account first.",
+      "statesAsked": "Checkout asks for a state or region (WooCommerce lists {n} for this country): the agent needs it in the address.",
+      "currency": "Prices are in {store}; shoppers there usually pay in {market}. Information only.",
+      "zonesUnknown": "The shipping zones could not be read.",
+      "paymentsUnknown": "The payment methods could not be read."
+    },
+    "fixes": {
+      "selling": "Selling locations",
+      "shipping": "Shipping zones",
+      "payments": "Payment methods",
+      "accounts": "Accounts & Privacy"
     }
   }
 }
