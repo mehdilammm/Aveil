@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { BasisBadge, formatDate } from "@/components/badges";
 import { PlanLock } from "@/components/plan-lock";
-import type { BreakageDetail } from "@/lib/breakage";
+import { lastCheck, type BreakageDetail, type Change, type LastCheck } from "@/lib/breakage";
 import { getStore } from "@/lib/data";
 import { storePlan } from "@/lib/plan-gate";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -29,6 +29,16 @@ export default async function AlertsPage({ params }: { params: Promise<{ id: str
   const { data } = await supabase.from("store_alerts").select("id, kind, status, title, detail, created_at").eq("store_id", store.id).order("created_at", { ascending: false }).limit(50);
   const alerts = (data ?? []) as Alert[];
   const editor = canEdit(access.role);
+  // The latest breakage check and the changes it followed (job steps are server-only, read with the admin client).
+  const admin = createAdminClient();
+  const { data: job } = await admin.from("jobs").select("id, status, updated_at, run_after, error").eq("store_id", store.id).eq("kind", "breakage_check").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const [{ data: changes }, { data: stepRow }] = job
+    ? await Promise.all([
+        supabase.from("store_events").select("kind, subject, old_version, new_version, occurred_at").eq("store_id", store.id).eq("job_id", job.id),
+        admin.from("job_steps").select("result").eq("job_id", job.id).eq("step_key", "check").maybeSingle(),
+      ])
+    : [{ data: [] }, { data: null }];
+  const last = lastCheck(job, (changes ?? []) as Change[], (stepRow?.result ?? null) as { checked?: number; new_problems?: number } | null);
 
   return (
     <>
@@ -38,6 +48,7 @@ export default async function AlertsPage({ params }: { params: Promise<{ id: str
       </div>
       <p className="muted small">{t("note")}</p>
       {!plan.breakageAlerts && <PlanLock feature="breakageAlerts" />}
+      {last && <LastCheckCard last={last} t={t} />}
       {alerts.length === 0 && <div className="card empty"><p>{t("none")}</p></div>}
       {alerts.map((a) => (
         <div key={a.id} className={`card${a.status === "open" ? "" : " finding-resolved"}`}>
@@ -68,6 +79,24 @@ function Breakage({ d, t }: { d: BreakageDetail; t: T }) {
       ))}
       <p className="small"><BasisBadge basis="heuristic" /> {t("likely", { n: d.changes })}</p>
     </>
+  );
+}
+
+function LastCheckCard({ last, t }: { last: LastCheck; t: T }) {
+  const c = last.change;
+  const after = c ? t("after", { kind: c.kind, subject: c.subject ?? "", old: c.old_version ?? "?", new: c.new_version ?? "?", date: formatDate(c.occurred_at) }) : t("lastNoChange");
+  return (
+    <div className="card">
+      <h3>{t("lastTitle")}</h3>
+      <p>
+        {after}{" "}
+        {last.state === "clean" && <><BasisBadge basis="observed" /> {t("lastClean", { n: last.checked })}</>}
+        {last.state === "alert" && <><BasisBadge basis="observed" /> {t("lastAlert", { n: last.problems })}</>}
+        {last.state === "pending" && <><BasisBadge basis="unavailable" /> {t("lastPending", { date: formatDate(last.at) })}</>}
+        {last.state === "failed" && <><BasisBadge basis="unavailable" /> {t("lastFailed", { error: last.error })}</>}
+      </p>
+      {last.state !== "pending" && <p className="muted small">{t("lastAt", { date: formatDate(last.at) })}</p>}
+    </div>
   );
 }
 

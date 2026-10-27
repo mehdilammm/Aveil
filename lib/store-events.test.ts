@@ -105,3 +105,18 @@ describe.skipIf(!hasPhp)("plugin 1.7.0 store changes (PHP)", () => {
     expect(uninstall).toContain("agsc_event_queue");
   });
 });
+
+describe("last breakage check (Alerts page)", () => {
+  // matha.site, 2026-10-27: WPVibe turned off, the check ran at 06:40 and found nothing new.
+  const change = { kind: "plugin_deactivated", subject: "WPVibe – Connect Your Site to Claude, ChatGPT & AI Assistants", old_version: "1.20.3", new_version: null, occurred_at: "2026-10-27T06:38:50Z" };
+  it("clean, alert, pending and failed are told apart", async () => {
+    const { lastCheck } = await import("./breakage");
+    const done = { status: "succeeded", updated_at: "2026-10-27T06:41:30Z", run_after: "2026-10-27T06:40:59Z", error: null };
+    expect(lastCheck(done, [change], { checked: 5, new_problems: 0 })).toEqual({ state: "clean", change, at: "2026-10-27T06:41:30Z", checked: 5 });
+    expect(lastCheck(done, [change], { checked: 5, new_problems: 2 })).toMatchObject({ state: "alert", problems: 2 });
+    expect(lastCheck({ ...done, status: "queued" }, [change], null)).toMatchObject({ state: "pending", at: "2026-10-27T06:40:59Z" });
+    expect(lastCheck({ ...done, status: "failed", error: "No API key is saved for this store." }, [change], null)).toMatchObject({ state: "failed", error: "No API key is saved for this store." });
+    expect(lastCheck(done, [change], null)).toMatchObject({ state: "failed", error: "no result was recorded" });
+    expect(lastCheck(null, [], null)).toBeNull();
+  });
+});

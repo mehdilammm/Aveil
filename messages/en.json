@@ -601,6 +601,13 @@
     "autoPlan": "Auto-fix for new products: Unavailable, needs Pro plan.",
     "autoOff": "Auto-fix is off for this store (Fix Center).",
     "banner": "{n, plural, one {# open alert} other {# open alerts}}: something AI agents need broke after a store change.",
-    "see": "See alerts"
+    "see": "See alerts",
+    "lastTitle": "Last check after a store change",
+    "lastNoChange": "After a store change:",
+    "lastClean": "no new issue. {n, plural, one {# result} other {# results}} from bot access, robots.txt, structured data on 3 products and checkout, compared with the last full scan.",
+    "lastAlert": "{n, plural, one {# new issue} other {# new issues}}, see the alert below.",
+    "lastPending": "check planned for {date}.",
+    "lastFailed": "the check did not finish: {error}",
+    "lastAt": "Checked {date}."
   }
 }
