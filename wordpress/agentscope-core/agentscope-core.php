@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       AgentScope Core
  * Description:       Read-only WooCommerce store readiness checks and opt-in, privacy-conscious AI traffic signals. User agents and referrers are recorded as unverified claims, never as proven identity.
- * Version:           1.6.0
+ * Version:           1.7.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            AgentScope
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('AGSC_VERSION', '1.6.0');
+define('AGSC_VERSION', '1.7.0');
 define('AGSC_DB_VERSION', '2');
 define('AGSC_FILE', __FILE__);
 define('AGSC_DIR', plugin_dir_path(__FILE__));
@@ -27,6 +27,7 @@ require_once AGSC_DIR . 'includes/class-agsc-burst.php';
 require_once AGSC_DIR . 'includes/class-agsc-traffic.php';
 require_once AGSC_DIR . 'includes/class-agsc-sender.php';
 require_once AGSC_DIR . 'includes/class-agsc-bothits.php';
+require_once AGSC_DIR . 'includes/class-agsc-events.php';
 require_once AGSC_DIR . 'includes/class-agsc-fixes.php';
 require_once AGSC_DIR . 'includes/class-agsc-attribution.php';
 require_once AGSC_DIR . 'includes/class-agsc-readiness.php';
@@ -46,6 +47,7 @@ function agsc_deactivate() {
     AGSC_Traffic::deactivate();
     AGSC_Sender::deactivate();
     AGSC_Bothits::deactivate();
+    AGSC_Events::deactivate();
     if (class_exists('AGSC_Updater')) {
         AGSC_Updater::deactivate();
     }
@@ -56,6 +58,7 @@ function agsc_bootstrap() {
     AGSC_Traffic::init();
     AGSC_Sender::init();
     AGSC_Bothits::init();
+    AGSC_Events::init();
     AGSC_Fixes::init();
     AGSC_Attribution::init();
     AGSC_Rest::init();

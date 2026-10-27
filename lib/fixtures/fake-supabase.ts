@@ -27,7 +27,8 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rpcs: Record<st
     };
     q.insert = (p: Row | Row[]) => ((op = "insert"), (payload = p), q);
     q.update = (p: Row) => ((op = "update"), (payload = p), q);
-    q.upsert = (p: Row | Row[], o?: { onConflict?: string }) => ((op = "upsert"), (payload = p), (conflict = o?.onConflict?.split(",") ?? conflict), q);
+    let ignoreDuplicates = false;
+    q.upsert = (p: Row | Row[], o?: { onConflict?: string; ignoreDuplicates?: boolean }) => ((op = "upsert"), (payload = p), (conflict = o?.onConflict?.split(",") ?? conflict), (ignoreDuplicates = Boolean(o?.ignoreDuplicates)), q);
     q.delete = () => ((op = "delete"), q);
     q.eq = (c: string, v: unknown) => chain((r) => r[c] === v);
     q.neq = (c: string, v: unknown) => chain((r) => r[c] !== v);
@@ -39,6 +40,8 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rpcs: Record<st
     q.gt = (c: string, v: string) => chain((r) => String(r[c] ?? "") > v);
     q.gte = (c: string, v: string) => chain((r) => String(r[c] ?? "") >= v);
     q.lt = (c: string, v: string) => chain((r) => String(r[c] ?? "") < v);
+    // jsonb @> on one level: every given key has the same value.
+    q.contains = (c: string, v: Record<string, unknown>) => chain((r) => Object.entries(v).every(([k, x]) => (r[c] as Record<string, unknown> | undefined)?.[k] === x));
     q.order = (col: string, o?: { ascending?: boolean }) => ((order = { col, asc: o?.ascending !== false }), q);
     q.range = (a: number, b: number) => ((range = [a, b]), q);
     q.limit = (n: number) => ((limit = n), q);
@@ -51,12 +54,15 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rpcs: Record<st
         return { data: Array.isArray(payload) ? list : list[0], error: null };
       }
       if (op === "upsert") {
+        // Like PostgREST: with ignoreDuplicates, existing rows are left alone and only new ones come back.
+        const written: Row[] = [];
         for (const p of Array.isArray(payload) ? payload : [payload]) {
           const i = rows.findIndex((r) => conflict.every((k) => r[k] === p[k]));
-          if (i >= 0) rows[i] = { ...rows[i], ...p };
-          else rows.push({ ...p });
+          if (i >= 0 && ignoreDuplicates) continue;
+          if (i >= 0) written.push((rows[i] = { ...rows[i], ...p }));
+          else rows.push(written[written.push({ ...p }) - 1]);
         }
-        return { data: null, error: null };
+        return { data: returning ? written : null, error: null };
       }
       if (op === "update") {
         for (const r of match) Object.assign(r, payload);

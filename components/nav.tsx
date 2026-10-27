@@ -10,6 +10,7 @@ const ITEMS = [
   { label: "bots", path: "/bots" },
   { label: "readiness", path: "/readiness" },
   { label: "fix", path: "/fix" },
+  { label: "alerts", path: "/alerts" },
   { label: "visibility", path: "/visibility" },
   { label: "impact", path: "/impact" },
   { label: "revenue", path: "/revenue" },

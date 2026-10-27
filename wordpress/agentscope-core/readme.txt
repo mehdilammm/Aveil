@@ -4,7 +4,7 @@ Tags: woocommerce, ai, chatgpt, structured data, analytics
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -88,6 +88,7 @@ No. Readiness checks and traffic counts work inside WordPress. The account is on
 This plugin connects to the AgentScope app (https://agentscope-peach.vercel.app) in these cases only:
 
 * **Sending AI bot hits** (1.5.0, only with traffic capture on and the app connected) — every 15 minutes from WP-Cron, to /api/ingest/bot-hits: for requests with a known AI bot user agent only, the time, IP address, full user agent, page path without query string, method and HTTP status, signed with the connection token. Never for people. Deleted locally after a successful send, or after 7 days at the latest. See "AI bot identity" above.
+* **Sending store changes** (1.7.0, only while the app is connected) — when a plugin, theme or WordPress itself is updated, a theme is switched, a plugin is turned on or off, or a product is published or updated, WP-Cron sends (within a minute, never during a page load) to /api/ingest/events: the kind of change, the plugin / theme / product name, the old and new version or the product ID, and the time, signed with the connection token. No visitor, customer or order data. The app then re-checks the store or the product. Unsent notes are deleted after 7 days, and on uninstall.
 * **Sending traffic totals** — only after you paste a connection code and click Connect. Once a day, and when you click "Send now" or clear test data, it sends the daily totals of the last days: day, AI source, type, confidence, page type, HTTP status, number of requests and the time of the last request. It also sends your store ID and an HMAC signature made with the connection token. No IP address, user agent, page URL, cookie, customer or order data is sent.
 * **Checking for plugin updates** (builds distributed from the AgentScope app only, not the WordPress.org build) — once a day from WP-Cron (never during a page load), a GET request to /api/plugin/latest that returns the latest version, its download link and SHA-256 checksum. It sends no store data and no token; the request's user agent is "AgentScope-Core/<version>". Like any web request, it reveals your server's IP address to the app's host.
 
@@ -104,6 +105,9 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 * GET /wp-json/agentscope-core/v1/selftest
 
 == Changelog ==
+
+= 1.7.0 =
+* Store changes: plugin / theme / WordPress updates, theme switches, plugins turned on or off and products published or updated are sent by WP-Cron (signed), so the app can alert when an update breaks what AI agents need and check new products at once. Names and versions only.
 
 = 1.6.0 =
 * Technical fixes from the AgentScope app, only from signed requests: brand in the existing Product structured data (same @id), /llms.txt, robots.txt groups for AI search agents. Listed and removable in Settings.

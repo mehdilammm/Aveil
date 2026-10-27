@@ -253,7 +253,8 @@
     "revenue": "AI Revenue",
     "reports": "Reports",
     "settings": "Settings",
-    "bots": "Bots × products"
+    "bots": "Bots × products",
+    "alerts": "Alerts"
   },
   "autofix": {
     "title": "Auto-fix technical issues",
@@ -408,7 +409,8 @@
       "shareReports": "Read-only share links and the weekly report.",
       "aiRevenue": "AI-referred orders and revenue.",
       "workspaceMembers": "Workspaces for clients, team members and invites.",
-      "clientReports": "Client reports with your workspace name."
+      "clientReports": "Client reports with your workspace name.",
+      "breakageAlerts": "Alerts when a plugin, theme or WordPress update breaks what AI agents need."
     }
   },
   "pricingPage": {
@@ -432,7 +434,8 @@
       "shareReports": "Read-only share links and the weekly report",
       "everythingPro": "Everything in Pro",
       "workspaces": "Client workspaces, team members and invites",
-      "clientReports": "Client reports with your workspace name"
+      "clientReports": "Client reports with your workspace name",
+      "breakageAlerts": "Breakage alerts after plugin, theme and WordPress updates"
     }
   },
   "bulk": {
@@ -581,5 +584,23 @@
       "issue": "but: {title}{more, plural, =0 {} other { (+# more)}}",
       "noIssue": "and the last scan found no open issue on it"
     }
+  },
+  "alerts": {
+    "title": "Alerts",
+    "sub": "What changed on the store, what broke after it, and the checks of products you just published.",
+    "note": "The AgentScope plugin 1.7.0 reports plugin, theme and WordPress updates, theme switches, plugins turned on or off, and products published or updated (names and versions only). After a change, a short check runs: bot access, robots.txt, structured data on 3 products and checkout. A problem the last full scan did not have is shown with the change before it as the likely cause.",
+    "none": "No alert yet.",
+    "open": "Open",
+    "dismissed": "Dismissed",
+    "dismiss": "Dismiss",
+    "fix": "Open Fix Center",
+    "breakageTitle": "Something broke after a store change",
+    "after": "After{kind, select, plugin_updated { updating} theme_updated { updating} core_updated { updating} theme_switched { switching the theme:} plugin_activated { turning on} plugin_deactivated { turning off} other { a change to}} {subject}{kind, select, plugin_updated { from {old} to {new}} theme_updated { from {old} to {new}} core_updated { from {old} to {new}} other {}} on {date}:",
+    "likely": "Likely cause:{n, plural, one { this change} other { the latest of # changes}} (not proven: other things can change at the same time).",
+    "productLine": "{issues, plural, =0 { No issue} one {# issue} other {# issues}}, {fixed, plural, =0 { none fixed automatically} one {# fixed automatically} other {# fixed automatically}}.",
+    "autoPlan": "Auto-fix for new products: Unavailable, needs Pro plan.",
+    "autoOff": "Auto-fix is off for this store (Fix Center).",
+    "banner": "{n, plural, one {# open alert} other {# open alerts}}: something AI agents need broke after a store change.",
+    "see": "See alerts"
   }
 }
