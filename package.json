@@ -11,10 +11,12 @@
     "lint": "oxlint --deny-warnings app lib components i18n proxy.ts"
   },
   "dependencies": {
+    "@sparticuz/chromium": "153.0.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "next": "^16.4.2",
     "next-intl": "^4.14.7",
+    "puppeteer-core": "25.11.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "server-only": "^0.0.1",

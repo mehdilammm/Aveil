@@ -18,7 +18,8 @@ const VISIBILITY_MIN_MS = 150_000; // a run needs a fresh tick; it stops asking 
 // bot_hits_purge: deletes hits past each store's retention (daily). verify_finding: re-checks one fixed finding.
 // breakage_check: mini-scan after a plugin / theme / core change (F2). product_check: one product just published
 // or updated (F3). agent_sim: the agent purchase test through the Store API, never placing an order (F7); one
-// attempt only, so a cart is never filled twice.
+// attempt only, so a cart is never filled twice. agent_sim_browser: the same test in a real headless browser (F7
+// Mode B, Pro): it waits (yields) when it lands on a function without the browser files.
 export const JOB_HANDLERS: Record<string, JobHandler> = {
   orders_sync: async ({ admin, job, step }) => {
     if (!job.store_id) throw new Error("orders_sync needs a store");
@@ -67,6 +68,28 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
         return await runAgentSim(admin, store, market.id);
       } catch (err) {
         if (err instanceof NotVerifiedError) throw new PermanentJobError(err.message);
+        throw err;
+      }
+    });
+  },
+  agent_sim_browser: async ({ admin, job, step, timeLeft }) => {
+    if (!job.store_id) throw new PermanentJobError("agent_sim_browser needs a store");
+    const { data: store } = await admin.from("stores").select("id, url").eq("id", job.store_id).maybeSingle();
+    if (!store) throw new PermanentJobError("store not found");
+    if (!PLANS[await planOf(admin, store.id)].browserTests) throw new PermanentJobError("Unavailable: needs Pro plan.");
+    await step("browser", async () => {
+      if (timeLeft() < 80_000) throw new JobYield(); // 60 s for the test, plus starting and saving
+      const { BrowserUnavailableError, runBrowserTest } = await import("./browser-sim-run");
+      try {
+        return await runBrowserTest(admin, store, job.id);
+      } catch (err) {
+        if (err instanceof NotVerifiedError) throw new PermanentJobError(err.message);
+        if (err instanceof BrowserUnavailableError) {
+          const yields = Number(job.progress?.yields ?? 0) + 1;
+          if (yields > 5) throw new PermanentJobError("The browser is not available in this deployment.");
+          await admin.from("jobs").update({ progress: { ...job.progress, yields } }).eq("id", job.id);
+          throw new JobYield();
+        }
         throw err;
       }
     });
