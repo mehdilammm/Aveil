@@ -252,7 +252,8 @@
     "impact": "Product Impact",
     "revenue": "AI Revenue",
     "reports": "Reports",
-    "settings": "Settings"
+    "settings": "Settings",
+    "bots": "Bots × products"
   },
   "autofix": {
     "title": "Auto-fix technical issues",
@@ -547,5 +548,38 @@
     "check_well_known_file": "Check file",
     "done": "Verified. The store address has changed.",
     "failed": "Something went wrong. Try again."
+  },
+  "botMap": {
+    "title": "Bots × products",
+    "sub": "Which product pages AI bots visited in the last {days} days, and what is wrong on those pages.",
+    "note": "Verified = the visit came from an IP in the AI company's official list [Observed]. User agent only = the bot's name was in the request but the IP was not in the list [Heuristic]. Not checked yet = the identity check has not run. Cached pages never reach the plugin, so every number is a minimum.",
+    "noKey": "No API key is saved for this store, so its products cannot be listed.",
+    "noProducts": "The products could not be read: {reason}",
+    "noHits": "No AI bot visit recorded in the last {days} days. This needs the AgentScope plugin with traffic capture on.",
+    "capped": "Only the latest {n} visits are counted.",
+    "visitedTitle": "Visited by AI bots ({n})",
+    "visitedNone": "No product page was visited by an AI bot in this period.",
+    "unvisitedTitle": "Not visited by any AI bot ({n})",
+    "unvisitedNone": "Every product page had at least one AI bot visit.",
+    "unvisitedNote": "No AI bot request for these pages reached the plugin in this period. Their first open issue from the last scan is shown.",
+    "otherTitle": "Other pages AI bots visited",
+    "bot": "Bot",
+    "verified": "Verified",
+    "claimed": "User agent only",
+    "pending": "Not checked yet",
+    "product": "Product",
+    "topIssue": "First open issue",
+    "page": "Page",
+    "noOpen": "No open finding in the last scan",
+    "more": "{n} open findings on this product in the last scan.",
+    "fix": "Fix in Fix Center",
+    "sep": ", ",
+    "clause": {
+      "visited": "{bot} visited this product {n, plural, one {# time} other {# times}}",
+      "claimed": "{bot} (user agent only) {n, plural, one {# time} other {# times}}",
+      "pending": "{n, plural, one {# visit} other {# visits}} by {bot} not checked yet",
+      "issue": "but: {title}{more, plural, =0 {} other { (+# more)}}",
+      "noIssue": "and the last scan found no open issue on it"
+    }
   }
 }
