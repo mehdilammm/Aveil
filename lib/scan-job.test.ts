@@ -34,6 +34,7 @@ vi.mock("./platform/woocommerce", () => ({
     fetchProductSchema: async (url: string) => ({ url, page: page(url) }),
   }),
 }));
+vi.mock("node:dns", () => ({ promises: { resolveNs: async () => { throw Object.assign(new Error("no network in tests"), { code: "ENOTFOUND" }); } } }));
 vi.mock("./agent-checks", () => ({ runStructuredChecks: async () => [], fetchText: async () => ({ ok: true, data: { status: 404, text: "" } }) }));
 let plan = "free";
 vi.mock("./orders-sync", () => ({ planOf: async () => plan, syncOrders: async () => ({}) }));

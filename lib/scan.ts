@@ -15,6 +15,8 @@ import { PLANS } from "./plans";
 import { BROWSER_UA, AI_BOTS, retryAfterMs } from "./access";
 import { fetchActivePlugins, fetchPublicPage, fetchStoreApiItems, MAX_PRODUCT_PAGES, WooError, type PageFetch, type WooCredentials } from "./woo";
 import { consistencyFindings, llmsPriceFor, type StoreFormat } from "./consistency";
+import { detectHosting, hostingFinding, nsCandidates } from "./hosting";
+import { promises as dns } from "node:dns";
 import { wooCommerceAdapter } from "./platform/woocommerce";
 import { recordVerification } from "./ownership-store";
 import { runAutoFix } from "./autofix-run";
@@ -85,6 +87,19 @@ export const slim = (p: WooProduct & { total_sales?: number | string; categories
 
 type ProductsPage = { total: number; totalPages: number; products: Slim[]; findings: number; requests: number };
 type StoreStep = { currency: string | null; sample: { url: string; product: Slim }[]; basis: string; requests: number; findings: number; format?: StoreFormat; llmsPrices?: Record<string, number> };
+
+// F5: the nameservers of the store's zone (the host, then its parent domains), [] when none answer.
+async function nameserversOf(host: string): Promise<string[]> {
+  for (const zone of nsCandidates(host)) {
+    try {
+      const ns = await dns.resolveNs(zone);
+      if (ns.length) return ns;
+    } catch {
+      /* try the parent zone */
+    }
+  }
+  return [];
+}
 
 // F4: the same products in the Store API, on the page, in the JSON-LD and in llms.txt, compared with WooCommerce.
 async function consistencyFor(storeUrl: string, pages: SchemaPage[], format: StoreFormat | undefined, llmsPrices: Record<string, number> | undefined, checkToken: string | null): Promise<Finding[]> {
@@ -327,11 +342,20 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
           },
         }));
         // Agentic checkout support (information only): the two protocols' well-known documents and plugins.
+        const plugins = await fetchActivePlugins(store.url, creds);
         findings.push(checkAgenticSupport(store.url, {
           ucp: await fetchText(`${store.url}/.well-known/ucp`, checkToken),
           acp: await fetchText(`${store.url}/.well-known/acp.json`, checkToken),
-          plugins: await fetchActivePlugins(store.url, creds),
+          plugins,
         }));
+        // F5: who hosts and protects the store (headers of a page loaded as a browser, nameservers, plugins).
+        const loaded = access.pages.find((p) => p.browser.ok)?.browser;
+        const hosting = hostingFinding(store.url, detectHosting({
+          headers: loaded && loaded.ok ? loaded.hostHeaders ?? null : null,
+          nameservers: await nameserversOf(new URL(store.url).hostname),
+          plugins: plugins.ok ? plugins.data : [],
+        }));
+        if (hosting) findings.push(hosting);
         await saveFindings(admin, store, scanId, "store", findings);
         return { currency, sample, basis: picked.basis, findings: findings.length, format, llmsPrices };
       });

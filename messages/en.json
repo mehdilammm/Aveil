@@ -609,5 +609,20 @@
     "lastPending": "check planned for {date}.",
     "lastFailed": "the check did not finish: {error}",
     "lastAt": "Checked {date}."
+  },
+  "hosting": {
+    "title": "Why AI bots are blocked: where to look",
+    "intro": "In the last scan, these AI bots did not get the page like a browser did:",
+    "detected": "Detected here: {list}.",
+    "none": "The host and firewall could not be told from the headers. Ask your host (and your CDN or firewall, if you use one) whether bot protection, a firewall rule or a request limit blocks these bots, with the time and the bot name from the scan.",
+    "docs": "{name} documentation",
+    "after": "After a change, run a scan (or Verify on the finding): it is marked resolved only when the bots get the page.",
+    "providerGeneric": "{name}'s bot protection or request limits may block these bots. In its dashboard, look for blocked or challenged requests from these bots at the scan's time and allow the AI bots you want. If you cannot find it, ask {name} support with the time and the bot name.",
+    "providers": {
+      "cloudflare": "In the Cloudflare dashboard, open Security → Bots. If Block AI bots is on, AI crawlers are blocked on purpose: turn it off, or replace it with a WAF custom rule on the Verified Bot Category field that blocks only the categories you do not want. Bot Fight Mode can also challenge bots; on paid plans, Super Bot Fight Mode can be set to allow verified bots. Then check WAF custom rules and rate limiting rules that match these bots.",
+      "hostinger": "In hPanel, check that Under Attack mode is off (Websites → Dashboard), and in the Hostinger CDN settings check the country and IP blocking rules and the list of blocked bots. Hostinger's own rate limits for crawlers (HTTP 429) cannot be changed in hPanel: if bots keep getting 429, ask Hostinger support to review it, with the time and the bot name from the scan.",
+      "litespeed": "LiteSpeed Web Server can limit or challenge bots with settings your host controls. Ask your host whether bot protection or request limits are on for your site.",
+      "wordfence": "In WordPress, open Wordfence → Firewall → All Firewall Options and check Rate Limiting, then Wordfence → Tools → Live Traffic to see whether these bots were blocked. Allow the AI bots you want, or raise the limit."
+    }
   }
 }
