@@ -5,6 +5,7 @@ import { PLANS } from "./plans";
 import { scanJob, type ScanTrigger } from "./scan";
 import { runVisibility } from "./visibility-run";
 import { purgeOldHits, refreshIpRanges, verifyStoreHits } from "./bot-jobs";
+import { breakageCheck, productCheck } from "./store-checks";
 import { verifyFindingJob } from "./verify-jobs";
 
 const VISIBILITY_MIN_MS = 150_000; // a run needs a fresh tick; it stops asking at its own time budget
@@ -13,6 +14,8 @@ const VISIBILITY_MIN_MS = 150_000; // a run needs a fresh tick; it stops asking 
 // scan: the full store scan, step by step. visibility: one AI Visibility run (all questions, both engines).
 // bot_ranges_refresh: reads the operators' IP lists (daily). bot_hits_verify: checks a store's new bot hits.
 // bot_hits_purge: deletes hits past each store's retention (daily). verify_finding: re-checks one fixed finding.
+// breakage_check: mini-scan after a plugin / theme / core change (F2). product_check: one product just published
+// or updated (F3).
 export const JOB_HANDLERS: Record<string, JobHandler> = {
   orders_sync: async ({ admin, job, step }) => {
     if (!job.store_id) throw new Error("orders_sync needs a store");
@@ -33,6 +36,23 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
     await scanJob(ctx, store, (job.progress?.trigger as ScanTrigger) === "scheduled" ? "scheduled" : "manual");
   },
   verify_finding: verifyFindingJob,
+  breakage_check: async ({ admin, job, step }) => {
+    if (!job.store_id) throw new PermanentJobError("breakage_check needs a store");
+    const { data: store } = await admin.from("stores").select("id, owner_id, url, workspace_id").eq("id", job.store_id).maybeSingle();
+    if (!store) throw new PermanentJobError("store not found");
+    if (!PLANS[await planOf(admin, store.id)].breakageAlerts) return;
+    const ids = Array.isArray(job.progress?.event_ids) ? (job.progress.event_ids as string[]) : [];
+    await step("check", () => breakageCheck(admin, store, job.id, ids));
+  },
+  product_check: async ({ admin, job, step }) => {
+    if (!job.store_id) throw new PermanentJobError("product_check needs a store");
+    const { data: store } = await admin.from("stores").select("id, owner_id, url, workspace_id").eq("id", job.store_id).maybeSingle();
+    if (!store) throw new PermanentJobError("store not found");
+    const productId = Number(job.progress?.product_id);
+    if (!Number.isInteger(productId) || productId <= 0) throw new PermanentJobError("product_check needs a product");
+    const ids = Array.isArray(job.progress?.event_ids) ? (job.progress.event_ids as string[]) : [];
+    await step("check", () => productCheck(admin, store, productId, job.id, ids));
+  },
   bot_ranges_refresh: async ({ admin, step }) => {
     await step("lists", () => refreshIpRanges(admin));
   },

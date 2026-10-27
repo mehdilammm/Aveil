@@ -13,6 +13,11 @@ delete_transient('agsc_update_info');
 delete_option('agsc_update_info');
 wp_clear_scheduled_hook('agsc_check_update');
 wp_clear_scheduled_hook('agsc_flush_bot_hits');
+wp_clear_scheduled_hook('agsc_send_events');
+// Store-change notes (names and versions only) are always deleted with the plugin.
+foreach (array('agsc_event_queue', 'agsc_product_debounce', 'agsc_upgrade_old_versions') as $agsc_option) {
+    delete_option($agsc_option);
+}
 // Bot IPs are always deleted with the plugin, whatever the data setting.
 global $wpdb;
 $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}agsc_bot_hits"); // phpcs:ignore

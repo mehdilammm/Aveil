@@ -27,6 +27,7 @@ require_once AGSC_DIR . 'includes/class-agsc-burst.php';
 require_once AGSC_DIR . 'includes/class-agsc-traffic.php';
 require_once AGSC_DIR . 'includes/class-agsc-sender.php';
 require_once AGSC_DIR . 'includes/class-agsc-bothits.php';
+require_once AGSC_DIR . 'includes/class-agsc-events.php';
 require_once AGSC_DIR . 'includes/class-agsc-fixes.php';
 require_once AGSC_DIR . 'includes/class-agsc-attribution.php';
 require_once AGSC_DIR . 'includes/class-agsc-readiness.php';
@@ -46,6 +47,7 @@ function agsc_deactivate() {
     AGSC_Traffic::deactivate();
     AGSC_Sender::deactivate();
     AGSC_Bothits::deactivate();
+    AGSC_Events::deactivate();
     if (class_exists('AGSC_Updater')) {
         AGSC_Updater::deactivate();
     }
@@ -56,6 +58,7 @@ function agsc_bootstrap() {
     AGSC_Traffic::init();
     AGSC_Sender::init();
     AGSC_Bothits::init();
+    AGSC_Events::init();
     AGSC_Fixes::init();
     AGSC_Attribution::init();
     AGSC_Rest::init();
