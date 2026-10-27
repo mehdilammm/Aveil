@@ -163,7 +163,7 @@ export async function fetchSiteName(baseUrl: string): Promise<Source<string>> {
 }
 
 export type PageFetch =
-  | { ok: true; status: number; finalUrl: string; redirectedTo: string | null; bytes: number; body: string; challengeHeader: boolean; retryAfter?: string | null; vendorHint?: string | null; shopifyHeader?: boolean }
+  | { ok: true; status: number; finalUrl: string; redirectedTo: string | null; bytes: number; body: string; challengeHeader: boolean; retryAfter?: string | null; vendorHint?: string | null; shopifyHeader?: boolean; hostHeaders?: Record<string, string> }
   | { ok: false; error: string; skipped?: boolean }
 
 const PAGE_TIMEOUT_MS = 12_000;
@@ -219,6 +219,7 @@ export async function fetchPublicPage(target: string, userAgent: string, checkTo
         challengeHeader: (res.headers.get("cf-mitigated") ?? "").toLowerCase() === "challenge",
         retryAfter: res.headers.get("retry-after"),
         vendorHint: vendorFromHeaders(res.headers),
+        hostHeaders: hostHeaders(res.headers),
       };
     }
     return { ok: false, error: "too many redirects" };
@@ -264,6 +265,17 @@ export async function fetchTopCategories(baseUrl: string, creds: WooCredentials)
 }
 
 // Which bot protection service answered, from response headers (cf-ray, x-sucuri-id, ...), if any.
+// The response headers that tell who hosts or protects a site (hosting guide, F5). Nothing else is kept.
+const HOST_HEADERS = ["server", "x-powered-by", "cf-ray", "platform", "panel", "x-litespeed-cache", "x-kinsta-cache", "wpe-backend", "x-sucuri-id", "akamai-grn", "x-iinfo", "x-datadome"];
+export function hostHeaders(h: { get(name: string): string | null }): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const name of HOST_HEADERS) {
+    const v = h.get(name);
+    if (v) out[name] = v.slice(0, 120);
+  }
+  return out;
+}
+
 export function vendorFromHeaders(h: { get(name: string): string | null }): string | null {
   const server = (h.get("server") ?? "").toLowerCase();
   if (h.get("cf-ray") || server.includes("cloudflare")) return "Cloudflare";

@@ -9,6 +9,7 @@ import { RunScanButton } from "../run-scan-button";
 import { VerifyButton } from "./verify-button";
 import { AutoFixPanel, FixAction, UndoButton, WriteKeyForm } from "./autofix-ui";
 import { BulkApply, CsvImport } from "./bulk-ui";
+import { HostingGuide } from "@/components/hosting-guide";
 import { fixFor } from "@/lib/fix-catalog";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PlanLock } from "@/components/plan-lock";
@@ -85,6 +86,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
           {editor && <UndoButton storeId={store.id} batchId={lastAuto.batch_id} />}
         </p>
       )}
+      <HostingGuide findings={findings} />
       {editor && (plan.autoFix ? <AutoFixPanel storeId={store.id} enabled={Boolean(setting?.auto_fix_enabled)} approvedAt={setting?.auto_fix_approved_at ?? null} /> : <PlanLock feature="autoFix" />)}
       {editor && <WriteKeyForm storeId={store.id} hint={writeKey?.key_hint ?? null} />}
       {editor && lastComplete && <BulkApply storeId={store.id} />}
