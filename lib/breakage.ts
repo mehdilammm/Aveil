@@ -36,3 +36,21 @@ export function breakageAlert(changes: Change[], problems: Problem[], comparedSc
     detail: { change: cause, changes: changes.length, problems: problems.slice(0, 10), compared_scan_id: comparedScanId },
   };
 }
+
+// The latest breakage check, shown on the Alerts page even when it found nothing, so the owner knows it ran.
+export type LastCheck =
+  | { state: "pending"; change: Change | null; at: string }
+  | { state: "clean"; change: Change | null; at: string; checked: number }
+  | { state: "alert"; change: Change | null; at: string; problems: number }
+  | { state: "failed"; change: Change | null; at: string; error: string };
+
+export function lastCheck(job: { status: string; updated_at: string; run_after: string | null; error: string | null } | null, changes: Change[], result: { checked?: number; new_problems?: number } | null): LastCheck | null {
+  if (!job) return null;
+  const change = likelyCause(changes);
+  if (job.status === "queued" || job.status === "running") return { state: "pending", change, at: job.run_after ?? job.updated_at };
+  if (job.status === "failed" || job.status === "cancelled") return { state: "failed", change, at: job.updated_at, error: (job.error ?? "the check did not finish").slice(0, 300) };
+  if (!result) return { state: "failed", change, at: job.updated_at, error: "no result was recorded" };
+  return (result.new_problems ?? 0) > 0
+    ? { state: "alert", change, at: job.updated_at, problems: result.new_problems ?? 0 }
+    : { state: "clean", change, at: job.updated_at, checked: result.checked ?? 0 };
+}
