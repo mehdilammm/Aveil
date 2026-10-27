@@ -104,7 +104,8 @@ describe("agent purchase test, Mode A (F7)", () => {
     expect(add.headers).toMatchObject({ "Cart-Token": "tok-1", Nonce: "n-1", Cookie: "wp_woocommerce_session_x=abc", "Content-Type": "application/json" });
     expect(add.body).toEqual({ id: 11, quantity: 1 });
     const addr = s.calls.find((c) => c.path.endsWith("/update-customer"))!.body as { shipping_address: Record<string, string>; billing_address: Record<string, string> };
-    expect(addr.shipping_address).toEqual({ country: "MA", city: "Casablanca", postcode: "20000" });
+    // State and postcode always sent, so the store's own default State (Marrakech on matha) is not kept.
+    expect(addr.shipping_address).toEqual({ country: "MA", state: "Casablanca", city: "Casablanca", postcode: "20000" });
     expect(Object.keys(addr.billing_address)).not.toContain("email");
   });
 

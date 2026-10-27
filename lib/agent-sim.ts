@@ -18,15 +18,17 @@ const API = "/wp-json/wc/store/v1";
 const PATHS = { products: `${API}/products`, cart: `${API}/cart`, add: `${API}/cart/add-item`, customer: `${API}/cart/update-customer`, items: `${API}/cart/items` };
 const OFFLINE = new Set(["cod", "bacs", "cheque"]);
 
-// A public place in each market (no person's data): what a shipping quote needs. A State is sent only where the
-// WooCommerce code is certain; the city and postcode are enough for zones listed by country.
-export const SAMPLE_ADDRESS: Record<MarketId, { country: string; city: string; postcode?: string; state?: string }> = {
+// A public place in each market (no person's data): what a shipping quote needs. State and postcode are always
+// sent, empty when not used: a missing field keeps the shopper's default, which is the store's own state
+// (matha.site, 2026-10-27: Casablanca without a State was quoted the Marrakech zone). WooCommerce turns a State
+// name into its code ("Casablanca" → MACAS) where the country has a State list.
+export const SAMPLE_ADDRESS: Record<MarketId, { country: string; state: string; city: string; postcode: string }> = {
   US: { country: "US", state: "NY", city: "New York", postcode: "10001" },
-  UK: { country: "GB", city: "London", postcode: "SW1A 1AA" },
-  FR: { country: "FR", city: "Paris", postcode: "75001" },
-  SA: { country: "SA", city: "Riyadh", postcode: "12211" },
-  AE: { country: "AE", city: "Dubai" },
-  MA: { country: "MA", city: "Casablanca", postcode: "20000" },
+  UK: { country: "GB", state: "", city: "London", postcode: "SW1A 1AA" },
+  FR: { country: "FR", state: "", city: "Paris", postcode: "75001" },
+  SA: { country: "SA", state: "", city: "Riyadh", postcode: "12211" },
+  AE: { country: "AE", state: "", city: "Dubai", postcode: "" },
+  MA: { country: "MA", state: "Casablanca", city: "Casablanca", postcode: "20000" },
 };
 
 export type SimStepKey = "robots" | "products" | "cart" | "add" | "address" | "shipping" | "payment" | "order" | "cleanup";
@@ -167,7 +169,7 @@ export async function simulatePurchase(input: { storeUrl: string; market: Market
 
     // 5. A sample address in the market (shipping and billing alike: no name, email or phone).
     const address = SAMPLE_ADDRESS[input.market];
-    const where = [address.city, address.state, address.postcode, address.country].filter(Boolean).join(", ");
+    const where = [address.city, address.state !== address.city ? address.state : "", address.postcode, address.country].filter(Boolean).join(", ");
     const u = await s.call("POST", PATHS.customer, { shipping_address: address, billing_address: address });
     if (!u.ok || u.status !== 200 || !isCart(u.json)) return stop("address", "addressError", { address: where, ...errorOf(u) }, httpOf(u));
     cart = u.json;
