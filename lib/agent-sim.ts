@@ -31,7 +31,7 @@ export const SAMPLE_ADDRESS: Record<MarketId, { country: string; state: string; 
   MA: { country: "MA", state: "Casablanca", city: "Casablanca", postcode: "20000" },
 };
 
-export type SimStepKey = "robots" | "products" | "cart" | "add" | "address" | "shipping" | "payment" | "order" | "cleanup";
+export type SimStepKey = "robots" | "products" | "browser" | "page" | "cart" | "add" | "address" | "shipping" | "payment" | "checkout" | "order" | "cleanup" | "budget";
 export type SimOutcome = "ok" | "warn" | "stop" | "skip";
 export type SimStep = { step: SimStepKey; outcome: SimOutcome; basis: Basis; code: string; values: Record<string, string | number>; http?: string };
 export type SimResult = { market: MarketId; country: string; steps: SimStep[]; stoppedAt: SimStepKey | null; requests: number };
@@ -44,7 +44,7 @@ const sameSite = (a: string, b: string) => a.replace(/^www\./, "") === b.replace
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // One shopper's session: the Cart-Token and Nonce the Store API hands out, and its cookies (same site only).
-class Session {
+export class Session {
   requests = 0;
   private token: string | null = null;
   private nonce: string | null = null;

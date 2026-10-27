@@ -411,7 +411,8 @@
       "aiRevenue": "AI-referred orders and revenue.",
       "workspaceMembers": "Workspaces for clients, team members and invites.",
       "clientReports": "Client reports with your workspace name.",
-      "breakageAlerts": "Alerts when a plugin, theme or WordPress update breaks what AI agents need."
+      "breakageAlerts": "Alerts when a plugin, theme or WordPress update breaks what AI agents need.",
+      "browserTests": "The agent purchase test in a real browser: product page, Add to cart, cart and checkout pages, never an order."
     }
   },
   "pricingPage": {
@@ -436,7 +437,8 @@
       "everythingPro": "Everything in Pro",
       "workspaces": "Client workspaces, team members and invites",
       "clientReports": "Client reports with your workspace name",
-      "breakageAlerts": "Breakage alerts after plugin, theme and WordPress updates"
+      "breakageAlerts": "Breakage alerts after plugin, theme and WordPress updates",
+      "browserTests": "Agent purchase test in a real browser (10 a store a day)"
     }
   },
   "bulk": {
@@ -694,7 +696,11 @@
       "shipping": "Shipping",
       "payment": "Payment",
       "order": "Order",
-      "cleanup": "Cart emptied"
+      "cleanup": "Cart emptied",
+      "browser": "Browser",
+      "page": "Product page",
+      "checkout": "Checkout page",
+      "budget": "Time limit"
     },
     "code": {
       "robotsOk": "robots.txt lets AgentScopeBot use the Store API.",
@@ -723,7 +729,35 @@
       "cartErrors": "The cart reports a problem that blocks checkout: {messages}",
       "orderNever": "Order not placed: AgentScope never places an order. Cart total: {total}. Whether the store sells to this country is checked only at checkout; see the table above.",
       "cleanupOk": "Cart emptied.",
-      "cleanupError": "The cart could not be emptied ({status}); WooCommerce drops it on its own later."
-    }
+      "cleanupError": "The cart could not be emptied ({status}); WooCommerce drops it on its own later.",
+      "browserOk": "Headless Chromium started ({version}).",
+      "browserFailed": "The browser could not start: {message}",
+      "pageOk": "The product page loaded with JavaScript: \"{title}\".",
+      "pageBlocked": "The product page did not load for a browser ({status}): {reason}",
+      "buttonMissing": "No visible Add to cart button on the product page.",
+      "addInCart": "Clicked Add to cart on \"{name}\"; the cart now holds {n} item(s).",
+      "addNotInCart": "Clicked Add to cart, but the cart stayed empty.",
+      "addNotice": "Clicked Add to cart, but the store answered: {notice}",
+      "offSite": "The link leads to another site ({url}), so the test stopped there.",
+      "cartPageOk": "The cart page shows the product; its checkout link is {path}.",
+      "cartPageEmpty": "The cart page did not show the product.",
+      "cartPageNoLink": "The cart page shows the product, but has no checkout link.",
+      "checkoutSkipped": "Checkout page not opened: WooCommerce {version} creates a draft order when that page opens (11.0 and later do not).",
+      "checkoutFailed": "The checkout page did not show a checkout form ({status}).",
+      "checkoutOk": "Checkout page loaded. Required fields: {fields}. Payment methods shown: {methods}.",
+      "checkoutNoMethods": "Checkout page loaded, but no payment method is shown. Required fields: {fields}.",
+      "checkoutCaptcha": "A captcha ({kind}) is on the checkout page: agents usually cannot solve it.",
+      "placeMissing": "No Place order button was found on the checkout page.",
+      "orderNeverBrowser": "Order not placed: AgentScope never clicks Place order ({blocked} order requests from the page were stopped). Cart total: {total}.",
+      "budgetReached": "Stopped at the {seconds}-second limit.",
+      "browserError": "The browser test stopped: {message}"
+    },
+    "runBrowser": "Run in a real browser",
+    "browserTitle": "In a real browser",
+    "browserSub": "The same path in headless Chromium with JavaScript on: the product page, its Add to cart button, the cart page and the checkout page. The Place order button is never clicked, and requests that would create an order are stopped. At most {max} a store a day, {seconds} seconds each.",
+    "browserCap": "The {max} browser tests of today are used. Try again tomorrow (UTC).",
+    "browserToday": "{n} of {max} browser tests used today.",
+    "lastBrowser": "Last browser test: {date}, {n} requests, WooCommerce {version}.",
+    "cost": "Estimated cost of this run: ${usd} ({seconds} s, {memory} GB of memory), at Vercel's list prices."
   }
 }

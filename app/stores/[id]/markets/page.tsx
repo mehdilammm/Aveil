@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { BasisBadge, formatDate } from "@/components/badges";
-import type { SimResult } from "@/lib/agent-sim";
+import type { SimResult, SimStep, SimStepKey } from "@/lib/agent-sim";
+import { BROWSER_LIMITS } from "@/lib/browser-sim";
+import { browserTestsToday, type BrowserResult } from "@/lib/browser-sim-run";
+import { storePlan } from "@/lib/plan-gate";
+import { PlanLock } from "@/components/plan-lock";
 import { getStore } from "@/lib/data";
 import { COUNTRY, marketCheckout, type MarketRow } from "@/lib/market-checkout";
 import { defaultMarket, MARKETS, marketOf, type MarketId } from "@/lib/markets";
@@ -93,40 +97,67 @@ function Row({ r, t, storeUrl }: { r: MarketRow; t: T; storeUrl: string }) {
   );
 }
 
-// F7: the agent purchase test (Store API, never places an order) and its last result as a timeline.
+// F7: the agent purchase test (Store API, never places an order), its real-browser version (Mode B, Pro), and the
+// last result of each as a timeline.
 async function AgentSim({ storeId, markets, canRun, verified }: { storeId: string; markets: MarketId[]; canRun: boolean; verified: boolean }) {
   const t = await getTranslations("agentSim");
   const admin = createAdminClient();
-  const { data: job } = await admin.from("jobs").select("id, status, error, progress, created_at").eq("store_id", storeId).eq("kind", "agent_sim").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const { data: stepRow } = job?.status === "succeeded" ? await admin.from("job_steps").select("result").eq("job_id", job.id).eq("step_key", "simulate").maybeSingle() : { data: null };
-  const result = (stepRow?.result ?? null) as SimResult | null;
+  const last = async (kind: string, stepKey: string) => {
+    const { data: job } = await admin.from("jobs").select("id, status, error, progress, created_at").eq("store_id", storeId).eq("kind", kind).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: stepRow } = job?.status === "succeeded" ? await admin.from("job_steps").select("result").eq("job_id", job.id).eq("step_key", stepKey).maybeSingle() : { data: null };
+    return { job, result: stepRow?.result ?? null };
+  };
+  const [api, web, plan, today] = await Promise.all([last("agent_sim", "simulate"), last("agent_sim_browser", "browser"), storePlan(admin, storeId), browserTestsToday(admin, storeId)]);
   // The AI Visibility markets first, then the others.
   const options = [...MARKETS.filter((m) => markets.includes(m.id)), ...MARKETS.filter((m) => !markets.includes(m.id))].map((m) => ({ id: m.id, name: m.country }));
-  const open = job && (job.status === "queued" || job.status === "running") ? job.id : null;
-  const mark = { ok: "✓", warn: "!", stop: "✗", skip: "–" } as const;
+  const openOf = (j: { id: string; status: string } | null) => (j && (j.status === "queued" || j.status === "running") ? j.id : null);
+  const apiResult = api.result as SimResult | null;
+  const webResult = web.result as BrowserResult | null;
   return (
     <div className="card">
       <h2>{t("title")}</h2>
       <p className="sub">{t("sub")}</p>
       <p className="muted small">{t("limits")}</p>
-      {!verified ? <p><BasisBadge basis="unavailable" /> {t("notVerified")} <a href={`/stores/${storeId}`}>{t("verifyLink")}</a></p> : canRun ? <SimButton storeId={storeId} markets={options} openJobId={open} /> : null}
-      {job?.status === "failed" && <p className="error">{t("lastFailed", { error: String(job.error ?? "") })}</p>}
-      {result ? (
+      {!verified ? <p><BasisBadge basis="unavailable" /> {t("notVerified")} <a href={`/stores/${storeId}`}>{t("verifyLink")}</a></p> : canRun ? <SimButton storeId={storeId} markets={options} openJobId={openOf(api.job)} /> : null}
+      {api.job?.status === "failed" && <p className="error">{t("lastFailed", { error: String(api.job.error ?? "") })}</p>}
+      {apiResult ? <Timeline t={t} steps={apiResult.steps} stoppedAt={apiResult.stoppedAt} meta={t("last", { market: marketOf(apiResult.market)?.country ?? apiResult.market, date: formatDate(api.job!.created_at), n: apiResult.requests })} /> : !api.job ? <p className="muted small">{t("none")}</p> : null}
+
+      <h3>{t("browserTitle")}</h3>
+      <p className="muted small">{t("browserSub", { max: BROWSER_LIMITS.perStoreDay, seconds: BROWSER_LIMITS.budgetMs / 1000 })}</p>
+      {!plan.browserTests ? <PlanLock feature="browserTests" /> : !verified ? null : canRun ? (
         <>
-          <p>
-            <strong>{result.stoppedAt ? t("stopped", { step: t(`step.${result.stoppedAt}`) }) : t("reached")}</strong>{" "}
-            <span className="muted small">{t("last", { market: marketOf(result.market)?.country ?? result.market, date: formatDate(job!.created_at), n: result.requests })}</span>
-          </p>
-          <ol className="small">
-            {result.steps.map((x, i) => (
-              <li key={i}>
-                <span aria-hidden="true">{mark[x.outcome]}</span> <strong>{t(`step.${x.step}`)}</strong> <BasisBadge basis={x.basis} /> {t(`code.${x.code}` as "code.robotsOk", x.values)}
-                {x.http && <span className="muted"> · {x.http}</span>}
-              </li>
-            ))}
-          </ol>
+          <SimButton storeId={storeId} markets={[]} mode="browser" openJobId={openOf(web.job)} disabled={today >= BROWSER_LIMITS.perStoreDay ? t("browserCap", { max: BROWSER_LIMITS.perStoreDay }) : null} />
+          <p className="muted small">{t("browserToday", { n: today, max: BROWSER_LIMITS.perStoreDay })}</p>
         </>
-      ) : !job ? <p className="muted small">{t("none")}</p> : null}
+      ) : null}
+      {web.job?.status === "failed" && <p className="error">{t("lastFailed", { error: String(web.job.error ?? "") })}</p>}
+      {webResult && (
+        <>
+          <Timeline t={t} steps={webResult.steps} stoppedAt={webResult.stoppedAt} meta={t("lastBrowser", { date: formatDate(web.job!.created_at), n: webResult.requests, version: webResult.woocommerce ?? "?" })} />
+          <p className="muted small">{t("cost", { usd: (webResult.cost.usd_micros / 1_000_000).toFixed(4), seconds: (webResult.cost.wall_ms / 1000).toFixed(1), memory: (webResult.cost.memory_mb / 1024).toFixed(1) })}</p>
+        </>
+      )}
     </div>
+  );
+}
+
+type AgentT = Awaited<ReturnType<typeof getTranslations<"agentSim">>>;
+
+function Timeline({ t, steps, stoppedAt, meta }: { t: AgentT; steps: SimStep[]; stoppedAt: SimStepKey | null; meta: string }) {
+  const mark = { ok: "✓", warn: "!", stop: "✗", skip: "–" } as const;
+  return (
+    <>
+      <p>
+        <strong>{stoppedAt ? t("stopped", { step: t(`step.${stoppedAt}`) }) : t("reached")}</strong> <span className="muted small">{meta}</span>
+      </p>
+      <ol className="small">
+        {steps.map((x, i) => (
+          <li key={i}>
+            <span aria-hidden="true">{mark[x.outcome]}</span> <strong>{t(`step.${x.step}`)}</strong> <BasisBadge basis={x.basis} /> {t(`code.${x.code}` as "code.robotsOk", x.values)}
+            {x.http && <span className="muted"> · {x.http}</span>}
+          </li>
+        ))}
+      </ol>
+    </>
   );
 }

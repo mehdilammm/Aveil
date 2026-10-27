@@ -25,6 +25,8 @@ export type Plan = {
   clientReports: boolean;
   // F2: a mini-scan after each plugin / theme / core change, and an alert when something new broke.
   breakageAlerts: boolean;
+  // F7 Mode B: the agent purchase test in a real headless browser (at most 10 a store a day, 60 s each).
+  browserTests: boolean;
   // Catalog keys under pricing.f (values filled from the limits above).
   features: string[];
   // Until payments exist, paid plans only collect waitlist sign-ups.
@@ -48,6 +50,7 @@ export const PLANS: Record<PlanId, Plan> = {
     shareReports: false,
     clientReports: false,
     breakageAlerts: false,
+    browserTests: false,
     features: ["publicCheck", "stores", "monthlyScan", "fixCenter", "visibility", "funnelNoOrders", "csv"],
     cta: "signup",
   },
@@ -67,7 +70,8 @@ export const PLANS: Record<PlanId, Plan> = {
     shareReports: true,
     clientReports: false,
     breakageAlerts: true,
-    features: ["stores", "weeklyScan", "fixCenter", "autoFix", "visibility", "botTraffic", "aiOrders", "shareReports", "breakageAlerts"],
+    browserTests: true,
+    features: ["stores", "weeklyScan", "fixCenter", "autoFix", "visibility", "botTraffic", "aiOrders", "shareReports", "breakageAlerts", "browserTests"],
     cta: "waitlist",
   },
   agency: {
@@ -86,12 +90,13 @@ export const PLANS: Record<PlanId, Plan> = {
     shareReports: true,
     clientReports: true,
     breakageAlerts: true,
+    browserTests: true,
     features: ["stores", "everythingPro", "workspaces", "clientReports"],
     cta: "waitlist",
   },
 };
 
-export type PlanFeature = "autoFix" | "botTraffic" | "shareReports" | "aiRevenue" | "workspaceMembers" | "clientReports" | "breakageAlerts";
+export type PlanFeature = "autoFix" | "botTraffic" | "shareReports" | "aiRevenue" | "workspaceMembers" | "clientReports" | "breakageAlerts" | "browserTests";
 // The cheapest plan that has a feature, for "needs Pro plan" messages.
 export const planFor = (f: PlanFeature): PlanId => (PLANS.pro[f] ? "pro" : "agency");
 export const RUN_DAYS: Record<Plan["visibilityPer"], number> = { week: 7, month: 30 };
