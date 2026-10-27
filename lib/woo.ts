@@ -500,3 +500,16 @@ export async function fetchActivePlugins(baseUrl: string, creds: WooCredentials)
     return { ok: false, reason: `The list of active plugins could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
   }
 }
+
+// The public Store API for some products (what agents that buy through WooCommerce read): no key, one request.
+export async function fetchStoreApiItems(baseUrl: string, ids: number[], checkToken: string | null): Promise<Map<number, import("./consistency").StoreApiItem> | null> {
+  if (!ids.length) return new Map();
+  const res = await fetchPublicPage(`${baseUrl}/wp-json/wc/store/v1/products?include=${ids.join(",")}&per_page=${Math.min(100, ids.length)}`, "AgentScope/0.3 (+store readiness check)", checkToken);
+  if (!res.ok || res.status !== 200 || res.redirectedTo) return null;
+  try {
+    const list = JSON.parse(res.body) as import("./consistency").StoreApiItem[];
+    return Array.isArray(list) ? new Map(list.filter((x) => typeof x?.id === "number").map((x) => [x.id, x])) : null;
+  } catch {
+    return null;
+  }
+}

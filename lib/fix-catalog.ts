@@ -23,6 +23,9 @@ const input = (field: InputField): FixSpec => ({ type: "input", kind: field, fie
 export function fixFor(f: { type: string; finding_key: string; evidence: string; product_id: number | null }): FixSpec {
   const t = f.type;
   if (t === "llms_txt_missing") return { type: "auto", kind: "llms_txt" };
+  // F4: llms.txt lists an old price. The plugin can serve a new one from the store data (auto-fix refuses when
+  // the site has its own llms.txt file, which is then fixed by hand from Fix generators).
+  if (t === "consistency_llms_mismatch") return { type: "auto", kind: "llms_txt" };
   if (t === "robots_blocks_bot") {
     const bot = f.finding_key.split(":")[1] ?? "";
     // Opening the search and shopping agents is technical; training crawlers are the merchant's choice.

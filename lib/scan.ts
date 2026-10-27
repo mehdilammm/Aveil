@@ -13,14 +13,15 @@ import { checkCheckout } from "./checkout";
 import { planOf, syncOrders } from "./orders-sync";
 import { PLANS } from "./plans";
 import { BROWSER_UA, AI_BOTS, retryAfterMs } from "./access";
-import { fetchActivePlugins, fetchPublicPage, MAX_PRODUCT_PAGES, WooError, type PageFetch, type WooCredentials } from "./woo";
+import { fetchActivePlugins, fetchPublicPage, fetchStoreApiItems, MAX_PRODUCT_PAGES, WooError, type PageFetch, type WooCredentials } from "./woo";
+import { consistencyFindings, llmsPriceFor, type StoreFormat } from "./consistency";
 import { wooCommerceAdapter } from "./platform/woocommerce";
 import { recordVerification } from "./ownership-store";
 import { runAutoFix } from "./autofix-run";
 import { countRequests } from "./safe-fetch";
 import { pageUrlOf, sampleProducts } from "./sampling";
 import { detectSchemaSources, SOURCE_LABEL } from "./schema-source";
-import { checkStructuredData, type SchemaPage } from "./structured-data";
+import { checkStructuredData, extractSchemaProducts, type SchemaPage } from "./structured-data";
 
 type Store = { id: string; owner_id: string; url: string };
 export type ScanTrigger = "manual" | "scheduled";
@@ -83,7 +84,20 @@ export const slim = (p: WooProduct & { total_sales?: number | string; categories
 });
 
 type ProductsPage = { total: number; totalPages: number; products: Slim[]; findings: number; requests: number };
-type StoreStep = { currency: string | null; sample: { url: string; product: Slim }[]; basis: string; requests: number; findings: number };
+type StoreStep = { currency: string | null; sample: { url: string; product: Slim }[]; basis: string; requests: number; findings: number; format?: StoreFormat; llmsPrices?: Record<string, number> };
+
+// F4: the same products in the Store API, on the page, in the JSON-LD and in llms.txt, compared with WooCommerce.
+async function consistencyFor(storeUrl: string, pages: SchemaPage[], format: StoreFormat | undefined, llmsPrices: Record<string, number> | undefined, checkToken: string | null): Promise<Finding[]> {
+  if (!format || !pages.length) return [];
+  const api = await fetchStoreApiItems(storeUrl, pages.map((p) => p.product.id), checkToken);
+  return consistencyFindings(pages.map((pg) => ({
+    product: { id: pg.product.id, name: pg.product.name, type: pg.product.type, price: pg.product.price, stock_status: pg.product.stock_status ?? null, url: pg.url },
+    html: pg.html,
+    schema: pg.html ? extractSchemaProducts(pg.html).products[0] ?? null : null,
+    storeApi: api?.get(pg.product.id) ?? null,
+    llmsPrice: llmsPrices?.[pg.url] ?? null,
+  })), format);
+}
 type CountStep = { findings: number; requests: number; pages?: number };
 
 // Findings of one step are replaced as a whole, so a retried step never leaves duplicates.
@@ -275,6 +289,17 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
           return loaded ? schemaPage(s.product, s.url, loaded) : { product: s.product as unknown as WooProduct, url: s.url, html: null, fetchError: "not loaded" };
         });
         findings.push(...duplicateSchemaFindings(firstPages));
+        // F4: the store's price format, and the prices llms.txt lists for the sampled pages (one request).
+        const s = settings.ok ? settings.data : {};
+        const format: StoreFormat = { currency, decimalSep: s.woocommerce_price_decimal_sep || ".", thousandSep: s.woocommerce_price_thousand_sep ?? ",", taxes: s.woocommerce_calc_taxes === "yes" };
+        const llms = await fetchText(`${store.url}/llms.txt`, checkToken);
+        const llmsText = llms.ok && llms.data.status === 200 && !/^\s*<(!doctype|html)/i.test(llms.data.text) ? llms.data.text : "";
+        const llmsPrices: Record<string, number> = {};
+        for (const sp of sample) {
+          const price = llmsText ? llmsPriceFor(llmsText, sp.url) : null;
+          if (price !== null) llmsPrices[sp.url] = price;
+        }
+        findings.push(...(await consistencyFor(store.url, firstPages, format, llmsPrices, checkToken)));
         await saveSchemaPages(admin, store, scanId, firstPages);
 
         // Checkout: guest checkout, shipping, payment, the checkout page for a browser and for GPTBot, stock.
@@ -308,7 +333,7 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
           plugins: await fetchActivePlugins(store.url, creds),
         }));
         await saveFindings(admin, store, scanId, "store", findings);
-        return { currency, sample, basis: picked.basis, findings: findings.length };
+        return { currency, sample, basis: picked.basis, findings: findings.length, format, llmsPrices };
       });
       return { ...result, requests };
     });
@@ -327,7 +352,7 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
             if (j > 0) await sleep(PAGE_GAP_MS);
             chunk.push(schemaPage(s.product, s.url, (await adapter.fetchProductSchema(s.url, checkToken)).page));
           }
-          const findings = [...checkStructuredData(chunk, storeStep.currency), ...duplicateSchemaFindings(chunk)];
+          const findings = [...checkStructuredData(chunk, storeStep.currency), ...duplicateSchemaFindings(chunk), ...(await consistencyFor(store.url, chunk, storeStep.format, storeStep.llmsPrices, checkToken))];
           await saveFindings(admin, store, scanId, key, findings);
           await saveSchemaPages(admin, store, scanId, chunk);
           return { findings: findings.length, pages: chunk.length };
