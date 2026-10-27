@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 const ITEMS = [
   { label: "overview", path: "" },
   { label: "traffic", path: "/traffic" },
+  { label: "bots", path: "/bots" },
   { label: "readiness", path: "/readiness" },
   { label: "fix", path: "/fix" },
   { label: "visibility", path: "/visibility" },

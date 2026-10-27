@@ -100,6 +100,21 @@ Advisor 0014 (pg_net in public): the SQL tool asks the owner to confirm every de
 Shopify app, Turnstile, paid grounded engines, Revenue at Risk, full Arabic release: **Missing**, blocked on accounts
 or budget approval.
 
+## Milestone F — v1.2 (features competitors do not have)
+
+Rules as in MASTER_PROMPT.md: labels on every value, no invented numbers, DB before/after, stop for approvals
+(migration, new service, store write, plugin release).
+
+| # | Feature | Status | Acceptance |
+|---|---|---|---|
+| F1 | Bot → product map | Done (2026-10-27) | Per sampled/published product, last 30 days: verified bot visits (Observed) and user-agent-only (Heuristic) on its page, per bot, next to its open findings; one sentence per product with a label per clause; products no bot visited in their own section; Pro and Agency only (Free: Unavailable: needs Pro plan). | Page /stores/<id>/bots (nav "Bots × products"): products sorted by visits with a per-bot table (verified / user agent only / not checked yet) and the sentence "GPTBot visited this product 12 times [Observed], but: <first issue> [Observed]"; not-visited products with their first open issue; other pages bots visited. Pro / Agency only. No migration, read only. matha.site 2026-10-27 (real bot_hits, last scan): 10 verified OAI-SearchBot visits, all to /robots.txt, so 0 products visited and 13 in "Not visited" — the product pages have had no AI bot visit reach the plugin in 30 days. |
+| F2 | Breakage alert | Missing | Plugin 1.7.0: hooks on upgrader_process_complete (plugins/themes/core), switch_theme, activated_plugin, deactivated_plugin record what changed (name, old → new version); a signed ping (HMAC + nonce) is sent by WP-Cron only. App: a mini-scan (access, robots, schema on 3 products, checkout) compared with the last scan; a new problem raises an alert (banner + Alerts page) with the change as Likely cause [Heuristic] and the problem [Observed]. Email later (domain). Pro only. |
+| F3 | Instant check on publish | Missing | Plugin 1.7.0: product publish/update → signed ping via WP-Cron, debounce 5 min per product. App: one-product check (price, image, weight, brand, GTIN, schema); with auto-fix on (Pro) applies the auto fixes and verifies; in-app notice "New product X: n issues, m fixed automatically". Free: check only. |
+| F4 | Cross-source consistency | Missing | For the sampled products: price, currency, stock and name from the WooCommerce API, the page JSON-LD, the visible page, llms.txt and the Store API; any difference is a finding with both sources and values [Observed]. Fix: auto when the JSON-LD is ours (plugin), else guidance. |
+| F5 | Hosting guide | Missing | Host / CDN / firewall detected from headers and DNS [Heuristic]; when bots get 403 / 429 / a challenge, provider-specific steps from the en + ar catalog with the provider's official docs link; generic guidance when unsure (no invented setting names). |
+| F6 | Checkout barriers per market | Missing | For each market used in AI Visibility: selling allowed, a shipping method, currency, payment methods, required fields (state / postcode); table Market / Can an agent complete checkout? / Why not / Fix; WooCommerce settings API, read only. |
+| F7 | Agent purchase simulator | Missing | Mode A: Store API product → add to cart → cart → checkout fields, never places an order; ownership-verified stores only, AgentScope user agent + X-AgentScope-Check, robots.txt respected, max 3 products and 15 requests, cart emptied after; step-by-step timeline with labels and the exact blocking reason. Mode B (real headless browser): proposal with cost, then wait for APPROVED. |
+
 ## Proposed migrations (to approve)
 
 ```sql
