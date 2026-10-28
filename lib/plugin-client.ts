@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes, createHmac } from "node:crypto";
 import { BlockedUrlError, guardedFetch } from "./safe-fetch";
 
-export type PluginFix = { id: string; kind: "jsonld" | "llms_txt" | "robots" | "feed"; target?: number; payload: Record<string, unknown> };
+export type PluginFix = { id: string; kind: "jsonld" | "llms_txt" | "robots" | "feed" | "org" | "website" | "breadcrumbs" | "shipping" | "variants" | "returns"; target?: number; payload: Record<string, unknown> };
 export type PluginAnswer = {
   plugin_version: string;
   done: { id: string }[];

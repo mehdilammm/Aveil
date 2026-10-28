@@ -97,7 +97,7 @@ describe("scan as a background job", () => {
     tables.job_steps = tables.job_steps.filter((s) => s.step_key !== "store" && s.step_key !== "finish");
     await runClaimedJob(client, job(2), JOB_HANDLERS, Date.now() + 600_000);
     expect(tables.findings.length).toBe(before);
-  });
+  }, 20_000); // two full scans, each with the polite 1.5 s gap between page requests
 
   it("auto-fix runs after the scan only when the store turned it on, on a plan with auto-fix", async () => {
     const off = db();

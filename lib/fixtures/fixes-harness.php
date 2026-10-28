@@ -23,6 +23,8 @@ final class Agsc_Req {
 }
 require __DIR__ . '/../../wordpress/agentscope-core/includes/class-agsc-fixes.php';
 require __DIR__ . '/../../wordpress/agentscope-core/includes/class-agsc-feed.php';
+require __DIR__ . '/../../wordpress/agentscope-core/includes/class-agsc-schema.php';
+function wp_json_encode($v, $f = 0) { return json_encode($v, $f); }
 $sign = function ($body, $ts, $nonce) { return 'sha256=' . hash_hmac('sha256', $ts . '.' . $nonce . '.' . $body, 'agsc_test'); };
 $req = function ($body, $ts = null, $nonce = null, $sig = null) use ($sign) {
     $ts = $ts ?? (string) time();
@@ -96,5 +98,55 @@ if ($case === 'auth') {
     $out['feeds_after_second'] = array_keys(AGSC_Fixes::of_kind('feed'));
     AGSC_Fixes::handle($req(json_encode(array('action' => 'revert', 'ids' => array($id2)))));
     $out['after_revert'] = array('fixes' => array_keys(AGSC_Fixes::of_kind('feed')), 'data' => get_option(AGSC_Fixes::FEED_OPTION, null));
+} elseif ($case === 'schema') {
+    // 1.8.0 (G2, G3, G5, G6, G7): the pure builders, with matha.site's data (2026-10-28) where it exists.
+    $site = array('name' => 'Matha Mirrors', 'url' => 'https://matha.site/', 'logo' => '');
+    $org = AGSC_Schema::clean_payload('org', array('type' => 'OnlineStore', 'telephone' => '+212 637 037 640'));
+    $out['org'] = AGSC_Schema::org_node($site, $org);
+    $out['org_logo'] = AGSC_Schema::org_node(array('logo' => 'https://matha.site/logo.png') + $site, AGSC_Schema::clean_payload('org', array('email' => 'hello@matha.site', 'same_as' => array('https://www.instagram.com/matha'))));
+    $out['org_refused'] = array(
+        AGSC_Schema::clean_payload('org', array('telephone' => '<script>alert(1)</script>')),
+        AGSC_Schema::clean_payload('org', array('email' => 'not an email')),
+        AGSC_Schema::clean_payload('org', array('same_as' => array('http://instagram.com/x'))),
+    );
+    $web = AGSC_Schema::clean_payload('website', array('search' => 'https://matha.site/?s={search_term_string}&post_type=product'));
+    $out['website'] = AGSC_Schema::website_node($site, $web, true);
+    $out['website_plain'] = AGSC_Schema::website_node($site, AGSC_Schema::clean_payload('website', array()), false);
+    $out['website_refused'] = AGSC_Schema::clean_payload('website', array('search' => 'https://matha.site/?s=mirror'));
+    $out['breadcrumb'] = AGSC_Schema::breadcrumb_node(array(array('Home', 'https://matha.site/'), array('LED Mirrors', 'https://matha.site/product-category/led-mirrors/'), array('Round LED Mirror', 'https://matha.site/product/round-led-mirror/')));
+    $ship = AGSC_Schema::clean_payload('shipping', array('currency' => 'MAD', 'zones' => array(array('country' => 'MA', 'region' => 'Marrakech', 'rates' => array(array('type' => 'free'))))));
+    $out['ship_matha'] = AGSC_Schema::shipping_details($ship, '800');
+    $min = AGSC_Schema::clean_payload('shipping', array('currency' => 'MAD', 'zones' => array(array('country' => 'MA', 'rates' => array(array('type' => 'flat', 'cost' => '35'), array('type' => 'free_min', 'min' => '1000')), 'delivery' => array('handling' => array(0, 1), 'transit' => array(1, 3))))));
+    $out['ship_800'] = AGSC_Schema::shipping_details($min, '800');
+    $out['ship_1200'] = AGSC_Schema::shipping_details($min, '1200');
+    $out['ship_range'] = AGSC_Schema::shipping_details($min, null);
+    $out['ship_refused'] = array(
+        AGSC_Schema::clean_payload('shipping', array('currency' => 'MAD', 'zones' => array(array('country' => 'MA', 'rates' => array(array('type' => 'flat', 'cost' => '10 * [qty]')))))),
+        AGSC_Schema::clean_payload('shipping', array('currency' => 'MAD', 'zones' => array(array('country' => 'Morocco', 'rates' => array(array('type' => 'free')))))),
+        AGSC_Schema::clean_payload('shipping', array('currency' => 'MAD', 'zones' => array(array('country' => 'MA', 'rates' => array(array('type' => 'free')), 'delivery' => array('handling' => array(3, 1), 'transit' => array(1, 2)))))),
+    );
+    $none = AGSC_Schema::clean_payload('returns', array('category' => 'MerchantReturnNotPermitted', 'countries' => array('MA'), 'link' => 'https://matha.site/refund_returns/'));
+    $out['returns_none'] = AGSC_Schema::return_policy($none);
+    $out['returns_14'] = AGSC_Schema::return_policy(AGSC_Schema::clean_payload('returns', array('category' => 'MerchantReturnFiniteReturnWindow', 'countries' => array('MA', 'FR'), 'days' => 14, 'method' => 'ReturnByMail', 'fees' => 'FreeReturn')));
+    $out['returns_refused'] = array(AGSC_Schema::clean_payload('returns', array('category' => 'MerchantReturnFiniteReturnWindow', 'countries' => array('MA'))), AGSC_Schema::clean_payload('returns', array('category' => 'Whatever', 'countries' => array('MA'))));
+    $variants = AGSC_Schema::variant_offers(array(
+        array('price' => '300', 'availability' => 'InStock', 'url' => 'https://matha.site/product/linen-shirt/?attribute_pa_size=m', 'sku' => 'LS-M', 'gtin' => '4006381333931'),
+        array('price' => '320', 'availability' => 'OutOfStock', 'url' => 'https://matha.site/product/linen-shirt/?attribute_pa_size=l', 'sku' => '', 'gtin' => ''),
+        array('price' => '', 'availability' => 'InStock', 'url' => 'https://matha.site/product/linen-shirt/?attribute_pa_size=xl', 'sku' => '', 'gtin' => ''),
+    ), 'MAD');
+    $out['variants'] = $variants;
+    // matha.site's Product node as WooCommerce prints it, extended with every part (and extended twice: no duplicates).
+    $graph = json_decode(file_get_contents($argv[2]), true);
+    $product = $graph['@graph'][1];
+    $ctx = array('ship' => function ($p) use ($ship) { return AGSC_Schema::shipping_details($ship, $p); }, 'returns' => $out['returns_none'], 'org_id' => AGSC_Schema::org_id('https://matha.site/'), 'variants' => null);
+    $once = AGSC_Schema::extend_product($product, $ctx);
+    $out['product_before'] = $product;
+    $out['product'] = $once;
+    $out['product_twice_same'] = AGSC_Schema::extend_product($once, $ctx) === $once;
+    $variable = array('@type' => 'Product', '@id' => 'https://matha.site/product/linen-shirt/#product', 'name' => 'Linen Shirt', 'offers' => array(array('@type' => 'AggregateOffer', 'lowPrice' => '300', 'highPrice' => '320', 'offerCount' => 2, 'priceCurrency' => 'MAD', 'availability' => 'https://schema.org/InStock', 'url' => 'https://matha.site/product/linen-shirt/', 'seller' => array('@type' => 'Organization', 'name' => 'Matha Mirrors', 'url' => 'https://matha.site'))));
+    $out['variable'] = AGSC_Schema::extend_product($variable, array('ship' => function ($p) use ($min) { return AGSC_Schema::shipping_details($min, $p); }) + array('variants' => $variants) + $ctx);
+    $same = array('@type' => 'Product', '@id' => 'https://matha.site/product/tee/#product', 'name' => 'Tee', 'offers' => array(array('@type' => 'Offer', 'price' => '300', 'priceCurrency' => 'MAD')));
+    $out['single_to_aggregate'] = AGSC_Schema::extend_product($same, array('ship' => null, 'returns' => null, 'org_id' => null, 'variants' => array_slice($variants, 0, 1)));
+    $out['script'] = AGSC_Schema::script(array(AGSC_Schema::org_node(array('name' => 'Mirrors </script><script>alert(1)</script> & co') + $site, $org)));
 }
 echo json_encode($out);

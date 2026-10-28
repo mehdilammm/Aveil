@@ -17,6 +17,8 @@
  *   feed     - (1.8.0) the product feed the app built from the store's products: ACP metadata.json and products.jsonl,
  *              and a CSV with the Google Merchant fields, served by AGSC_Feed. The files are kept in their own option
  *              (not autoloaded), so ordinary page loads never read them.
+ *   org, shipping, website, breadcrumbs, variants, returns - (1.8.0) structured data parts, see AGSC_Schema; each
+ *              keeps a small, checked payload.
  * Administrators see the applied fixes in Settings and can remove each one (capability check + nonce).
  */
 if (!defined('ABSPATH')) {
@@ -27,7 +29,7 @@ final class AGSC_Fixes {
     const OPTION   = 'agsc_fixes';
     const NONCES   = 'agsc_fix_nonces';
     const MAX_SKEW = 300;
-    const KINDS    = array('jsonld', 'llms_txt', 'robots', 'feed');
+    const KINDS    = array('jsonld', 'llms_txt', 'robots', 'feed', 'org', 'shipping', 'website', 'breadcrumbs', 'variants', 'returns');
     const MAX_TEXT = 100000;
     const FEED_OPTION = 'agsc_feed_data';
     const MAX_FEED    = 4194304; // 4 MB per file
@@ -102,6 +104,14 @@ final class AGSC_Fixes {
         }
         $p = isset($fix['payload']) && is_array($fix['payload']) ? $fix['payload'] : array();
         $out = array('id' => (string) $fix['id'], 'kind' => $fix['kind'], 'applied_at' => time());
+        if (in_array($fix['kind'], AGSC_Schema::KINDS, true)) {
+            $payload = AGSC_Schema::clean_payload($fix['kind'], $p);
+            if ($payload === null) {
+                return null;
+            }
+            $out['payload'] = $payload;
+            return $out;
+        }
         if ($fix['kind'] === 'feed') {
             $data = self::clean_feed($p);
             if (!$data) {
@@ -165,13 +175,15 @@ final class AGSC_Fixes {
                 $fix = self::clean($raw);
                 if ($fix) {
                     $before = isset($fixes[$fix['id']]) ? $fixes[$fix['id']] : null;
-                    if ($fix['kind'] === 'feed') {
-                        // One feed per store: a new one replaces the old one, whatever its id.
+                    if ($fix['kind'] === 'feed' || in_array($fix['kind'], AGSC_Schema::KINDS, true)) {
+                        // One feed and one of each structured data part per store: a new one replaces the old one.
                         foreach ($fixes as $id => $f) {
-                            if ($f['kind'] === 'feed' && $id !== $fix['id']) {
+                            if ($f['kind'] === $fix['kind'] && $id !== $fix['id']) {
                                 unset($fixes[$id]);
                             }
                         }
+                    }
+                    if ($fix['kind'] === 'feed') {
                         update_option(self::FEED_OPTION, $fix['data'], false);
                         unset($fix['data']);
                     }
@@ -316,14 +328,15 @@ final class AGSC_Fixes {
     public static function render_section() {
         $fixes = self::all();
         echo '<h2 class="agsc-h2">Fixes applied by AgentScope</h2><div class="agsc-form">';
-        echo '<p class="agsc-help agsc-help--flush">Technical fixes the AgentScope app applied after your approval there (structured data brand, llms.txt, robots.txt groups). Undo them in the app, or remove one here.</p>';
+        echo '<p class="agsc-help agsc-help--flush">Technical fixes the AgentScope app applied after your approval there (structured data, llms.txt, robots.txt groups, product feed). Undo them in the app, or remove one here.</p>';
         if (!$fixes) {
             echo '<p>None.</p></div>';
             return;
         }
         echo '<ul>';
         foreach ($fixes as $f) {
-            $what = $f['kind'] === 'jsonld' ? 'Structured data brand on product #' . (int) $f['target'] : ($f['kind'] === 'llms_txt' ? '/llms.txt' : ($f['kind'] === 'feed' ? 'Product feed (' . (int) $f['products'] . ' products): ' . AGSC_Feed::PATH_JSONL : 'robots.txt AI agent groups'));
+            $labels = array('org' => 'Structured data: organization', 'shipping' => 'Structured data: shipping details', 'website' => 'Structured data: website', 'breadcrumbs' => 'Structured data: breadcrumbs', 'variants' => 'Structured data: one offer per variation', 'returns' => 'Structured data: return policy');
+            $what = isset($labels[$f['kind']]) ? $labels[$f['kind']] : ($f['kind'] === 'jsonld' ? 'Structured data brand on product #' . (int) $f['target'] : ($f['kind'] === 'llms_txt' ? '/llms.txt' : ($f['kind'] === 'feed' ? 'Product feed (' . (int) $f['products'] . ' products): ' . AGSC_Feed::PATH_JSONL : 'robots.txt AI agent groups')));
             echo '<li>' . esc_html($what) . ' · ' . esc_html(gmdate('Y-m-d H:i', (int) $f['applied_at'])) . ' UTC ';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="agsc-inline">';
             echo '<input type="hidden" name="action" value="agsc_remove_fix"><input type="hidden" name="fix_id" value="' . esc_attr($f['id']) . '">';

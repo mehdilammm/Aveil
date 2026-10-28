@@ -6,6 +6,8 @@ import { checkAgenticSupport } from "./agentic-protocols";
 import { connectionAfterScan } from "./connection";
 import { checkFeedProduct, checkFeedStore } from "./feed";
 import { checkFeedServed, FEED_PATHS } from "./feed-build";
+import { graphFindings } from "./graph-checks";
+import type { Source } from "./pages";
 import { checkStoreGate, describePage, pageGate } from "./gate";
 import { JobYield, PermanentJobError, type StepContext } from "./jobs";
 import { checkStorePages } from "./pages";
@@ -80,10 +82,11 @@ async function earlierKeys(admin: SupabaseClient, storeId: string, scanId: strin
 }
 
 // Product fields kept between steps (for the sample and the checkout checks), never the whole catalog.
-export type Slim = Pick<WooProduct, "id" | "name" | "type" | "price" | "regular_price" | "sale_price" | "stock_status" | "permalink" | "virtual"> & { total_sales: number; categories: { id: number }[] };
+export type Slim = Pick<WooProduct, "id" | "name" | "type" | "price" | "regular_price" | "sale_price" | "stock_status" | "permalink" | "virtual"> & { total_sales: number; categories: { id: number }[]; variations?: number };
 export const slim = (p: WooProduct & { total_sales?: number | string; categories?: { id: number }[] }): Slim => ({
   id: p.id, name: p.name, type: p.type, price: p.price, regular_price: p.regular_price, sale_price: p.sale_price, stock_status: p.stock_status ?? null,
   permalink: p.permalink ?? null, virtual: p.virtual, total_sales: Number(p.total_sales ?? 0) || 0, categories: (p.categories ?? []).map((c) => ({ id: c.id })),
+  variations: Array.isArray(p.variations) ? p.variations.length : 0,
 });
 
 type ProductsPage = { total: number; totalPages: number; products: Slim[]; findings: number; requests: number };
@@ -179,6 +182,35 @@ export function schemaPage(product: Slim, url: string, res: PageFetch): SchemaPa
     seen: res.ok ? describePage(res) : undefined,
     fetchError: !res.ok ? res.error : gate ? gate.reason : res.redirectedTo ? `redirected to ${res.redirectedTo}` : usable ? undefined : `HTTP ${res.status}`,
   };
+}
+
+// Milestone G (G2, G3, G5, G6, G7): what the home page, a product page and a variable product's page already say
+// in JSON-LD. At most two more requests (the home page, and a variable product's page when none is in the sample).
+export async function graphFor(storeUrl: string, products: Slim[], pages: SchemaPage[], plugins: Source<{ plugin: string; name: string }[]>, load: (url: string) => Promise<PageFetch>): Promise<Finding[]> {
+  const home = await load(`${storeUrl}/`);
+  const product = pages.find((p) => p.html);
+  const variableSlim = products.find((p) => p.type === "variable" && (p.variations ?? 0) > 1);
+  let variable: { id: number; url: string; html: string | null; variations: number } | null = null;
+  if (variableSlim) {
+    const url = pageUrlOf(storeUrl, variableSlim);
+    if (url) {
+      const inSample = pages.find((p) => p.url === url && p.html)?.html;
+      let html = inSample ?? null;
+      if (!html) {
+        const r = await load(url);
+        html = r.ok && r.status === 200 ? r.body : null;
+      }
+      variable = { id: variableSlim.id, url, html, variations: variableSlim.variations ?? 0 };
+    }
+  }
+  const seo = plugins.ok ? plugins.data.find((p) => /^(wordpress-seo|seo-by-rank-math)\//i.test(p.plugin)) : undefined;
+  return graphFindings({
+    storeUrl,
+    home: { url: `${storeUrl}/`, html: home.ok && home.status === 200 ? home.body : null },
+    product: product ? { id: product.product.id, url: product.url, html: product.html, needsShipping: !product.product.virtual } : null,
+    variable,
+    seoPlugin: seo ? seo.name : null,
+  });
 }
 
 // Waits between requests and retries a 429 once (Retry-After honoured), like the access test.
@@ -359,6 +391,7 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
           plugins: plugins.ok ? plugins.data : [],
         }));
         if (hosting) findings.push(hosting);
+        findings.push(...(await graphFor(store.url, products, firstPages, plugins, async (u) => (await politePage(u, BROWSER_UA, checkToken)).res)));
         await saveFindings(admin, store, scanId, "store", findings);
         return { currency, sample, basis: picked.basis, findings: findings.length, format, llmsPrices };
       });

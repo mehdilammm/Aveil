@@ -7,6 +7,7 @@ import { buildLlmsTxt } from "./fixes/llms-txt";
 import { patchRobots } from "./fixes/robots-patch";
 import { FEED_MAX_BYTES, FEED_PATHS, FEED_SPEC, type FeedResult } from "./feed-build";
 import { buildStoreFeed } from "./feed-run";
+import { applySchemaFix, SCHEMA_DESCRIBE } from "./schema-fixes";
 import { planOf } from "./orders-sync";
 import { callPlugin } from "./plugin-client";
 import { lockedReason } from "./plan-gate";
@@ -50,6 +51,8 @@ export function planAuto(ctx: FixContext, findings: Finding[]): PlannedFix[] {
       out.push({ finding: f, ...spec, ready: Boolean(ctx.pluginToken), reason: ctx.pluginToken ? null : NEED_PLUGIN, describe: spec.kind === "llms_txt" ? "Serve /llms.txt, written from your store's title, pages, categories and products." : "Allow the AI search and shopping agents in robots.txt (training crawlers keep your current setting)." });
     } else if (spec.kind === "feed") {
       out.push({ finding: f, ...spec, ready: Boolean(ctx.pluginToken), reason: ctx.pluginToken ? null : NEED_PLUGIN_18, describe: `Serve a product feed for AI shopping agents at ${FEED_PATHS.jsonl} (${FEED_SPEC.name} ${FEED_SPEC.version}) and ${FEED_PATHS.csv}, from your published products; refreshed when a product changes and every day.` });
+    } else if (spec.kind === "org" || spec.kind === "website" || spec.kind === "breadcrumbs" || spec.kind === "shipping" || spec.kind === "variants") {
+      out.push({ finding: f, ...spec, ready: Boolean(ctx.pluginToken), reason: ctx.pluginToken ? null : NEED_PLUGIN_18, describe: SCHEMA_DESCRIBE[spec.kind] });
     } else if (spec.kind === "brand") {
       out.push({ finding: f, ...spec, ready: Boolean(ctx.write || ctx.pluginToken), reason: ctx.write || ctx.pluginToken ? null : NEED_WRITE, describe: ctx.write ? `Set the product's brand to your store's name (#${f.product_id}).` : `Add your store's name as the brand in the product's structured data (#${f.product_id}).` });
     }
@@ -86,6 +89,8 @@ async function applyChange(admin: SupabaseClient, ctx: FixContext, f: Finding, k
     const feed = await buildStoreFeed(store, ctx.read);
     return pushFeed(ctx, fixId, feed);
   }
+
+  if (kind === "org" || kind === "website" || kind === "breadcrumbs" || kind === "shipping" || kind === "variants") return applySchemaFix(ctx, kind, fixId);
 
   const pid = f.product_id;
   if (kind === "brand") {
@@ -189,7 +194,7 @@ export async function applyFixes(
     }
     const { data: row } = await admin.from("fix_audit_log").insert({
       id: fixId, store_id: ctx.store.id, owner_id: ctx.store.owner_id, batch_id: batchId, finding_key: it.finding.finding_key, fix_type: it.type, kind: it.kind,
-      channel: change?.channel ?? (it.kind === "llms_txt" || it.kind === "robots" || it.kind === "feed" ? "plugin" : "write_key"), target: change?.target ?? (it.finding.product_id ? `product:${it.finding.product_id}` : it.kind),
+      channel: change?.channel ?? (["llms_txt", "robots", "feed", "org", "website", "breadcrumbs", "shipping", "variants", "returns"].includes(it.kind) ? "plugin" : "write_key"), target: change?.target ?? (it.finding.product_id ? `product:${it.finding.product_id}` : it.kind),
       before: change?.before ?? null, after: change ? { ...(change.after as object), describe: change.describe } : null, status: change ? "applied" : "failed", error,
       verify_status: verify?.status ?? null, verify_evidence: verify?.evidence?.slice(0, 1000) ?? null, applied_by: by.userId, automatic: by.automatic,
     }).select("id").single();

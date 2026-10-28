@@ -299,13 +299,18 @@ export async function fetchShippingZones(baseUrl: string, creds: WooCredentials)
     for (const z of items.slice(0, 20)) {
       const [locations, methods] = await Promise.all([
         getPage<{ code: string; type: string }>(baseUrl, `/shipping/zones/${z.id}/locations`, {}, creds),
-        getPage<{ method_id: string; enabled: boolean }>(baseUrl, `/shipping/zones/${z.id}/methods`, {}, creds),
+        getPage<{ method_id: string; enabled: boolean; title?: string; settings?: Record<string, { value?: unknown }> }>(baseUrl, `/shipping/zones/${z.id}/methods`, {}, creds),
       ]);
       zones.push({
         id: z.id,
         name: z.name,
         locations: locations.items.map((l) => ({ code: String(l.code), type: String(l.type) })),
-        methods: methods.items.map((m) => ({ method_id: String(m.method_id), enabled: m.enabled === true })),
+        methods: methods.items.map((m) => ({
+          method_id: String(m.method_id),
+          enabled: m.enabled === true,
+          title: String(m.title ?? ""),
+          settings: Object.fromEntries(Object.entries(m.settings ?? {}).map(([k, v]) => [k, typeof v?.value === "string" ? v.value : String(v?.value ?? "")])),
+        })),
       });
     }
     return { ok: true, data: zones };
@@ -535,6 +540,20 @@ export async function fetchCountryStates(baseUrl: string, creds: WooCredentials,
     if (!res.ok) return null;
     const body = (await res.json()) as { states?: unknown[] };
     return Array.isArray(body?.states) ? body.states.length : null;
+  } catch {
+    return null;
+  }
+}
+
+// The states / regions WooCommerce lists for a country, by code in lower case ("mamar" → "Marrakech").
+export async function fetchCountryStateNames(baseUrl: string, creds: WooCredentials, cc: string): Promise<Record<string, string> | null> {
+  try {
+    const url = new URL(`${baseUrl}/wp-json/wc/v3/data/countries/${encodeURIComponent(cc.toLowerCase())}`);
+    const basic = Buffer.from(`${creds.consumerKey}:${creds.consumerSecret}`).toString("base64");
+    const res = await safeFetch(url, { Authorization: `Basic ${basic}`, Accept: "application/json" });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { states?: { code?: string; name?: string }[] };
+    return Array.isArray(body?.states) ? Object.fromEntries(body.states.filter((s) => s.code && s.name).map((s) => [String(s.code).toLowerCase(), decodeName(String(s.name))])) : null;
   } catch {
     return null;
   }

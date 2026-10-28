@@ -13,6 +13,7 @@ import { SEARCH_AGENTS } from "./fixes/robots-patch";
 export type FixType = "auto" | "one_click" | "input" | "guide";
 export type FixKind =
   | "llms_txt" | "robots" | "brand" | "feed"
+  | "org" | "website" | "breadcrumbs" | "shipping" | "variants" | "returns"
   | "sell_where_ship" | "guest_checkout"
   | "price" | "image" | "weight" | "gtin"
   | "manual";
@@ -26,6 +27,11 @@ export function fixFor(f: { type: string; finding_key: string; evidence: string;
   if (t === "llms_txt_missing") return { type: "auto", kind: "llms_txt" };
   // G1: the plugin serves a product feed built from the store's products (Pro and Agency).
   if (t === "feed_not_served") return { type: "auto", kind: "feed" };
+  // G2, G3, G5, G6: structured data parts the plugin adds (never where another source prints them: an SEO plugin
+  // that prints its own is a setting to turn on there). G7: the return policy needs the merchant's confirmation.
+  const JSONLD: Record<string, FixKind> = { jsonld_org_missing: "org", jsonld_website_missing: "website", jsonld_breadcrumb_missing: "breadcrumbs", jsonld_shipping_missing: "shipping", jsonld_variants_missing: "variants" };
+  if (JSONLD[t]) return /\(seo plugin: [^)]+\)$/.test(f.evidence) && ["org", "website", "breadcrumbs"].includes(JSONLD[t]) ? { type: "guide", kind: "manual" } : { type: "auto", kind: JSONLD[t] };
+  if (t === "jsonld_returns_missing") return { type: "one_click", kind: "returns" };
   // F4: llms.txt lists an old price. The plugin can serve a new one from the store data (auto-fix refuses when
   // the site has its own llms.txt file, which is then fixed by hand from Fix generators).
   if (t === "consistency_llms_mismatch") return { type: "auto", kind: "llms_txt" };
