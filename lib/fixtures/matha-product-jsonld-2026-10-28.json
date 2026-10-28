@@ -1,0 +1,71 @@
+{
+ "@context": "https://schema.org/",
+ "@graph": [
+  {
+   "@context": "https://schema.org/",
+   "@type": "BreadcrumbList",
+   "itemListElement": [
+    {
+     "@type": "ListItem",
+     "position": 1,
+     "item": {
+      "name": "Home",
+      "@id": "https://matha.site"
+     }
+    },
+    {
+     "@type": "ListItem",
+     "position": 2,
+     "item": {
+      "name": "LED Mirrors",
+      "@id": "https://matha.site/product-category/led-mirrors/"
+     }
+    },
+    {
+     "@type": "ListItem",
+     "position": 3,
+     "item": {
+      "name": "Round LED Mirror",
+      "@id": "https://matha.site/product/round-led-mirror/"
+     }
+    }
+   ]
+  },
+  {
+   "@context": "https://schema.org/",
+   "@type": "Product",
+   "@id": "https://matha.site/product/round-led-mirror/#product",
+   "name": "Round LED Mirror",
+   "url": "https://matha.site/product/round-led-mirror/",
+   "description": "Round mirror with built-in LED lighting.",
+   "sku": "MIR-LED-01",
+   "offers": [
+    {
+     "@type": "Offer",
+     "priceSpecification": [
+      {
+       "@type": "UnitPriceSpecification",
+       "price": "800.00",
+       "priceCurrency": "MAD",
+       "validThrough": "2027-12-31"
+      }
+     ],
+     "priceValidUntil": "2027-12-31",
+     "availability": "https://schema.org/InStock",
+     "url": "https://matha.site/product/round-led-mirror/",
+     "seller": {
+      "@type": "Organization",
+      "name": "Matha Mirrors",
+      "url": "https://matha.site"
+     },
+     "price": "800.00",
+     "priceCurrency": "MAD"
+    }
+   ],
+   "brand": {
+    "@type": "Brand",
+    "name": "Matha Mirrors"
+   }
+  }
+ ]
+}

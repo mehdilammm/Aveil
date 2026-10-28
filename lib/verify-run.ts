@@ -11,10 +11,10 @@ import { wooCommerceAdapter } from "./platform/woocommerce";
 import { checkLlmsTxt, checkRobots, type RobotsFetch } from "./robots";
 import { checkProduct, type Finding } from "./rules";
 import { pageUrlOf, sampleProducts } from "./sampling";
-import { duplicateSchemaFindings, politePage, schemaPage, slim } from "./scan";
+import { duplicateSchemaFindings, graphFor, politePage, schemaPage, slim } from "./scan";
 import { checkStructuredData } from "./structured-data";
 import { bust, groupOf, judge, type VerifyResult } from "./verify";
-import { fetchPublicPage, fetchPublishedProduct, WooError, type WooCredentials } from "./woo";
+import { fetchActivePlugins, fetchPublicPage, fetchPublishedProduct, WooError, type WooCredentials } from "./woo";
 import type { Source } from "./pages";
 
 const CHECKER_UA = "AgentScope/0.3 (+fix verification)";
@@ -71,6 +71,20 @@ export async function recheck(admin: SupabaseClient, store: Store, creds: WooCre
           storeUrl: store.url, settings, zones, gateways, checkoutPage,
           products: { total: products.items.length, outOfStock: products.items.filter((p) => p.stock_status === "outofstock").length, needShipping: products.items.filter((p) => !p.virtual).length },
         });
+      }
+      case "jsonld": {
+        // Milestone G: the home page, the first product page (and the variable product's page) again, caches bypassed.
+        const items = (await adapter.fetchProductsPage(1)).items;
+        const first = sampleProducts(store.url, items, 1).items[0];
+        const load = (u: string) => fetchPublicPage(bust(u, token), BROWSER_UA, checkToken, true);
+        const pages = [];
+        if (first) {
+          const url = pageUrlOf(store.url, first)!;
+          pages.push(schemaPage(slim(first), url, await load(url)));
+        }
+        const variable = target.product_id ? items.find((p) => p.id === target.product_id) : null;
+        const products = [...(variable ? [slim(variable)] : []), ...items.map(slim)];
+        return graphFor(store.url, products, pages, await fetchActivePlugins(store.url, creds), load);
       }
       case "access": {
         const { comingSoon } = await adapter.fetchPolicies();

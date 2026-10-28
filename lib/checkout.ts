@@ -6,7 +6,8 @@ import type { Source } from "./pages";
 import type { Finding } from "./rules";
 import type { PageFetch } from "./woo";
 
-export type ShippingZone = { id: number; name: string; locations: { code: string; type: string }[]; methods: { method_id: string; enabled: boolean }[] };
+// methods: settings values by id (cost, requires, min_amount, class_cost_<id>, ...) when the API returned them.
+export type ShippingZone = { id: number; name: string; locations: { code: string; type: string }[]; methods: { method_id: string; enabled: boolean; title?: string; settings?: Record<string, string> }[] };
 export type Gateway = { id: string; title: string; enabled: boolean };
 
 export type CheckoutInput = {
