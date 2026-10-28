@@ -73,6 +73,10 @@ Reporting: two lines after each part; the long report after G6 and after G10.
 - APPROVED: F2 test on matha by updating Site Kit (1.189 → 1.190) after 1.7.0 is installed — 2026-10-26
 - APPROVED: F7 Mode B with option 1 (@sparticuz/chromium on Vercel), Pro only, max 10 browser tests per store per day, max 60s per test, cost logged per run — 2026-10-27
 - APPROVED: F3 test on matha by a small change to the short description of product #171 (product_updated), then putting it back — 2026-10-27
+- APPROVED: plugin 1.8.0 release (G1, G2, G3, G5, G6, G7) — 2026-10-28
+- APPROVED: G4 option A (write key, only empty alt text, skip images shared by several products) — 2026-10-28
+- APPROVED: migration g9_g10_g4_toggle — 2026-10-28 (applied by the owner from Claude chat; the 5 fix_audit_log rows unchanged, new store_alerts kinds present, alt_text_enabled SELECT only for authenticated)
+- NOT NOW: G8 one-click (stays guidance) — 2026-10-28
 
 ## Reconciliation (2026-10-23)
 
