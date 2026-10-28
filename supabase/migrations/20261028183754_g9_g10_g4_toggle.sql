@@ -1,4 +1,4 @@
--- G9 / G10 / G4 (to approve): self-healing and auto-rollback of our own fixes, and the image alt text opt-in.
+-- G9 / G10 / G4 (applied by the user from Claude chat, 2026-10-28): self-healing and auto-rollback of our own fixes, and the image alt text opt-in.
 -- fix_audit_log: 'reapplied' rows record a plugin fix put back after it disappeared (reapplied_of = the original
 -- row); revert_reason says why a fix was undone without a person (a new breakage problem pointing to it).
 -- store_alerts: the merchant is told when a fix is put back, lost again, or rolled back.
