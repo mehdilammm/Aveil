@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { JOB_HANDLERS } from "@/lib/job-handlers";
 import { tick } from "@/lib/jobs";
+import { enqueueFeedRefresh } from "@/lib/feed-jobs";
 import { enqueueScan } from "@/lib/scan";
 import { dueForWeeklyScan } from "@/lib/schedule";
 import { PLANS, RUN_DAYS, type PlanId } from "@/lib/plans";
@@ -23,7 +24,8 @@ function authorized(header: string | null): boolean {
 }
 
 // Called daily by Vercel Cron (see vercel.json). Queues a scan job for each store whose last complete scan is
-// older than its plan's interval (7 days on Pro and Agency, 30 on Free), then runs the queue for the rest of its time (pg_cron's minute tick does the same all day).
+// older than its plan's interval (7 days on Pro and Agency, 30 on Free), and a product feed refresh for each store
+// that has one, then runs the queue for the rest of its time (pg_cron's minute tick does the same all day).
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) return NextResponse.json({ error: "CRON_SECRET is not set; scheduled scans are off." }, { status: 503 });
   if (!authorized(request.headers.get("authorization"))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -58,6 +60,12 @@ export async function GET(request: Request) {
       console.error("scheduled scan could not be queued", store.id, err instanceof Error ? err.message : "unknown");
       results.push({ storeId: store.id, error: "could not queue" });
     }
+  }
+  // G1: the daily product feed refresh of every store that has one.
+  const { data: feeds } = await admin.from("fix_audit_log").select("store_id").eq("kind", "feed").eq("status", "applied");
+  for (const storeId of new Set((feeds ?? []).map((f) => f.store_id as string))) {
+    const store = (stores ?? []).find((s) => s.id === storeId);
+    if (store) await enqueueFeedRefresh(admin, store, 0).catch(() => null);
   }
   // Daily housekeeping jobs: the bots' IP lists, and old bot hits.
   await admin.from("jobs").insert([{ kind: "bot_ranges_refresh" }, { kind: "bot_hits_purge" }]);

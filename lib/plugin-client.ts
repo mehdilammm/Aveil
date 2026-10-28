@@ -2,8 +2,15 @@ import "server-only";
 import { randomBytes, createHmac } from "node:crypto";
 import { BlockedUrlError, guardedFetch } from "./safe-fetch";
 
-export type PluginFix = { id: string; kind: "jsonld" | "llms_txt" | "robots"; target?: number; payload: Record<string, unknown> };
-export type PluginAnswer = { plugin_version: string; done: { id: string }[]; applied: { id: string; kind: string; target: number | null }[]; environment: { robots_file: boolean; llms_file: boolean; woocommerce: boolean } };
+export type PluginFix = { id: string; kind: "jsonld" | "llms_txt" | "robots" | "feed"; target?: number; payload: Record<string, unknown> };
+export type PluginAnswer = {
+  plugin_version: string;
+  done: { id: string }[];
+  applied: { id: string; kind: string; target: number | null }[];
+  environment: { robots_file: boolean; llms_file: boolean; woocommerce: boolean };
+  // 1.8.0: the stored product feed (G1), null when none.
+  feed?: { updated_at: number; products: number; bytes: number; urls: { jsonl: string; metadata: string; csv: string } } | null;
+};
 
 // Signature the plugin checks (class-agsc-fixes.php): HMAC-SHA256(token, "<timestamp>.<nonce>.<body>").
 export function signFixRequest(token: string, body: string, timestamp: string, nonce: string): string {

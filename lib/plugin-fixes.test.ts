@@ -48,3 +48,44 @@ describe.skipIf(!hasPhp)("plugin 1.6.0 fixes (PHP)", () => {
     expect(pageLoad).not.toMatch(/wp_remote_|curl_|\$wpdb/);
   });
 });
+
+describe.skipIf(!hasPhp)("plugin 1.8.0 product feed (PHP, G1)", async () => {
+  const { buildFeed } = await import("./feed-build");
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const feed = buildFeed({
+    feedId: "agentscope-c2ab0cfe", storeUrl: "https://matha.site", siteName: "Matha Mirrors", currency: "MAD", country: "MA", variations: {}, categories: [], links: [], now: new Date("2026-10-28T09:00:00Z"),
+    products: [{ id: 174, name: "Round LED Mirror", type: "simple", status: "publish", permalink: "https://matha.site/product/round-led-mirror/", description: "<p>Round mirror with LED lighting.</p>", price: "800", regular_price: "800", sale_price: "", stock_status: "instock", images: [{ src: "https://matha.site/m.png", alt: "Round LED mirror" }], brands: [{ id: 30, name: "Matha Mirrors" }] }],
+  });
+  const payload = { metadata: JSON.stringify(feed.metadata), jsonl: feed.jsonl, csv: feed.csv };
+  const file = join(mkdtempSync(join(tmpdir(), "agsc-feed-")), "payload.json");
+  writeFileSync(file, JSON.stringify(payload));
+  const r = (() => {
+    const out = spawnSync("php", [join(root, "lib/fixtures/fixes-harness.php"), "feed", file], { encoding: "utf8" });
+    if (out.status !== 0) throw new Error(out.stderr || out.stdout);
+    return JSON.parse(out.stdout);
+  })();
+
+  it("stores the feed in its own option (not autoloaded); the fix record holds counts only", () => {
+    expect(r.done).toEqual(["3b0c7c3e-2f4a-4b8e-9a51-1d2e3f4a5b6c"]);
+    expect(r.record).toMatchObject({ kind: "feed", products: 1, bytes: payload.metadata.length + payload.jsonl.length + payload.csv.length });
+    expect(r.record.data).toBeUndefined();
+    expect(r.autoload).toBe(false);
+    expect(r.status).toMatchObject({ products: 1, urls: { jsonl: "https://matha.site/agentscope-feed/products.jsonl", metadata: "https://matha.site/agentscope-feed/metadata.json", csv: "https://matha.site/agentscope-feed.csv" } });
+  });
+
+  it("serves the three files with their content types, byte for byte; other paths are not ours", () => {
+    expect(r.served.jsonl).toEqual(["application/jsonl; charset=utf-8", payload.jsonl]);
+    expect(r.served.metadata).toEqual(["application/json; charset=utf-8", payload.metadata]);
+    expect(r.served.csv).toEqual(["text/csv; charset=utf-8", payload.csv]);
+    expect(r.served.other).toBeNull();
+    expect(r.subdir).toBe("/agentscope-feed.csv");
+    expect(r.root).toBe("/agentscope-feed.csv");
+  });
+
+  it("refuses malformed or oversized feeds; one feed per store; undo removes the stored files", () => {
+    expect(r.rejected).toEqual({ bad_line: true, no_variants: true, csv: true, metadata: true, too_big: true });
+    expect(r.feeds_after_second).toEqual(["4b0c7c3e-2f4a-4b8e-9a51-1d2e3f4a5b6c"]);
+    expect(r.after_revert).toEqual({ fixes: [], data: null });
+  });
+});

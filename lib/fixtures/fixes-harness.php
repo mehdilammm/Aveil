@@ -5,7 +5,9 @@ define('ABSPATH', sys_get_temp_dir() . '/agsc-fixes-root/');
 define('AGSC_VERSION', '1.6.0');
 $GLOBALS['agsc_opts'] = array();
 function get_option($k, $d = false) { return array_key_exists($k, $GLOBALS['agsc_opts']) ? $GLOBALS['agsc_opts'][$k] : $d; }
-function update_option($k, $v, $a = null) { $GLOBALS['agsc_opts'][$k] = $v; return true; }
+function update_option($k, $v, $a = null) { $GLOBALS['agsc_opts'][$k] = $v; $GLOBALS['agsc_autoload'][$k] = $a; return true; }
+function delete_option($k) { unset($GLOBALS['agsc_opts'][$k]); return true; }
+function home_url($p = '') { return 'https://matha.site' . $p; }
 function sanitize_text_field($s) { return trim(preg_replace('/[\r\n\t ]+/', ' ', strip_tags((string) $s))); }
 function rest_ensure_response($r) { return $r; }
 class WP_Error { public $code; function __construct($c, $m = '', $d = null) { $this->code = $c; } }
@@ -20,6 +22,7 @@ final class Agsc_Req {
     function get_body() { return $this->b; }
 }
 require __DIR__ . '/../../wordpress/agentscope-core/includes/class-agsc-fixes.php';
+require __DIR__ . '/../../wordpress/agentscope-core/includes/class-agsc-feed.php';
 $sign = function ($body, $ts, $nonce) { return 'sha256=' . hash_hmac('sha256', $ts . '.' . $nonce . '.' . $body, 'agsc_test'); };
 $req = function ($body, $ts = null, $nonce = null, $sig = null) use ($sign) {
     $ts = $ts ?? (string) time();
@@ -64,5 +67,34 @@ if ($case === 'auth') {
     $once = AGSC_Fixes::robots_with($wp, $block);
     $out['once'] = $once;
     $out['twice_same'] = AGSC_Fixes::robots_with($once, $block) === $once;
+} elseif ($case === 'feed') {
+    // 1.8.0 (G1): the payload the app builds, from a file written by the test.
+    $p = json_decode(file_get_contents($argv[2]), true);
+    $id = '3b0c7c3e-2f4a-4b8e-9a51-1d2e3f4a5b6c';
+    $r = AGSC_Fixes::handle($req(json_encode(array('action' => 'apply', 'fixes' => array(array('id' => $id, 'kind' => 'feed', 'payload' => $p))))));
+    $out['done'] = array_map(function ($d) { return $d['id']; }, $r['done']);
+    $out['record'] = AGSC_Fixes::all()[$id] ?? null;
+    $out['autoload'] = $GLOBALS['agsc_autoload'][AGSC_Fixes::FEED_OPTION] ?? 'unset';
+    $out['status'] = AGSC_Feed::status(AGSC_Fixes::of_kind('feed'));
+    $data = get_option(AGSC_Fixes::FEED_OPTION, null);
+    foreach (array('jsonl' => AGSC_Feed::PATH_JSONL, 'metadata' => AGSC_Feed::PATH_METADATA, 'csv' => AGSC_Feed::PATH_CSV, 'other' => '/agentscope-feed/x') as $k => $path) {
+        $out['served'][$k] = AGSC_Feed::response($path, $data);
+    }
+    $out['subdir'] = AGSC_Feed::relative_path('/shop/agentscope-feed.csv', '/shop/');
+    $out['root'] = AGSC_Feed::relative_path('/agentscope-feed.csv', '/');
+    $bad = function ($q) { return AGSC_Fixes::clean_feed($q) === null; };
+    $out['rejected'] = array(
+        'bad_line'    => $bad(array('metadata' => $p['metadata'], 'jsonl' => "{\"id\":\"1\",\"variants\":[]}\nnot json\n", 'csv' => $p['csv'])),
+        'no_variants' => $bad(array('metadata' => $p['metadata'], 'jsonl' => "{\"id\":\"1\"}\n", 'csv' => $p['csv'])),
+        'csv'         => $bad(array('metadata' => $p['metadata'], 'jsonl' => $p['jsonl'], 'csv' => "<?php echo 1;")),
+        'metadata'    => $bad(array('metadata' => '{}', 'jsonl' => $p['jsonl'], 'csv' => $p['csv'])),
+        'too_big'     => $bad(array('metadata' => $p['metadata'], 'jsonl' => str_repeat(' ', AGSC_Fixes::MAX_FEED + 1), 'csv' => $p['csv'])),
+    );
+    // A second feed replaces the first; undo removes the stored files.
+    $id2 = '4b0c7c3e-2f4a-4b8e-9a51-1d2e3f4a5b6c';
+    AGSC_Fixes::handle($req(json_encode(array('action' => 'apply', 'fixes' => array(array('id' => $id2, 'kind' => 'feed', 'payload' => $p))))));
+    $out['feeds_after_second'] = array_keys(AGSC_Fixes::of_kind('feed'));
+    AGSC_Fixes::handle($req(json_encode(array('action' => 'revert', 'ids' => array($id2)))));
+    $out['after_revert'] = array('fixes' => array_keys(AGSC_Fixes::of_kind('feed')), 'data' => get_option(AGSC_Fixes::FEED_OPTION, null));
 }
 echo json_encode($out);

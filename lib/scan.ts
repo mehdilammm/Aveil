@@ -5,6 +5,7 @@ import { fetchText, runStructuredChecks } from "./agent-checks";
 import { checkAgenticSupport } from "./agentic-protocols";
 import { connectionAfterScan } from "./connection";
 import { checkFeedProduct, checkFeedStore } from "./feed";
+import { checkFeedServed, FEED_PATHS } from "./feed-build";
 import { checkStoreGate, describePage, pageGate } from "./gate";
 import { JobYield, PermanentJobError, type StepContext } from "./jobs";
 import { checkStorePages } from "./pages";
@@ -315,6 +316,8 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
           if (price !== null) llmsPrices[sp.url] = price;
         }
         findings.push(...(await consistencyFor(store.url, firstPages, format, llmsPrices, checkToken)));
+        // G1: the product feed the plugin serves (Pro and Agency, one request).
+        if (PLANS[plan].productFeed) findings.push(...checkFeedServed(store.url, await fetchText(`${store.url}${FEED_PATHS.jsonl}`, checkToken)));
         await saveSchemaPages(admin, store, scanId, firstPages);
 
         // Checkout: guest checkout, shipping, payment, the checkout page for a browser and for GPTBot, stock.

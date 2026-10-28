@@ -255,7 +255,8 @@
     "settings": "Settings",
     "bots": "Bots × products",
     "alerts": "Alerts",
-    "markets": "Checkout by market"
+    "markets": "Checkout by market",
+    "feed": "Product feed"
   },
   "autofix": {
     "title": "Auto-fix technical issues",
@@ -412,7 +413,8 @@
       "workspaceMembers": "Workspaces for clients, team members and invites.",
       "clientReports": "Client reports with your workspace name.",
       "breakageAlerts": "Alerts when a plugin, theme or WordPress update breaks what AI agents need.",
-      "browserTests": "The agent purchase test in a real browser: product page, Add to cart, cart and checkout pages, never an order."
+      "browserTests": "The agent purchase test in a real browser: product page, Add to cart, cart and checkout pages, never an order.",
+      "productFeed": "A product feed for AI shopping agents, served by the plugin and refreshed when products change."
     }
   },
   "pricingPage": {
@@ -438,7 +440,8 @@
       "workspaces": "Client workspaces, team members and invites",
       "clientReports": "Client reports with your workspace name",
       "breakageAlerts": "Breakage alerts after plugin, theme and WordPress updates",
-      "browserTests": "Agent purchase test in a real browser (10 a store a day)"
+      "browserTests": "Agent purchase test in a real browser (10 a store a day)",
+      "productFeed": "Product feed for AI shopping agents (JSON and CSV)"
     }
   },
   "bulk": {
@@ -759,5 +762,29 @@
     "browserToday": "{n} of {max} browser tests used today.",
     "lastBrowser": "Last browser test: {date}, {n} requests, WooCommerce {version}.",
     "cost": "Estimated cost of this run: ${usd} ({seconds} s, {memory} GB of memory), at Vercel's list prices."
+  },
+  "feed": {
+    "title": "Product feed",
+    "sub": "Your products as a feed for AI shopping agents ({spec}) and as a CSV with the Google Merchant fields, built only from your WooCommerce data.",
+    "noKey": "No API key is saved for this store, so its products cannot be read.",
+    "servedTitle": "What your store serves now",
+    "noPlugin": "The AgentScope Core plugin is not connected, so the feed cannot be served.",
+    "statusError": "The plugin could not be asked: {reason}",
+    "oldPlugin": "The plugin on the store is {version}; the feed needs 1.8.0 or later.",
+    "served": "Served: {n} products, stored {date}.",
+    "notServed": "No feed is served yet.",
+    "toFix": "Fix Center",
+    "lastRefresh": "Last refresh: {status}, {date}.",
+    "submit": "AgentScope does not send the feed anywhere and no platform has approved it. Feeds in this format are sent by the merchant to the AI platform's feed service; submit these addresses or files where that platform asks for them.",
+    "productsTitle": "Products, read now",
+    "buildError": "The products could not be read: {reason}",
+    "counts": "{products} products ({variants} variants) in the feed, {excluded} left out; CSV: {csv} rows, {csvExcluded} products left out.",
+    "product": "Product",
+    "missing": "Missing (add in Fix Center)",
+    "included": "In the feed ({n} variant(s))",
+    "excluded": "Left out: {reason}",
+    "csvIncluded": "In the CSV",
+    "csvExcluded": "Left out: {fields}",
+    "note": "A value your store does not have is left out, never filled in. Missing images, brand, GTIN and prices are input fixes in the Fix Center."
   }
 }
