@@ -4,13 +4,14 @@
 // "Unavailable" with the reason, never "resolved". Pure: the reads are passed in.
 import type { Finding } from "./rules";
 
-export type RecheckGroup = "product" | "product_page" | "robots" | "store_pages" | "checkout" | "access" | "jsonld" | "hidden";
+export type RecheckGroup = "product" | "product_page" | "robots" | "store_pages" | "checkout" | "access" | "jsonld" | "hidden" | "alt";
 export type VerifyStatus = "resolved" | "still_open" | "unavailable";
 export type VerifyResult = { status: VerifyStatus; evidence: string };
 
 export function groupOf(f: { type: string; product_id: number | null; finding_key: string }): RecheckGroup {
   if (f.type.startsWith("jsonld_")) return "jsonld";
   if (f.type === "page_noindex" || f.type === "page_canonical_elsewhere") return "hidden";
+  if (f.type.startsWith("image_alt_")) return "alt";
   if (f.type.startsWith("schema_")) return "product_page";
   if (f.type.startsWith("robots_") || f.type.startsWith("llms_")) return "robots";
   if (f.type.startsWith("checkout_")) return "checkout";
@@ -29,6 +30,7 @@ const UNAVAILABLE_FOR: Record<RecheckGroup, (f: Finding, target: { product_id: n
   access: (f) => f.basis === "unavailable" && f.type.startsWith("access_"),
   jsonld: (f) => f.basis === "unavailable" && f.type.startsWith("jsonld_"),
   hidden: (f) => f.basis === "unavailable" && f.type.startsWith("page_"),
+  alt: () => false,
 };
 
 export function judge(target: { finding_key: string; type: string; product_id: number | null }, recheck: Finding[] | { unavailable: string }): VerifyResult {

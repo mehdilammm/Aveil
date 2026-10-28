@@ -431,6 +431,23 @@ export async function fetchPublicCategories(baseUrl: string): Promise<Source<{ i
   }
 }
 
+// G4: the product's featured image id from the public WordPress API (0 = none). WooCommerce's REST API lists the
+// featured image first and makes the first image it is sent the featured one, so a product whose first listed image
+// is not its featured image is never written through it.
+export async function fetchFeaturedMedia(baseUrl: string, productId: number): Promise<Source<number>> {
+  try {
+    const url = new URL(`${baseUrl}/wp-json/wp/v2/product/${productId}`);
+    url.searchParams.set("_fields", "id,featured_media");
+    const res = await safeFetch(url, { Accept: "application/json" });
+    if (!res.ok) return { ok: false, reason: `The public product API answered HTTP ${res.status}.` };
+    const body = (await res.json()) as { id?: number; featured_media?: number };
+    if (body?.id !== productId || typeof body.featured_media !== "number") return { ok: false, reason: "The public product API returned an unexpected response." };
+    return { ok: true, data: body.featured_media };
+  } catch (err) {
+    return { ok: false, reason: `The featured image could not be read: ${err instanceof WooError ? err.message : "request failed"}.` };
+  }
+}
+
 type RawProduct = {
   id: number; name: string; description?: string; short_description?: string; categories?: { name: string }[];
   attributes?: { name: string; options?: string[] }[]; sku?: string; global_unique_id?: string; brands?: { name: string }[];

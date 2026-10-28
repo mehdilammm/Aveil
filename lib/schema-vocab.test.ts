@@ -19,3 +19,21 @@ describe("schema.org vocabulary check (release 30.1)", () => {
     expect(validateJsonLd({ "@type": "Offer", shippingDetails: { name: "x" } })).toEqual(["$.shippingDetails: node without @type"]);
   });
 });
+
+describe("matha.site live after plugin 1.8.0 and auto-fix (2026-10-28 19:12 UTC)", () => {
+  it("the home page (OnlineStore + WebSite with search) and the product page (WooCommerce + our shipping details) are valid schema.org", async () => {
+    const live = (await import("./fixtures/matha-live-g-2026-10-28.json")).default;
+    const home = JSON.parse(live.home);
+    const product = JSON.parse(live.product);
+    expect(validateJsonLd(home)).toEqual([]);
+    expect(validateJsonLd(product)).toEqual([]);
+    // One Product, one Organization: the plugin extended WooCommerce's offer, it did not print a second Product.
+    const types = (g: { "@graph": { "@type": string }[] }) => g["@graph"].map((n) => n["@type"]);
+    expect(types(product).filter((t) => t === "Product")).toHaveLength(1);
+    expect(types(home)).toEqual(["OnlineStore", "WebSite"]);
+    // JSON_HEX_AMP: the & of the search address is & in the page and & once parsed.
+    expect(live.home).toContain("\\u0026post_type=product");
+    expect(home["@graph"][1].potentialAction.target.urlTemplate).toBe("https://matha.site/?s={search_term_string}&post_type=product");
+    expect(product["@graph"][1].offers[0].seller["@id"]).toBe("https://matha.site/#organization");
+  });
+});

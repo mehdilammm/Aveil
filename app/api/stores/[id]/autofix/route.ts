@@ -16,7 +16,8 @@ async function lastFindings(admin: SupabaseClient, storeId: string) {
 
 // GET: the preview of what auto-fix would change now. POST {action: "enable", confirm: true}: one approval, then
 // the previewed fixes are applied now and on every scan. POST {action: "disable"}: stops it (applied fixes stay
-// until undone).
+// until undone). POST {action: "alt_on", confirm: true} / {action: "alt_off"}: G4 image alt text, its own opt-in
+// (needs the write key); turning it on fills the empty alt text the last scan found when auto-fix is on.
 export async function GET(_r: Request, { params }: { params: Promise<{ id: string }> }) {
   const a = await fixAccess((await params).id);
   if (!a.ok) return NextResponse.json({ error: a.error }, { status: a.status });
@@ -34,7 +35,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await a.admin.from("stores").update({ auto_fix_enabled: false }).eq("id", a.store.id);
     return NextResponse.json({ enabled: false });
   }
+  if (body.action === "alt_off") {
+    await a.admin.from("stores").update({ alt_text_enabled: false }).eq("id", a.store.id);
+    return NextResponse.json({ alt_text: false });
+  }
   if (!(await storePlan(a.admin, a.store.id)).autoFix) return NextResponse.json({ error: lockedReason("autoFix") }, { status: 403 });
+  if (body.action === "alt_on") {
+    if (body.confirm !== true) return NextResponse.json({ error: "Confirm to turn on image alt text." }, { status: 400 });
+    const ctx = await fixContext(a.admin, a.store);
+    if (!ctx.write) return NextResponse.json({ error: "Add the store's write key first." }, { status: 409 });
+    await a.admin.from("stores").update({ alt_text_enabled: true, alt_text_approved_at: new Date().toISOString(), alt_text_approved_by: a.userId }).eq("id", a.store.id);
+    const { data: s } = await a.admin.from("stores").select("auto_fix_enabled").eq("id", a.store.id).maybeSingle();
+    const findings = s?.auto_fix_enabled ? (await lastFindings(a.admin, a.store.id)) ?? [] : [];
+    const ready = planAuto({ ...ctx, altText: true }, findings).filter((p) => p.kind === "alt_text" && p.ready);
+    const r = ready.length ? await applyFixes(a.admin, { ...ctx, altText: true }, ready.map((p) => ({ finding: p.finding, type: p.type, kind: p.kind })), { userId: a.userId, automatic: true }) : null;
+    return NextResponse.json({ alt_text: true, results: r?.results ?? [] });
+  }
   if (body.action !== "enable" || body.confirm !== true) return NextResponse.json({ error: "Confirm the preview to turn on auto-fix." }, { status: 400 });
   const findings = await lastFindings(a.admin, a.store.id);
   if (!findings) return NextResponse.json({ error: "Run a scan first." }, { status: 409 });

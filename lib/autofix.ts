@@ -8,6 +8,7 @@ import { patchRobots } from "./fixes/robots-patch";
 import { FEED_MAX_BYTES, FEED_PATHS, FEED_SPEC, type FeedResult } from "./feed-build";
 import { buildStoreFeed } from "./feed-run";
 import { applyReturnsFix, applySchemaFix, SCHEMA_DESCRIBE } from "./schema-fixes";
+import { applyAltFix, revertAltFix, type AltWritten } from "./alt-text-run";
 import { planOf } from "./orders-sync";
 import { callPlugin } from "./plugin-client";
 import { lockedReason } from "./plan-gate";
@@ -18,15 +19,17 @@ import { fetchPublishedProduct, fetchSetting, fetchShippingZones, fetchSiteName,
 
 type Store = { id: string; owner_id: string; url: string; workspace_id?: string };
 type Finding = { finding_key: string; type: string; evidence: string; product_id: number | null; title?: string };
-export type FixContext = { store: Store; read: WooCredentials; write: WooCredentials | null; pluginToken: string | null };
+// altText: the merchant turned on G4 (image alt text) for this store.
+export type FixContext = { store: Store; read: WooCredentials; write: WooCredentials | null; pluginToken: string | null; altText?: boolean };
 export type Change = { channel: "plugin" | "write_key"; target: string; before: unknown; after: unknown; describe: string };
 export type PlannedFix = { finding: Finding; type: FixType; kind: FixKind; ready: boolean; reason: string | null; describe: string };
 
 export async function fixContext(admin: SupabaseClient, store: Store): Promise<FixContext> {
-  const [{ data: read }, { data: write }, { data: connector }] = await Promise.all([
+  const [{ data: read }, { data: write }, { data: connector }, { data: settings }] = await Promise.all([
     admin.rpc("get_store_credentials", { p_store_id: store.id, p_owner_id: store.owner_id }).maybeSingle<{ consumer_key: string; consumer_secret: string }>(),
     admin.rpc("get_store_write_credentials", { p_store_id: store.id, p_owner_id: store.owner_id }).maybeSingle<{ consumer_key: string; consumer_secret: string }>(),
     admin.rpc("get_traffic_connector_secret", { p_store_id: store.id }).maybeSingle<{ token: string }>(),
+    admin.from("stores").select("alt_text_enabled").eq("id", store.id).maybeSingle<{ alt_text_enabled: boolean }>(),
   ]);
   if (!read) throw new WooError("No API key is saved for this store.");
   return {
@@ -34,12 +37,14 @@ export async function fixContext(admin: SupabaseClient, store: Store): Promise<F
     read: { consumerKey: read.consumer_key, consumerSecret: read.consumer_secret },
     write: write ? { consumerKey: write.consumer_key, consumerSecret: write.consumer_secret } : null,
     pluginToken: connector?.token ?? null,
+    altText: Boolean(settings?.alt_text_enabled),
   };
 }
 
 const NEED_PLUGIN = "Needs the AgentScope Core plugin 1.6.0 or later, connected to the app.";
 const NEED_PLUGIN_18 = "Needs the AgentScope Core plugin 1.8.0 or later, connected to the app.";
 const NEED_WRITE = "Needs a separate write key (WooCommerce → Settings → Advanced → REST API, permission Read/Write), added in the app.";
+const ALT_OFF = "Image alt text is off for this store: turn it on in Fix Center (Auto-fix → Image alt text).";
 
 // What the auto fixes would change now, without changing anything (the preview the merchant approves).
 export function planAuto(ctx: FixContext, findings: Finding[]): PlannedFix[] {
@@ -53,6 +58,9 @@ export function planAuto(ctx: FixContext, findings: Finding[]): PlannedFix[] {
       out.push({ finding: f, ...spec, ready: Boolean(ctx.pluginToken), reason: ctx.pluginToken ? null : NEED_PLUGIN_18, describe: `Serve a product feed for AI shopping agents at ${FEED_PATHS.jsonl} (${FEED_SPEC.name} ${FEED_SPEC.version}) and ${FEED_PATHS.csv}, from your published products; refreshed when a product changes and every day.` });
     } else if (spec.kind === "org" || spec.kind === "website" || spec.kind === "breadcrumbs" || spec.kind === "shipping" || spec.kind === "variants") {
       out.push({ finding: f, ...spec, ready: Boolean(ctx.pluginToken), reason: ctx.pluginToken ? null : NEED_PLUGIN_18, describe: SCHEMA_DESCRIBE[spec.kind] });
+    } else if (spec.kind === "alt_text") {
+      const reason = !ctx.write ? NEED_WRITE : !ctx.altText ? ALT_OFF : null;
+      out.push({ finding: f, ...spec, ready: !reason, reason, describe: `Write the product's name as the alt text of its images that have none (#${f.product_id}); images used by several products are left alone.` });
     } else if (spec.kind === "brand") {
       out.push({ finding: f, ...spec, ready: Boolean(ctx.write || ctx.pluginToken), reason: ctx.write || ctx.pluginToken ? null : NEED_WRITE, describe: ctx.write ? `Set the product's brand to your store's name (#${f.product_id}).` : `Add your store's name as the brand in the product's structured data (#${f.product_id}).` });
     }
@@ -118,6 +126,18 @@ async function applyChange(admin: SupabaseClient, ctx: FixContext, f: Finding, k
   }
 
   if (!ctx.write) throw new Error(NEED_WRITE);
+  if (kind === "alt_text") {
+    if (!ctx.altText) throw new Error(ALT_OFF);
+    if (!pid) throw new Error("This fix needs a product.");
+    const { written, skipped } = await applyAltFix(store, ctx.read, ctx.write, pid);
+    return {
+      channel: "write_key",
+      target: `product:${pid}`,
+      before: { alt: written.map((w) => ({ image: w.image, variation: w.variation, alt: "" })) },
+      after: { alt: written, ...(skipped.length ? { notes: skipped } : {}) },
+      describe: `Alt text written on ${written.length} image${written.length === 1 ? "" : "s"} of product #${pid}: "${written[0].alt}"${written.length > 1 ? "…" : ""}`,
+    };
+  }
   if (kind === "sell_where_ship") {
     const zones = await fetchShippingZones(store.url, ctx.read);
     if (!zones.ok) throw new Error(zones.reason);
@@ -221,7 +241,8 @@ export async function revertFix(admin: SupabaseClient, ctx: FixContext, auditId:
     } else {
       if (!ctx.write) throw new Error(NEED_WRITE);
       const target = String(row.target);
-      if (target.startsWith("product:")) await wooWrite(ctx.store.url, "PUT", `/products/${target.slice(8)}`, before, ctx.write);
+      if (row.kind === "alt_text") await revertAltFix(ctx.store, ctx.read, ctx.write, Number(target.slice(8)), (after.alt ?? []) as AltWritten[]);
+      else if (target.startsWith("product:")) await wooWrite(ctx.store.url, "PUT", `/products/${target.slice(8)}`, before, ctx.write);
       else {
         const group = target.split(":")[1];
         // Settings: the specific countries first, then the mode, the reverse of how they were set.

@@ -336,7 +336,13 @@
     "ret_not_stated": "Not stated",
     "ret_opt_MerchantReturnFiniteReturnWindow": "Yes, within a number of days",
     "ret_opt_MerchantReturnNotPermitted": "No returns",
-    "ret_opt_MerchantReturnUnlimitedWindow": "Yes, at any time"
+    "ret_opt_MerchantReturnUnlimitedWindow": "Yes, at any time",
+    "altTitle": "Image alt text (opt-in)",
+    "altIntro": "Writes the product's name (with a variation's options for that variation's own image) as the alt text of product images that have none. Only empty alt text is filled: it never describes the image and never replaces alt text you wrote. Images shown by several products are left for you. Each change is logged and can be undone.",
+    "altTurnOn": "Turn on image alt text",
+    "altConfirm": "Fill empty image alt text with product names, now and on later scans?",
+    "altNeedsWrite": "Needs the store's write key (below).",
+    "altEnabledNow": "Image alt text is on. {n} products updated now."
   },
   "dataControl": {
     "export": "Export all data (JSON)",

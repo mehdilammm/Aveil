@@ -7,7 +7,7 @@ import { findingsForScan, getStore, listScans, sortForFixing, openJobId } from "
 import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "../run-scan-button";
 import { VerifyButton } from "./verify-button";
-import { AutoFixPanel, FixAction, UndoButton, WriteKeyForm, ReturnsFix } from "./autofix-ui";
+import { AltTextToggle, AutoFixPanel, FixAction, UndoButton, WriteKeyForm, ReturnsFix } from "./autofix-ui";
 import { BulkApply, CsvImport } from "./bulk-ui";
 import { HostingGuide } from "@/components/hosting-guide";
 import { fixFor } from "@/lib/fix-catalog";
@@ -30,7 +30,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
   const adminDb = createAdminClient();
   const plan = await storePlan(adminDb, store.id);
   const [{ data: setting }, { data: writeKey }, { data: audit }] = await Promise.all([
-    adminDb.from("stores").select("auto_fix_enabled, auto_fix_approved_at").eq("id", store.id).maybeSingle(),
+    adminDb.from("stores").select("auto_fix_enabled, auto_fix_approved_at, alt_text_enabled").eq("id", store.id).maybeSingle(),
     adminDb.from("store_write_credentials").select("key_hint").eq("store_id", store.id).maybeSingle(),
     supabase.from("fix_audit_log").select("id, batch_id, finding_key, kind, status, after, error, verify_status, automatic, applied_at").eq("store_id", store.id).order("applied_at", { ascending: false }).limit(30),
   ]);
@@ -88,6 +88,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
       )}
       <HostingGuide findings={findings} />
       {editor && (plan.autoFix ? <AutoFixPanel storeId={store.id} enabled={Boolean(setting?.auto_fix_enabled)} approvedAt={setting?.auto_fix_approved_at ?? null} /> : <PlanLock feature="autoFix" />)}
+      {editor && plan.autoFix && <div className="card"><AltTextToggle storeId={store.id} enabled={Boolean(setting?.alt_text_enabled)} canWrite={Boolean(writeKey)} /></div>}
       {editor && <WriteKeyForm storeId={store.id} hint={writeKey?.key_hint ?? null} />}
       {editor && lastComplete && <BulkApply storeId={store.id} />}
       {editor && <CsvImport storeId={store.id} canWrite={Boolean(writeKey)} />}

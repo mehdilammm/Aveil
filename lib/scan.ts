@@ -12,7 +12,8 @@ import type { Source } from "./pages";
 import { checkStoreGate, describePage, pageGate } from "./gate";
 import { JobYield, PermanentJobError, type StepContext } from "./jobs";
 import { checkStorePages } from "./pages";
-import { checkProduct, type Finding, type Severity, type WooProduct } from "./rules";
+import { altFindings, altProductOf, type AltProduct } from "./alt-text";
+import { checkProduct, type Finding, type Severity, type WooProduct, type WooVariation } from "./rules";
 import { checkCheckout } from "./checkout";
 import { planOf, syncOrders } from "./orders-sync";
 import { PLANS } from "./plans";
@@ -40,7 +41,7 @@ const STEP_BUDGET_MS = { products: 90_000, store: 120_000, schema: 60_000, finis
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = Array.from({ length: items.length });
   let next = 0;
   await Promise.all(
@@ -83,11 +84,12 @@ async function earlierKeys(admin: SupabaseClient, storeId: string, scanId: strin
 }
 
 // Product fields kept between steps (for the sample and the checkout checks), never the whole catalog.
-export type Slim = Pick<WooProduct, "id" | "name" | "type" | "price" | "regular_price" | "sale_price" | "stock_status" | "permalink" | "virtual"> & { total_sales: number; categories: { id: number }[]; variations?: number };
-export const slim = (p: WooProduct & { total_sales?: number | string; categories?: { id: number }[] }): Slim => ({
+export type Slim = Pick<WooProduct, "id" | "name" | "type" | "price" | "regular_price" | "sale_price" | "stock_status" | "permalink" | "virtual"> & { total_sales: number; categories: { id: number }[]; variations?: number; alt?: AltProduct };
+export const slim = (p: WooProduct & { total_sales?: number | string; categories?: { id: number }[] }, variations?: WooVariation[]): Slim => ({
   id: p.id, name: p.name, type: p.type, price: p.price, regular_price: p.regular_price, sale_price: p.sale_price, stock_status: p.stock_status ?? null,
   permalink: p.permalink ?? null, virtual: p.virtual, total_sales: Number(p.total_sales ?? 0) || 0, categories: (p.categories ?? []).map((c) => ({ id: c.id })),
   variations: Array.isArray(p.variations) ? p.variations.length : 0,
+  ...(variations ? { alt: altProductOf(p, variations) } : {}),
 });
 
 type ProductsPage = { total: number; totalPages: number; products: Slim[]; findings: number; requests: number };
@@ -295,14 +297,13 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
         await progress("products", { page });
         const { result, requests } = await countRequests(async () => {
           const res = await adapter.fetchProductsPage(page);
-          const findings = (
-            await mapLimit(res.items, VARIATION_CONCURRENCY, async (p) => [
-              ...checkProduct(p, p.type === "variable" ? await adapter.fetchVariations(p.id) : []),
-              ...checkFeedProduct(p),
-            ])
-          ).flat();
+          const checked = await mapLimit(res.items, VARIATION_CONCURRENCY, async (p) => {
+            const variations = p.type === "variable" ? await adapter.fetchVariations(p.id) : [];
+            return { slim: slim(p, variations), findings: [...checkProduct(p, variations), ...checkFeedProduct(p)] };
+          });
+          const findings = checked.flatMap((c) => c.findings);
           await saveFindings(admin, store, scanId, key, findings);
-          return { total: res.total, totalPages: res.totalPages, products: res.items.map(slim), findings: findings.length };
+          return { total: res.total, totalPages: res.totalPages, products: checked.map((c) => c.slim), findings: findings.length };
         });
         return { ...result, requests };
       });
@@ -410,6 +411,8 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
           ...firstPages.map((p) => ({ url: p.url, html: p.html, kind: "product" as const, productId: p.product.id })),
           ...(catPage && firstCat ? [{ url: firstCat.link!, html: catPage.ok && catPage.status === 200 ? catPage.body : null, headers: catPage.ok ? catPage.hostHeaders : null, kind: "category" as const }] : []),
         ], seoNames));
+        // G4: product images with empty alt text, across all products (an image several products show is left alone).
+        findings.push(...altFindings(products.flatMap((p) => (p.alt ? [p.alt] : []))));
         await saveFindings(admin, store, scanId, "store", findings);
         return { currency, sample, basis: picked.basis, findings: findings.length, format, llmsPrices };
       });

@@ -81,6 +81,41 @@ export function AutoFixPanel({ storeId, enabled, approvedAt }: { storeId: string
   );
 }
 
+// G4: image alt text, its own opt-in inside auto-fix (writes with the write key, empty alt text only).
+export function AltTextToggle({ storeId, enabled, canWrite }: { storeId: string; enabled: boolean; canWrite: boolean }) {
+  const t = useTranslations("autofix");
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const set = async (on: boolean) => {
+    if (on && !window.confirm(t("altConfirm"))) return;
+    setBusy(true);
+    setError(null);
+    const r = await post(`/api/stores/${storeId}/autofix`, on ? { action: "alt_on", confirm: true } : { action: "alt_off" });
+    setBusy(false);
+    if (!r.ok) return setError(String(r.body.error ?? t("failed")));
+    if (on) setDone(t("altEnabledNow", { n: ((r.body.results ?? []) as { status: string }[]).filter((x) => x.status === "applied").length }));
+    router.refresh();
+  };
+  return (
+    <div className="stack">
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <strong className="small">{t("altTitle")}</strong>
+        <span className={`badge ${enabled ? "state-resolved" : "basis-unavailable"}`}>{enabled ? t("on") : t("off")}</span>
+      </div>
+      <p className="muted small">{t("altIntro")}</p>
+      {!canWrite ? <p className="muted small">{t("altNeedsWrite")}</p> : enabled ? (
+        <div><button className="secondary" onClick={() => set(false)} disabled={busy}>{t("turnOff")}</button></div>
+      ) : (
+        <div><button onClick={() => set(true)} disabled={busy}>{busy ? t("applying") : t("altTurnOn")}</button></div>
+      )}
+      {done && <p className="small status-connected">{done}</p>}
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}
+
 export function UndoButton({ storeId, auditId, batchId, label }: { storeId: string; auditId?: string; batchId?: string; label?: string }) {
   const t = useTranslations("autofix");
   const router = useRouter();

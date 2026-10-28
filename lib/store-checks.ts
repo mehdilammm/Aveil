@@ -2,6 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BROWSER_UA, AI_BOTS } from "./access";
 import { runStructuredChecks } from "./agent-checks";
+import { altFindings, altProductOf } from "./alt-text";
+import { imageUse } from "./alt-text-run";
 import { applyFixes, fixContext, planAuto } from "./autofix";
 import { breakageAlert, newProblems, type Change } from "./breakage";
 import { checkCheckout } from "./checkout";
@@ -87,7 +89,11 @@ export async function productCheck(admin: SupabaseClient, store: Store, productI
   const { creds, adapter, checkToken } = await setup(admin, store);
   const p = await fetchPublishedProduct(store.url, creds, productId);
   if (!p) return { skipped: "not published" };
-  const findings: Finding[] = [...checkProduct(p, p.type === "variable" ? await adapter.fetchVariations(p.id) : []), ...checkFeedProduct(p)];
+  const variations = p.type === "variable" ? await adapter.fetchVariations(p.id) : [];
+  const findings: Finding[] = [...checkProduct(p, variations), ...checkFeedProduct(p)];
+  // G4: its images without alt text (images other products also show are left alone).
+  const alt = altProductOf(p, variations);
+  if ([...alt.images, ...alt.variations.flatMap((v) => (v.image ? [v.image] : []))].some((i) => !i.alt.trim())) findings.push(...altFindings([alt], await imageUse(store, creds)));
   const url = pageUrlOf(store.url, p);
   if (url) {
     const page = schemaPage(slim(p), url, (await adapter.fetchProductSchema(url, checkToken)).page);
