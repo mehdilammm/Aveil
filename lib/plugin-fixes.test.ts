@@ -89,3 +89,15 @@ describe.skipIf(!hasPhp)("plugin 1.8.0 product feed (PHP, G1)", async () => {
     expect(r.after_revert).toEqual({ fixes: [], data: null });
   });
 });
+
+describe.skipIf(!hasPhp)("plugin 1.8.1: fixes removed in WordPress admin (PHP)", () => {
+  it("a removal is remembered (id, kind, time) and listed in the status answer; applying the same id again forgets it", () => {
+    expect(run("removed")).toEqual({
+      redirect: "redirect",
+      applied: ["2ee73133-639c-4a9a-95bb-8bddb1bd2563"],
+      removed: [["006598d5-7131-47d7-a151-f2f26582257a", "org", true]],
+      autoload: false,
+      removed_after_apply: [],
+    });
+  });
+});

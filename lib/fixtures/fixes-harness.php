@@ -55,6 +55,28 @@ if ($case === 'auth') {
     $out['brand_fallback'] = AGSC_Fixes::all()[$id]['brand_fallback'];
     $r2 = AGSC_Fixes::handle($req(json_encode(array('action' => 'revert', 'ids' => array($id)))));
     $out['after_revert'] = $r2['applied'];
+} elseif ($case === 'removed') {
+    // 1.8.1: a fix removed in WordPress admin is listed as removed; applying the same id again forgets it.
+    function current_user_can($c) { return true; }
+    function check_admin_referer($a) { return true; }
+    function wp_unslash($v) { return $v; }
+    function admin_url($p = '') { return 'https://matha.site/wp-admin/' . $p; }
+    function add_query_arg($a, $u) { return $u; }
+    function wp_safe_redirect($u) { throw new Exception('redirect'); }
+    $org = '006598d5-7131-47d7-a151-f2f26582257a';
+    $web = '2ee73133-639c-4a9a-95bb-8bddb1bd2563';
+    AGSC_Fixes::handle($req(json_encode(array('action' => 'apply', 'fixes' => array(
+        array('id' => $org, 'kind' => 'org', 'payload' => array('type' => 'OnlineStore', 'telephone' => '+212 637 037 640')),
+        array('id' => $web, 'kind' => 'website', 'payload' => array('search' => 'https://matha.site/?s={search_term_string}&post_type=product')),
+    )))));
+    $_POST['fix_id'] = $org;
+    try { AGSC_Fixes::handle_remove(); } catch (Exception $e) { $out['redirect'] = $e->getMessage(); }
+    $st = AGSC_Fixes::handle($req('{"action":"status"}'));
+    $out['applied'] = array_map(function ($a) { return $a['id']; }, $st['applied']);
+    $out['removed'] = array_map(function ($r) { return array($r['id'], $r['kind'], is_int($r['at'])); }, $st['removed']);
+    $out['autoload'] = $GLOBALS['agsc_autoload'][AGSC_Fixes::REMOVED_OPTION];
+    AGSC_Fixes::handle($req(json_encode(array('action' => 'apply', 'fixes' => array(array('id' => $org, 'kind' => 'org', 'payload' => array('type' => 'OnlineStore')))))));
+    $out['removed_after_apply'] = AGSC_Fixes::handle($req('{"action":"status"}'))['removed'];
 } elseif ($case === 'node') {
     $wc = array('@type' => 'Product', '@id' => 'https://matha.site/product/round-led-mirror/#product', 'name' => 'Round LED Mirror', 'offers' => array(array('@type' => 'Offer', 'price' => '800')));
     $out['fallback'] = AGSC_Fixes::extend_node($wc, '', 'Matha Mirrors');

@@ -1,7 +1,8 @@
 // G9 self-healing and G10 auto-rollback: the decisions, pure (the reads and writes are in self-heal-run.ts).
 //   G9  An applied plugin fix of ours that is gone (no longer stored by the plugin, or its finding is back) is put
 //       back once with the same payload, verified, logged `reapplied` and notified. Gone again after that: an alert
-//       and nothing more (no loop), and auto-fix does not create it again. Fixes written with the write key are
+//       and nothing more (no loop), and auto-fix does not create it again. A fix the site's admin removed in
+//       WordPress (listed by plugin 1.8.1) is never put back. Fixes written with the write key are
 //       never put back: a value that changed there was changed by someone, usually the merchant.
 //   G10 A new problem the breakage check finds on the page / field one of our fixes changed in the last 7 days:
 //       that fix is undone without waiting, verified and notified. Only when the store still shows what we wrote
@@ -42,16 +43,23 @@ export function currentPluginFixes(rows: AuditRow[]): AuditRow[] {
 export type HealDecision =
   | { row: AuditRow; action: "reapply"; why: string }
   | { row: AuditRow; action: "lost"; why: string }
-  | { row: AuditRow; action: "wait"; why: string };
+  | { row: AuditRow; action: "wait"; why: string }
+  | { row: AuditRow; action: "removed"; why: string; at: number };
 
 // stored: fix ids the plugin reports (null = the plugin could not be asked: nothing is decided). back: finding keys
 // the check that just ran found, and when it started (a fix applied after that is not "back"). alerted: audit ids
 // that already have a fix_lost alert.
-export function healPlan(rows: AuditRow[], stored: Set<string> | null, back: { keys: Set<string>; at: number }, alerted: Set<string>, now: number): HealDecision[] {
+// removed (plugin 1.8.1+): fix ids the site's admin removed in WordPress, with the time: never put back; the
+// audit row is closed as undone in WordPress.
+export function healPlan(rows: AuditRow[], stored: Set<string> | null, back: { keys: Set<string>; at: number }, alerted: Set<string>, now: number, removed: Map<string, number> = new Map()): HealDecision[] {
   if (!stored) return [];
   const out: HealDecision[] = [];
   for (const row of currentPluginFixes(rows)) {
     const missing = !stored.has(fixIdOf(row));
+    if (missing && removed.has(fixIdOf(row))) {
+      out.push({ row, action: "removed", why: "removed in WordPress (AgentScope Core → Fixes applied by AgentScope)", at: removed.get(fixIdOf(row))! });
+      continue;
+    }
     const returned = back.keys.has(row.finding_key) && Date.parse(row.applied_at) < back.at;
     if (!missing && !returned) continue;
     const why = missing ? "the plugin no longer has this fix" : "the check finds the problem again";

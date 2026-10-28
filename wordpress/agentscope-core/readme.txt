@@ -4,7 +4,7 @@ Tags: woocommerce, ai, chatgpt, structured data, analytics
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.0
+Stable tag: 1.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -105,6 +105,9 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 * GET /wp-json/agentscope-core/v1/selftest
 
 == Changelog ==
+
+= 1.8.1 =
+* A fix you remove in AgentScope Core → Fixes applied by AgentScope is remembered (its id, kind and time only), so the app never puts it back. Applying it again from the app forgets the removal.
 
 = 1.8.0 =
 * Product feed for AI shopping agents: products.jsonl and metadata.json (Agentic Commerce Protocol product feed 2026-04-17) and a CSV with the matching Google Merchant fields, built by the app from your store's own data and served at /agentscope-feed/ and /agentscope-feed.csv (signed, one feed per store, undo deletes it).

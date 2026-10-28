@@ -10,6 +10,8 @@ export type PluginAnswer = {
   environment: { robots_file: boolean; llms_file: boolean; woocommerce: boolean };
   // 1.8.0: the stored product feed (G1), null when none.
   feed?: { updated_at: number; products: number; bytes: number; urls: { jsonl: string; metadata: string; csv: string } } | null;
+  // 1.8.1: fixes the site's admin removed in WordPress (never put back by the app).
+  removed?: { id: string; kind: string; at: number }[];
 };
 
 // Signature the plugin checks (class-agsc-fixes.php): HMAC-SHA256(token, "<timestamp>.<nonce>.<body>").

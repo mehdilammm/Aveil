@@ -24,7 +24,7 @@ $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}agsc_bot_hits"); // phpcs:igno
 $agsc_settings = get_option('agsc_settings', array());
 if (is_array($agsc_settings) && !empty($agsc_settings['delete_on_uninstall'])) {
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}agsc_traffic"); // phpcs:ignore
-    foreach (array('agsc_settings', 'agsc_db_version', 'agsc_version', 'agsc_scan_current', 'agsc_scan_history', 'agsc_remote', 'agsc_remote_last_result', 'agsc_legacy_until', 'agsc_test_data_cleared', 'agsc_clear_log', 'agsc_fixes', 'agsc_fix_nonces') as $agsc_option) {
+    foreach (array('agsc_settings', 'agsc_db_version', 'agsc_version', 'agsc_scan_current', 'agsc_scan_history', 'agsc_remote', 'agsc_remote_last_result', 'agsc_legacy_until', 'agsc_test_data_cleared', 'agsc_clear_log', 'agsc_fixes', 'agsc_fix_nonces', 'agsc_removed_fixes') as $agsc_option) {
         delete_option($agsc_option);
     }
 }

@@ -58,6 +58,15 @@ describe("G9 self-healing: decisions", () => {
   });
 });
 
+describe("G9 with plugin 1.8.1: fixes the merchant removed in WordPress", () => {
+  it("are never put back, whatever the finding says", () => {
+    const rows = matha();
+    const removed = new Map([["006598d5", Date.parse("2026-10-29T08:00:00Z")]]);
+    const back = { keys: new Set(["jsonld:org"]), at: NOW };
+    expect(healPlan(rows, new Set(["2ee73133", "d5017526", "ac68747c"]), back, new Set(), NOW, removed).map((d) => [d.row.id, d.action])).toEqual([["006598d5", "removed"]]);
+  });
+});
+
 describe("G10 auto-rollback: decisions", () => {
   const problem = (type: string, evidence: string, product_id: number | null = 174) => ({ finding_key: `${type}:${product_id}`, type, title: "Structured data has errors", evidence, product_id });
 
@@ -78,6 +87,7 @@ describe("G10 auto-rollback: decisions", () => {
 
 // The runners against a plugin and WooCommerce in memory.
 const stored = new Map<string, Record<string, unknown>>();
+const removedInWp: { id: string; kind: string; at: number }[] = [];
 const settings: Record<string, unknown> = {};
 const pluginCalls: { action: string; fixes?: { id: string; kind: string; payload: unknown }[]; ids?: string[] }[] = [];
 vi.mock("./plugin-client", () => ({
@@ -89,7 +99,7 @@ vi.mock("./plugin-client", () => ({
       done.push({ id: f.id });
     }
     for (const id of p.ids ?? []) if (stored.delete(id)) done.push({ id });
-    return { plugin_version: "1.8.0", done, applied: [...stored.values()].map((f) => ({ id: f.id, kind: f.kind, target: null })), environment: {} };
+    return { plugin_version: "1.8.1", done, applied: [...stored.values()].map((f) => ({ id: f.id, kind: f.kind, target: null })), environment: {}, removed: removedInWp };
   },
 }));
 vi.mock("./woo", async (orig) => ({
@@ -112,6 +122,7 @@ const db = (rows: AuditRow[]) => fakeSupabase({ fix_audit_log: rows.map((r) => (
 
 beforeEach(() => {
   stored.clear();
+  removedInWp.length = 0;
   pluginCalls.length = 0;
   verifyCalls.length = 0;
   verifyStatus = "resolved";
@@ -138,6 +149,19 @@ describe("G9 / G10 runners", () => {
     expect(tables.store_alerts.at(-1)).toMatchObject({ kind: "fix_lost", detail: { audit_id: "006598d5" } });
     await selfHeal(client, store, none, "job3", NOW + 7_200_000);
     expect(tables.store_alerts.filter((a) => a.kind === "fix_lost")).toHaveLength(1);
+  });
+
+  it("plugin 1.8.1: the Organization fix removed in WordPress admin is closed as undone there, not put back, no alert", async () => {
+    for (const r of matha().filter((x) => x.kind !== "org")) stored.set(r.id, { id: r.id, kind: r.kind });
+    removedInWp.push({ id: "006598d5", kind: "org", at: Date.parse("2026-10-29T08:00:00Z") / 1000 });
+    const { client, tables } = db(matha());
+    const r = await selfHeal(client, store, { keys: new Set(["jsonld:org"]), at: NOW }, "job1", NOW);
+    expect(r).toMatchObject({ actions: [{ audit_id: "006598d5", action: "removed_in_wordpress" }] });
+    expect(pluginCalls).toEqual([{ action: "status" }]);
+    expect(tables.fix_audit_log.find((x) => x.id === "006598d5")).toMatchObject({ status: "reverted", reverted_by: null, reverted_at: "2026-10-29T08:00:00.000Z", revert_reason: "Removed in WordPress: org fix" });
+    expect(tables.store_alerts).toEqual([]);
+    // Next check: nothing more to do.
+    expect(await selfHeal(client, store, { keys: new Set(["jsonld:org"]), at: NOW + 1 }, "job2", NOW + 1)).toMatchObject({ actions: [] });
   });
 
   it("put back but still not there (all four of matha's fixes gone): the alert says so at once", async () => {
