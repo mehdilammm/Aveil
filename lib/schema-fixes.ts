@@ -76,3 +76,52 @@ export async function applySchemaFix(ctx: FixContext, kind: Exclude<SchemaKind, 
     : "One offer per variation added";
   return { channel: "plugin", target: `jsonld:${kind}`, before: null, after: { fix_id: fixId, payload, notes }, describe: summary };
 }
+
+// G7: the returns page (by its title or address) and the countries the store sells to, then the proposal.
+export async function returnsProposalFor(ctx: FixContext): Promise<import("./returns-policy").ReturnsProposal> {
+  const { proposeReturns } = await import("./returns-policy");
+  const adapter = wooCommerceAdapter(ctx.store.url, ctx.read);
+  const { settings, pages } = await adapter.fetchPolicies();
+  const s = settings.ok ? settings.data : {};
+  const list = (v: unknown) => String(v ?? "").split(",").map((x) => x.trim().toUpperCase()).filter((x) => /^[A-Z]{2}$/.test(x));
+  const selling = s.woocommerce_allowed_countries === "specific" ? list(s.woocommerce_specific_allowed_countries) : null;
+  const returnsPage = pages.ok ? pages.data.find((p) => /refund|return/i.test(`${p.slug} ${p.title}`)) : undefined;
+  let page: { url: string; html: string } | null = null;
+  if (returnsPage) {
+    const url = `${ctx.store.url}/${returnsPage.slug}/`;
+    const r = await fetchPublicPage(url, UA);
+    if (r.ok && r.status === 200) page = { url, html: (/<main[\s\S]*<\/main>/i.exec(r.body)?.[0] ?? r.body) };
+  }
+  return proposeReturns({ page, sellingCountries: selling?.length ? selling : null });
+}
+
+// G7 apply: the proposal the merchant saw (same hash), or the merchant's own answer from the short form.
+export async function applyReturnsFix(ctx: FixContext, fixId: string, value: string | null): Promise<Change> {
+  const { checkReturnsAnswer } = await import("./returns-policy");
+  const v = (() => {
+    try {
+      return JSON.parse(value ?? "{}") as { hash?: string; answer?: string };
+    } catch {
+      return {};
+    }
+  })();
+  let payload: Record<string, unknown>;
+  let basis: string[] = [];
+  let page: string | null = null;
+  if (v.answer) {
+    const checked = checkReturnsAnswer(v.answer);
+    if (!checked.ok) throw new Error(checked.reason);
+    payload = checked.value;
+  } else {
+    const p = await returnsProposalFor(ctx);
+    if (!p.proposal) throw new Error(p.unclear ?? "No proposal.");
+    if (!v.hash || v.hash !== p.hash) throw new Error("The returns page or the selling countries changed since you saw the proposal; open it again.");
+    payload = p.proposal;
+    basis = p.basis;
+    page = p.page;
+  }
+  await pluginSchemaFix(ctx, fixId, "returns", payload);
+  const cat = String(payload.category);
+  const label = cat === "MerchantReturnNotPermitted" ? "no returns" : cat === "MerchantReturnUnlimitedWindow" ? "returns at any time" : `returns within ${payload.days} days`;
+  return { channel: "plugin", target: "jsonld:returns", before: null, after: { fix_id: fixId, payload, basis, page, source: v.answer ? "merchant" : "page" }, describe: `Return policy added to all products: ${label} (${(payload.countries as string[]).join(", ")})` };
+}

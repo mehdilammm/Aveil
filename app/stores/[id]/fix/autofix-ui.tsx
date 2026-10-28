@@ -161,3 +161,84 @@ export function WriteKeyForm({ storeId, hint }: { storeId: string; hint: string 
     </details>
   );
 }
+
+type ReturnsPreview = { proposal: { category: string; countries: string[]; days?: number; method?: string; fees?: string; link?: string } | null; basis: string[]; unclear: string | null; page: string | null; hash: string | null };
+
+// G7: the return policy AgentScope proposes from the returns page, with the exact sentences it is based on; one
+// confirmation adds it to all products. When the page is unclear, a short form takes the merchant's answer.
+export function ReturnsFix({ storeId, findingKey }: { storeId: string; findingKey: string }) {
+  const t = useTranslations("autofix");
+  const router = useRouter();
+  const [preview, setPreview] = useState<ReturnsPreview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [form, setForm] = useState({ category: "MerchantReturnFiniteReturnWindow", days: "", countries: "", method: "", fees: "" });
+  const url = `/api/stores/${storeId}/fixes`;
+  const done = (r: { ok: boolean; body: Record<string, unknown> }) => {
+    setMsg(r.ok ? { ok: true, text: `${String(r.body.describe ?? "")}${r.body.verify === "resolved" ? ` · ${t("verified")}` : ""}` } : { ok: false, text: String(r.body.error ?? t("failed")) });
+    if (r.ok) router.refresh();
+  };
+  const show = async () => {
+    setBusy(true);
+    const r = await post(url, { finding_key: findingKey, preview: true });
+    setBusy(false);
+    if (r.ok) setPreview(r.body as unknown as ReturnsPreview);
+    else setMsg({ ok: false, text: String(r.body.error ?? t("failed")) });
+  };
+  const apply = async () => {
+    if (!preview?.hash || !window.confirm(t("confirm_returns"))) return;
+    setBusy(true);
+    done(await post(url, { finding_key: findingKey, confirm: true, proposal_hash: preview.hash }));
+    setBusy(false);
+  };
+  const answer = async () => {
+    setBusy(true);
+    const a = { category: form.category, countries: form.countries.split(/[\s,]+/).filter(Boolean), ...(form.days ? { days: Number(form.days) } : {}), ...(form.method ? { method: form.method } : {}), ...(form.fees ? { fees: form.fees } : {}), ...(preview?.page ? { link: preview.page } : {}) };
+    done(await post(url, { finding_key: findingKey, answer: JSON.stringify(a) }));
+    setBusy(false);
+  };
+  const p = preview?.proposal;
+  return (
+    <div className="stack small" style={{ marginTop: 6 }}>
+      <span><span className="badge basis-heuristic">{t("chipOneClick")}</span> <span className="muted">{t("explain_returns")}</span></span>
+      {!preview && <div><button className="secondary" onClick={show} disabled={busy}>{busy ? t("applying") : t("ret_show")}</button></div>}
+      {p && (
+        <>
+          <p><strong>{t(`ret_${p.category}`, { days: p.days ?? 0, countries: p.countries.join(", ") })}</strong>{p.fees ? ` · ${t(`ret_fees_${p.fees}`)}` : ""}{p.method ? ` · ${t(`ret_method_${p.method}`)}` : ""}</p>
+          <p className="muted">{t("ret_based_on")} {preview?.page && <a href={preview.page} target="_blank" rel="noopener noreferrer">{preview.page}</a>}</p>
+          <ul>{preview!.basis.map((s, i) => <li key={i}><q>{s}</q></li>)}</ul>
+          <div><button className="secondary" onClick={apply} disabled={busy}>{busy ? t("applying") : t("do_returns")}</button></div>
+        </>
+      )}
+      {preview && !p && (
+        <>
+          <p><span className="badge basis-unavailable">{t("ret_unclear")}</span> {preview.unclear}</p>
+          {preview.basis.length > 0 && <ul>{preview.basis.map((s, i) => <li key={i}><q>{s}</q></li>)}</ul>}
+          <div className="row">
+            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} aria-label={t("ret_q_category")}>
+              {["MerchantReturnFiniteReturnWindow", "MerchantReturnNotPermitted", "MerchantReturnUnlimitedWindow"].map((c) => <option key={c} value={c}>{t(`ret_opt_${c}`)}</option>)}
+            </select>
+            {form.category === "MerchantReturnFiniteReturnWindow" && <input value={form.days} onChange={(e) => setForm({ ...form, days: e.target.value })} placeholder={t("ret_q_days")} aria-label={t("ret_q_days")} inputMode="numeric" style={{ maxWidth: 120 }} />}
+            <input value={form.countries} onChange={(e) => setForm({ ...form, countries: e.target.value })} placeholder={t("ret_q_countries")} aria-label={t("ret_q_countries")} dir="ltr" style={{ maxWidth: 200 }} />
+            {form.category !== "MerchantReturnNotPermitted" && (
+              <>
+                <select value={form.fees} onChange={(e) => setForm({ ...form, fees: e.target.value })} aria-label={t("ret_q_fees")}>
+                  <option value="">{t("ret_not_stated")}</option>
+                  <option value="FreeReturn">{t("ret_fees_FreeReturn")}</option>
+                  <option value="ReturnFeesCustomerResponsibility">{t("ret_fees_ReturnFeesCustomerResponsibility")}</option>
+                </select>
+                <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} aria-label={t("ret_q_method")}>
+                  <option value="">{t("ret_not_stated")}</option>
+                  <option value="ReturnByMail">{t("ret_method_ReturnByMail")}</option>
+                  <option value="ReturnInStore">{t("ret_method_ReturnInStore")}</option>
+                </select>
+              </>
+            )}
+            <button className="secondary" onClick={answer} disabled={busy || !form.countries.trim()}>{busy ? t("applying") : t("save")}</button>
+          </div>
+        </>
+      )}
+      {msg && <span className={msg.ok ? "status-connected" : "error"}>{msg.text}</span>}
+    </div>
+  );
+}
