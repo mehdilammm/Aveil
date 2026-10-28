@@ -7,6 +7,7 @@ import { connectionAfterScan } from "./connection";
 import { checkFeedProduct, checkFeedStore } from "./feed";
 import { checkFeedServed, FEED_PATHS } from "./feed-build";
 import { graphFindings } from "./graph-checks";
+import { hiddenFindings } from "./hidden-pages";
 import type { Source } from "./pages";
 import { checkStoreGate, describePage, pageGate } from "./gate";
 import { JobYield, PermanentJobError, type StepContext } from "./jobs";
@@ -16,7 +17,7 @@ import { checkCheckout } from "./checkout";
 import { planOf, syncOrders } from "./orders-sync";
 import { PLANS } from "./plans";
 import { BROWSER_UA, AI_BOTS, retryAfterMs } from "./access";
-import { fetchActivePlugins, fetchPublicPage, fetchStoreApiItems, MAX_PRODUCT_PAGES, WooError, type PageFetch, type WooCredentials } from "./woo";
+import { fetchActivePlugins, fetchPublicCategories, fetchPublicPage, fetchStoreApiItems, MAX_PRODUCT_PAGES, WooError, type PageFetch, type WooCredentials } from "./woo";
 import { consistencyFindings, llmsPriceFor, type StoreFormat } from "./consistency";
 import { detectHosting, hostingFinding, nsCandidates } from "./hosting";
 import { promises as dns } from "node:dns";
@@ -391,7 +392,24 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
           plugins: plugins.ok ? plugins.data : [],
         }));
         if (hosting) findings.push(hosting);
-        findings.push(...(await graphFor(store.url, products, firstPages, plugins, async (u) => (await politePage(u, BROWSER_UA, checkToken)).res)));
+        // Milestone G: structured data parts no source prints (G2, G3, G5, G6, G7), and pages hidden from search
+        // engines (G8): the home page, the sampled product pages and one category page, each loaded once.
+        const seen = new Map<string, PageFetch>();
+        const load = async (u: string) => {
+          if (!seen.has(u)) seen.set(u, (await politePage(u, BROWSER_UA, checkToken)).res);
+          return seen.get(u)!;
+        };
+        findings.push(...(await graphFor(store.url, products, firstPages, plugins, load)));
+        const cats = await fetchPublicCategories(store.url);
+        const firstCat = cats.ok ? cats.data.find((c) => c.count > 0 && c.link) : undefined;
+        const homePage = await load(`${store.url}/`);
+        const catPage = firstCat?.link ? await load(firstCat.link) : null;
+        const seoNames = plugins.ok ? plugins.data.filter((p) => /^(wordpress-seo|seo-by-rank-math)\//i.test(p.plugin)).map((p) => p.name) : [];
+        findings.push(...hiddenFindings([
+          { url: `${store.url}/`, html: homePage.ok && homePage.status === 200 ? homePage.body : null, headers: homePage.ok ? homePage.hostHeaders : null, kind: "home" },
+          ...firstPages.map((p) => ({ url: p.url, html: p.html, kind: "product" as const, productId: p.product.id })),
+          ...(catPage && firstCat ? [{ url: firstCat.link!, html: catPage.ok && catPage.status === 200 ? catPage.body : null, headers: catPage.ok ? catPage.hostHeaders : null, kind: "category" as const }] : []),
+        ], seoNames));
         await saveFindings(admin, store, scanId, "store", findings);
         return { currency, sample, basis: picked.basis, findings: findings.length, format, llmsPrices };
       });
@@ -412,7 +430,12 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
             if (j > 0) await sleep(PAGE_GAP_MS);
             chunk.push(schemaPage(s.product, s.url, (await adapter.fetchProductSchema(s.url, checkToken)).page));
           }
-          const findings = [...checkStructuredData(chunk, storeStep.currency), ...duplicateSchemaFindings(chunk), ...(await consistencyFor(store.url, chunk, storeStep.format, storeStep.llmsPrices, checkToken))];
+          const findings = [
+            ...checkStructuredData(chunk, storeStep.currency),
+            ...duplicateSchemaFindings(chunk),
+            ...(await consistencyFor(store.url, chunk, storeStep.format, storeStep.llmsPrices, checkToken)),
+            ...hiddenFindings(chunk.map((p) => ({ url: p.url, html: p.html, kind: "product" as const, productId: p.product.id })), []),
+          ];
           await saveFindings(admin, store, scanId, key, findings);
           await saveSchemaPages(admin, store, scanId, chunk);
           return { findings: findings.length, pages: chunk.length };

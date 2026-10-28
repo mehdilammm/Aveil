@@ -12,6 +12,7 @@ import { checkLlmsTxt, checkRobots, type RobotsFetch } from "./robots";
 import { checkProduct, type Finding } from "./rules";
 import { pageUrlOf, sampleProducts } from "./sampling";
 import { duplicateSchemaFindings, graphFor, politePage, schemaPage, slim } from "./scan";
+import { hiddenFindings } from "./hidden-pages";
 import { checkStructuredData } from "./structured-data";
 import { bust, groupOf, judge, type VerifyResult } from "./verify";
 import { fetchActivePlugins, fetchPublicPage, fetchPublishedProduct, WooError, type WooCredentials } from "./woo";
@@ -85,6 +86,15 @@ export async function recheck(admin: SupabaseClient, store: Store, creds: WooCre
         const variable = target.product_id ? items.find((p) => p.id === target.product_id) : null;
         const products = [...(variable ? [slim(variable)] : []), ...items.map(slim)];
         return graphFor(store.url, products, pages, await fetchActivePlugins(store.url, creds), load);
+      }
+      case "hidden": {
+        // G8: the same page again (its path is in the finding key), caches bypassed.
+        const path = target.finding_key.split(":").slice(2).join(":");
+        const url = `${store.url}${path}`;
+        const r = await fetchPublicPage(bust(url, token), BROWSER_UA, checkToken, true);
+        if (!r.ok || r.status !== 200) return { unavailable: `${url} could not be loaded: ${r.ok ? `HTTP ${r.status}` : r.error}.` };
+        // The verify parameter is not part of the page's own address.
+        return hiddenFindings([{ url, html: r.body, headers: r.hostHeaders, kind: target.product_id ? "product" : path === "/" ? "home" : "category", productId: target.product_id }], []);
       }
       case "access": {
         const { comingSoon } = await adapter.fetchPolicies();
