@@ -29,6 +29,7 @@ require_once AGSC_DIR . 'includes/class-agsc-sender.php';
 require_once AGSC_DIR . 'includes/class-agsc-bothits.php';
 require_once AGSC_DIR . 'includes/class-agsc-events.php';
 require_once AGSC_DIR . 'includes/class-agsc-fixes.php';
+require_once AGSC_DIR . 'includes/class-agsc-feed.php';
 require_once AGSC_DIR . 'includes/class-agsc-attribution.php';
 require_once AGSC_DIR . 'includes/class-agsc-readiness.php';
 require_once AGSC_DIR . 'includes/class-agsc-rest.php';
@@ -60,6 +61,7 @@ function agsc_bootstrap() {
     AGSC_Bothits::init();
     AGSC_Events::init();
     AGSC_Fixes::init();
+    AGSC_Feed::init();
     AGSC_Attribution::init();
     AGSC_Rest::init();
     if (class_exists('AGSC_Updater')) {

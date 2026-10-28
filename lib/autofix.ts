@@ -5,7 +5,12 @@ import { checkInput, fixFor, shipCountries, type FixKind, type FixType } from ".
 import { generatorInputs } from "./fixes/inputs";
 import { buildLlmsTxt } from "./fixes/llms-txt";
 import { patchRobots } from "./fixes/robots-patch";
+import { FEED_MAX_BYTES, FEED_PATHS, FEED_SPEC, type FeedResult } from "./feed-build";
+import { buildStoreFeed } from "./feed-run";
+import { planOf } from "./orders-sync";
 import { callPlugin } from "./plugin-client";
+import { lockedReason } from "./plan-gate";
+import { PLANS } from "./plans";
 import { isAllowed, parseRobots } from "./robots";
 import { verifyOnce } from "./verify-run";
 import { fetchPublishedProduct, fetchSetting, fetchShippingZones, fetchSiteName, findBrands, wooWrite, WooError, type WooCredentials } from "./woo";
@@ -32,6 +37,7 @@ export async function fixContext(admin: SupabaseClient, store: Store): Promise<F
 }
 
 const NEED_PLUGIN = "Needs the AgentScope Core plugin 1.6.0 or later, connected to the app.";
+const NEED_PLUGIN_18 = "Needs the AgentScope Core plugin 1.8.0 or later, connected to the app.";
 const NEED_WRITE = "Needs a separate write key (WooCommerce → Settings → Advanced → REST API, permission Read/Write), added in the app.";
 
 // What the auto fixes would change now, without changing anything (the preview the merchant approves).
@@ -42,6 +48,8 @@ export function planAuto(ctx: FixContext, findings: Finding[]): PlannedFix[] {
     if (spec.type !== "auto") continue;
     if (spec.kind === "llms_txt" || spec.kind === "robots") {
       out.push({ finding: f, ...spec, ready: Boolean(ctx.pluginToken), reason: ctx.pluginToken ? null : NEED_PLUGIN, describe: spec.kind === "llms_txt" ? "Serve /llms.txt, written from your store's title, pages, categories and products." : "Allow the AI search and shopping agents in robots.txt (training crawlers keep your current setting)." });
+    } else if (spec.kind === "feed") {
+      out.push({ finding: f, ...spec, ready: Boolean(ctx.pluginToken), reason: ctx.pluginToken ? null : NEED_PLUGIN_18, describe: `Serve a product feed for AI shopping agents at ${FEED_PATHS.jsonl} (${FEED_SPEC.name} ${FEED_SPEC.version}) and ${FEED_PATHS.csv}, from your published products; refreshed when a product changes and every day.` });
     } else if (spec.kind === "brand") {
       out.push({ finding: f, ...spec, ready: Boolean(ctx.write || ctx.pluginToken), reason: ctx.write || ctx.pluginToken ? null : NEED_WRITE, describe: ctx.write ? `Set the product's brand to your store's name (#${f.product_id}).` : `Add your store's name as the brand in the product's structured data (#${f.product_id}).` });
     }
@@ -70,6 +78,13 @@ async function applyChange(admin: SupabaseClient, ctx: FixContext, f: Finding, k
     if (!text.trim()) throw new Error("Nothing to add.");
     await callPlugin(store.url, ctx.pluginToken, { action: "apply", fixes: [{ id: fixId, kind, payload: { text } }] });
     return { channel: "plugin", target: kind === "llms_txt" ? "/llms.txt" : "/robots.txt", before: null, after: { fix_id: fixId, text }, describe: kind === "llms_txt" ? "Served /llms.txt" : "Added the AI agent groups to robots.txt" };
+  }
+
+  if (kind === "feed") {
+    if (!ctx.pluginToken) throw new Error(NEED_PLUGIN_18);
+    if (!PLANS[await planOf(admin, store.id)].productFeed) throw new Error(lockedReason("productFeed"));
+    const feed = await buildStoreFeed(store, ctx.read);
+    return pushFeed(ctx, fixId, feed);
   }
 
   const pid = f.product_id;
@@ -132,6 +147,22 @@ async function applyChange(admin: SupabaseClient, ctx: FixContext, f: Finding, k
   return { channel: "write_key", target: `product:${pid}`, before, after: patch, describe: `${field === "gtin" ? "GTIN" : field[0].toUpperCase() + field.slice(1)} set on product #${pid}: ${checked.value}` };
 }
 
+// Sends a built feed to the plugin as one fix (the same id replaces the stored feed on a refresh).
+export async function pushFeed(ctx: FixContext, fixId: string, feed: FeedResult): Promise<Change> {
+  if (!ctx.pluginToken) throw new Error(NEED_PLUGIN_18);
+  if (!feed.counts.products) throw new Error(`No product can be listed in the feed: ${feed.rows.map((r) => `#${r.id} ${r.jsonReason ?? "?"}`).slice(0, 5).join("; ") || "the store has no published product"}.`);
+  if (feed.bytes > FEED_MAX_BYTES) throw new Error(`The feed is ${(feed.bytes / 1048576).toFixed(1)} MB; this version sends at most ${FEED_MAX_BYTES / 1048576} MB to the plugin.`);
+  const answer = await callPlugin(ctx.store.url, ctx.pluginToken, { action: "apply", fixes: [{ id: fixId, kind: "feed", payload: { metadata: JSON.stringify(feed.metadata), jsonl: feed.jsonl, csv: feed.csv } }] });
+  if (!answer.done.some((d) => d.id === fixId)) throw new Error(`The plugin did not take the feed (plugin ${answer.plugin_version}; the feed needs 1.8.0 or later).`);
+  return {
+    channel: "plugin",
+    target: FEED_PATHS.jsonl,
+    before: null,
+    after: { fix_id: fixId, spec: `${FEED_SPEC.name} ${FEED_SPEC.version}`, updated_at: feed.metadata.updated_at, counts: feed.counts, bytes: feed.bytes },
+    describe: `Product feed served: ${feed.counts.products} products, ${feed.counts.variants} variants (${feed.counts.excluded} left out); CSV ${feed.counts.csvRows} rows`,
+  };
+}
+
 export type AppliedFix = { auditId: string; finding_key: string; status: "applied" | "failed"; describe: string; error: string | null; verify: string | null };
 
 // Applies fixes, records each in the audit log, then re-checks each finding (cache bypassed).
@@ -158,7 +189,7 @@ export async function applyFixes(
     }
     const { data: row } = await admin.from("fix_audit_log").insert({
       id: fixId, store_id: ctx.store.id, owner_id: ctx.store.owner_id, batch_id: batchId, finding_key: it.finding.finding_key, fix_type: it.type, kind: it.kind,
-      channel: change?.channel ?? (it.kind === "llms_txt" || it.kind === "robots" ? "plugin" : "write_key"), target: change?.target ?? (it.finding.product_id ? `product:${it.finding.product_id}` : it.kind),
+      channel: change?.channel ?? (it.kind === "llms_txt" || it.kind === "robots" || it.kind === "feed" ? "plugin" : "write_key"), target: change?.target ?? (it.finding.product_id ? `product:${it.finding.product_id}` : it.kind),
       before: change?.before ?? null, after: change ? { ...(change.after as object), describe: change.describe } : null, status: change ? "applied" : "failed", error,
       verify_status: verify?.status ?? null, verify_evidence: verify?.evidence?.slice(0, 1000) ?? null, applied_by: by.userId, automatic: by.automatic,
     }).select("id").single();

@@ -9,6 +9,7 @@ import { breakageCheck, productCheck } from "./store-checks";
 import { verifyFindingJob } from "./verify-jobs";
 import { NotVerifiedError, runAgentSim } from "./agent-sim-run";
 import { marketOf } from "./markets";
+import { enqueueFeedRefresh, refreshFeed } from "./feed-jobs";
 
 const VISIBILITY_MIN_MS = 150_000; // a run needs a fresh tick; it stops asking at its own time budget
 
@@ -19,7 +20,8 @@ const VISIBILITY_MIN_MS = 150_000; // a run needs a fresh tick; it stops asking 
 // breakage_check: mini-scan after a plugin / theme / core change (F2). product_check: one product just published
 // or updated (F3). agent_sim: the agent purchase test through the Store API, never placing an order (F7); one
 // attempt only, so a cart is never filled twice. agent_sim_browser: the same test in a real headless browser (F7
-// Mode B, Pro): it waits (yields) when it lands on a function without the browser files.
+// Mode B, Pro): it waits (yields) when it lands on a function without the browser files. feed_refresh: the product
+// feed built again and sent to the plugin (G1), after a product change and every day.
 export const JOB_HANDLERS: Record<string, JobHandler> = {
   orders_sync: async ({ admin, job, step }) => {
     if (!job.store_id) throw new Error("orders_sync needs a store");
@@ -56,6 +58,14 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
     if (!Number.isInteger(productId) || productId <= 0) throw new PermanentJobError("product_check needs a product");
     const ids = Array.isArray(job.progress?.event_ids) ? (job.progress.event_ids as string[]) : [];
     await step("check", () => productCheck(admin, store, productId, job.id, ids));
+    // G1: a product changed, so the served feed is rebuilt (one refresh for updates close together).
+    await step("feed", () => enqueueFeedRefresh(admin, store, 120));
+  },
+  feed_refresh: async ({ admin, job, step }) => {
+    if (!job.store_id) throw new PermanentJobError("feed_refresh needs a store");
+    const { data: store } = await admin.from("stores").select("id, owner_id, url, workspace_id").eq("id", job.store_id).maybeSingle();
+    if (!store) throw new PermanentJobError("store not found");
+    await step("refresh", () => refreshFeed(admin, store));
   },
   agent_sim: async ({ admin, job, step }) => {
     if (!job.store_id) throw new PermanentJobError("agent_sim needs a store");

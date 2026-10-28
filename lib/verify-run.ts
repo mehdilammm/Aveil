@@ -4,6 +4,7 @@ import { AI_BOTS, BROWSER_UA } from "./access";
 import { runAccessCheck } from "./agent-checks";
 import { checkCheckout } from "./checkout";
 import { checkFeedProduct, checkFeedStore } from "./feed";
+import { checkFeedServed, FEED_PATHS } from "./feed-build";
 import { checkStoreGate } from "./gate";
 import { checkStorePages } from "./pages";
 import { wooCommerceAdapter } from "./platform/woocommerce";
@@ -51,6 +52,7 @@ export async function recheck(admin: SupabaseClient, store: Store, creds: WooCre
         return [...checkRobots(store.url, robots, productPath), ...checkLlmsTxt(store.url, llms)];
       }
       case "store_pages": {
+        if (target.type === "feed_not_served" || target.type === "feed_check_unavailable") return checkFeedServed(store.url, await text(`${store.url}${FEED_PATHS.jsonl}`));
         const { settings, pages, siteName } = await adapter.fetchPolicies();
         return [...checkStorePages({ storeUrl: store.url, settings, pages }), ...checkFeedStore({ storeUrl: store.url, siteName, settings })];
       }

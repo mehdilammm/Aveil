@@ -1,6 +1,7 @@
 // What kind of fix each finding gets (Auto-fix):
 //   auto      - technical, no business information: llms.txt from store data, robots.txt groups for the AI
-//               search agents, the brand = the store's name when a product has none (approved rule).
+//               search agents, the brand = the store's name when a product has none (approved rule), the product
+//               feed from the store's products (G1).
 //   one_click - a business decision: one button with an explanation and a confirmation (sell only where you
 //               ship, allow guest checkout).
 //   input     - a fact only the merchant has (price, image, weight, GTIN): one short question, and what they
@@ -11,7 +12,7 @@ import { SEARCH_AGENTS } from "./fixes/robots-patch";
 
 export type FixType = "auto" | "one_click" | "input" | "guide";
 export type FixKind =
-  | "llms_txt" | "robots" | "brand"
+  | "llms_txt" | "robots" | "brand" | "feed"
   | "sell_where_ship" | "guest_checkout"
   | "price" | "image" | "weight" | "gtin"
   | "manual";
@@ -23,6 +24,8 @@ const input = (field: InputField): FixSpec => ({ type: "input", kind: field, fie
 export function fixFor(f: { type: string; finding_key: string; evidence: string; product_id: number | null }): FixSpec {
   const t = f.type;
   if (t === "llms_txt_missing") return { type: "auto", kind: "llms_txt" };
+  // G1: the plugin serves a product feed built from the store's products (Pro and Agency).
+  if (t === "feed_not_served") return { type: "auto", kind: "feed" };
   // F4: llms.txt lists an old price. The plugin can serve a new one from the store data (auto-fix refuses when
   // the site has its own llms.txt file, which is then fixed by hand from Fix generators).
   if (t === "consistency_llms_mismatch") return { type: "auto", kind: "llms_txt" };

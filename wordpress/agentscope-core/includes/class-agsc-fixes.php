@@ -14,6 +14,9 @@
  *   llms_txt - serves /llms.txt with the text the app generated from the store's data, unless a real file exists.
  *   robots   - adds the AgentScope AI-agent groups to WordPress's virtual robots.txt (no effect when a robots.txt
  *              file exists; the app reports that and offers the copyable patch instead).
+ *   feed     - (1.8.0) the product feed the app built from the store's products: ACP metadata.json and products.jsonl,
+ *              and a CSV with the Google Merchant fields, served by AGSC_Feed. The files are kept in their own option
+ *              (not autoloaded), so ordinary page loads never read them.
  * Administrators see the applied fixes in Settings and can remove each one (capability check + nonce).
  */
 if (!defined('ABSPATH')) {
@@ -24,8 +27,10 @@ final class AGSC_Fixes {
     const OPTION   = 'agsc_fixes';
     const NONCES   = 'agsc_fix_nonces';
     const MAX_SKEW = 300;
-    const KINDS    = array('jsonld', 'llms_txt', 'robots');
+    const KINDS    = array('jsonld', 'llms_txt', 'robots', 'feed');
     const MAX_TEXT = 100000;
+    const FEED_OPTION = 'agsc_feed_data';
+    const MAX_FEED    = 4194304; // 4 MB per file
 
     public static function init() {
         add_action('rest_api_init', array(__CLASS__, 'routes'));
@@ -97,6 +102,16 @@ final class AGSC_Fixes {
         }
         $p = isset($fix['payload']) && is_array($fix['payload']) ? $fix['payload'] : array();
         $out = array('id' => (string) $fix['id'], 'kind' => $fix['kind'], 'applied_at' => time());
+        if ($fix['kind'] === 'feed') {
+            $data = self::clean_feed($p);
+            if (!$data) {
+                return null;
+            }
+            $out['products'] = $data['products'];
+            $out['bytes'] = strlen($data['metadata']) + strlen($data['jsonl']) + strlen($data['csv']);
+            $out['data'] = $data; // moved to its own option by handle()
+            return $out;
+        }
         if ($fix['kind'] === 'jsonld') {
             $pid = isset($fix['target']) ? (int) $fix['target'] : 0;
             if ($pid <= 0) {
@@ -114,6 +129,32 @@ final class AGSC_Fixes {
         return $out;
     }
 
+    /** Pure: a feed payload with metadata JSON (with an id), JSON lines that are each a product with variants, a CSV. */
+    public static function clean_feed($p) {
+        $metadata = isset($p['metadata']) ? (string) $p['metadata'] : '';
+        $jsonl = isset($p['jsonl']) ? str_replace("\r", '', (string) $p['jsonl']) : '';
+        $csv = isset($p['csv']) ? (string) $p['csv'] : '';
+        if ($metadata === '' || strlen($metadata) > 4096 || $jsonl === '' || strlen($jsonl) > self::MAX_FEED || strlen($csv) > self::MAX_FEED || strpos($csv, 'id,') !== 0) {
+            return null;
+        }
+        $meta = json_decode($metadata, true);
+        if (!is_array($meta) || empty($meta['id']) || !is_string($meta['id'])) {
+            return null;
+        }
+        $count = 0;
+        foreach (explode("\n", $jsonl) as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $product = json_decode($line, true);
+            if (!is_array($product) || !isset($product['id']) || !is_string($product['id']) || !isset($product['variants']) || !is_array($product['variants'])) {
+                return null;
+            }
+            $count++;
+        }
+        return $count ? array('metadata' => $metadata, 'jsonl' => $jsonl, 'csv' => $csv, 'products' => $count, 'stored_at' => time()) : null;
+    }
+
     public static function handle($request) {
         $data = json_decode((string) $request->get_body(), true);
         $action = is_array($data) && isset($data['action']) ? (string) $data['action'] : '';
@@ -124,6 +165,16 @@ final class AGSC_Fixes {
                 $fix = self::clean($raw);
                 if ($fix) {
                     $before = isset($fixes[$fix['id']]) ? $fixes[$fix['id']] : null;
+                    if ($fix['kind'] === 'feed') {
+                        // One feed per store: a new one replaces the old one, whatever its id.
+                        foreach ($fixes as $id => $f) {
+                            if ($f['kind'] === 'feed' && $id !== $fix['id']) {
+                                unset($fixes[$id]);
+                            }
+                        }
+                        update_option(self::FEED_OPTION, $fix['data'], false);
+                        unset($fix['data']);
+                    }
                     $fixes[$fix['id']] = $fix;
                     $done[] = array('id' => $fix['id'], 'before' => $before);
                 }
@@ -133,6 +184,9 @@ final class AGSC_Fixes {
             foreach ((array) ($data['ids'] ?? array()) as $id) {
                 $id = (string) $id;
                 if (isset($fixes[$id])) {
+                    if ($fixes[$id]['kind'] === 'feed') {
+                        delete_option(self::FEED_OPTION);
+                    }
                     unset($fixes[$id]);
                     $done[] = array('id' => $id);
                 }
@@ -150,12 +204,13 @@ final class AGSC_Fixes {
                 'llms_file'   => file_exists(ABSPATH . 'llms.txt'),
                 'woocommerce' => class_exists('WooCommerce'),
             ),
+            'feed'           => AGSC_Feed::status(self::of_kind('feed')),
         ));
     }
 
     // ---- What the fixes do ----------------------------------------------------------------------------------
 
-    private static function of_kind($kind) {
+    public static function of_kind($kind) {
         return array_filter(self::all(), function ($f) use ($kind) { return $f['kind'] === $kind; });
     }
 
@@ -249,6 +304,9 @@ final class AGSC_Fixes {
         check_admin_referer('agsc_remove_fix');
         $id = isset($_POST['fix_id']) ? sanitize_text_field(wp_unslash($_POST['fix_id'])) : '';
         $fixes = self::all();
+        if (isset($fixes[$id]) && $fixes[$id]['kind'] === 'feed') {
+            delete_option(self::FEED_OPTION);
+        }
         unset($fixes[$id]);
         update_option(self::OPTION, $fixes, true);
         wp_safe_redirect(add_query_arg(array('page' => 'agsc-settings', 'agsc_msg' => 'fix-removed'), admin_url('admin.php')));
@@ -265,7 +323,7 @@ final class AGSC_Fixes {
         }
         echo '<ul>';
         foreach ($fixes as $f) {
-            $what = $f['kind'] === 'jsonld' ? 'Structured data brand on product #' . (int) $f['target'] : ($f['kind'] === 'llms_txt' ? '/llms.txt' : 'robots.txt AI agent groups');
+            $what = $f['kind'] === 'jsonld' ? 'Structured data brand on product #' . (int) $f['target'] : ($f['kind'] === 'llms_txt' ? '/llms.txt' : ($f['kind'] === 'feed' ? 'Product feed (' . (int) $f['products'] . ' products): ' . AGSC_Feed::PATH_JSONL : 'robots.txt AI agent groups'));
             echo '<li>' . esc_html($what) . ' · ' . esc_html(gmdate('Y-m-d H:i', (int) $f['applied_at'])) . ' UTC ';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="agsc-inline">';
             echo '<input type="hidden" name="action" value="agsc_remove_fix"><input type="hidden" name="fix_id" value="' . esc_attr($f['id']) . '">';
