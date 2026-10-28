@@ -189,6 +189,11 @@ final class AGSC_Fixes {
                     }
                     $fixes[$fix['id']] = $fix;
                     $done[] = array('id' => $fix['id'], 'before' => $before);
+                    $removed = self::removed();
+                    if (isset($removed[$fix['id']])) {
+                        unset($removed[$fix['id']]);
+                        update_option(self::REMOVED_OPTION, $removed, false);
+                    }
                 }
             }
             update_option(self::OPTION, $fixes, true);
@@ -217,6 +222,7 @@ final class AGSC_Fixes {
                 'woocommerce' => class_exists('WooCommerce'),
             ),
             'feed'           => AGSC_Feed::status(self::of_kind('feed')),
+            'removed'        => array_values(self::removed()),
         ));
     }
 
@@ -309,6 +315,28 @@ final class AGSC_Fixes {
 
     // ---- Settings page: list and remove ---------------------------------------------------------------------
 
+    /**
+     * 1.8.1: fixes the site's admin removed here are remembered (id, kind, time; no user data), and the status answer
+     * lists them, so the app never puts them back. Applying the same id again from the app forgets the removal.
+     */
+    const REMOVED_OPTION = 'agsc_removed_fixes';
+    const MAX_REMOVED    = 100;
+
+    public static function note_removed($id, $kind) {
+        $removed = self::removed();
+        $removed[$id] = array('id' => (string) $id, 'kind' => (string) $kind, 'at' => time());
+        if (count($removed) > self::MAX_REMOVED) {
+            uasort($removed, function ($a, $b) { return $a['at'] - $b['at']; });
+            $removed = array_slice($removed, -self::MAX_REMOVED, null, true);
+        }
+        update_option(self::REMOVED_OPTION, $removed, false);
+    }
+
+    public static function removed() {
+        $r = get_option(self::REMOVED_OPTION, array());
+        return is_array($r) ? $r : array();
+    }
+
     public static function handle_remove() {
         if (!current_user_can('manage_options')) {
             wp_die('Not allowed.', 403);
@@ -318,6 +346,9 @@ final class AGSC_Fixes {
         $fixes = self::all();
         if (isset($fixes[$id]) && $fixes[$id]['kind'] === 'feed') {
             delete_option(self::FEED_OPTION);
+        }
+        if (isset($fixes[$id])) {
+            self::note_removed($id, $fixes[$id]['kind']);
         }
         unset($fixes[$id]);
         update_option(self::OPTION, $fixes, true);

@@ -47,17 +47,27 @@ export async function selfHeal(admin: SupabaseClient, store: Store, back: { keys
   const rows = await auditRows(admin, store.id);
   if (!rows.some((r) => r.channel === "plugin" && r.status === "applied")) return { checked: 0 };
   let stored: Set<string> | null = null;
+  let removed = new Map<string, number>();
   try {
-    stored = new Set((await callPlugin(store.url, ctx.pluginToken, { action: "status" })).applied.map((a) => a.id));
+    const status = await callPlugin(store.url, ctx.pluginToken, { action: "status" });
+    stored = new Set(status.applied.map((a) => a.id));
+    removed = new Map((status.removed ?? []).map((r) => [r.id, r.at * 1000]));
   } catch (err) {
     return { skipped: `plugin not reachable: ${err instanceof Error ? err.message : "unknown"}` };
   }
   const { data: lostAlerts } = await admin.from("store_alerts").select("detail").eq("store_id", store.id).eq("kind", "fix_lost");
   const alerted = new Set((lostAlerts ?? []).map((a) => String((a.detail as { audit_id?: string })?.audit_id ?? "")));
   const out: { audit_id: string; kind: string; action: string; why: string; verify?: string }[] = [];
-  for (const d of healPlan(rows, stored, back, alerted, now)) {
+  for (const d of healPlan(rows, stored, back, alerted, now, removed)) {
     const what = String(d.row.after?.describe ?? d.row.kind);
     if (d.action === "wait") continue;
+    if (d.action === "removed") {
+      // The merchant's choice: the audit row is closed as undone (no user of the app), nothing is put back.
+      await admin.from("fix_audit_log").update({ status: "reverted", reverted_by: null, reverted_at: new Date(d.at).toISOString(), revert_reason: `Removed in WordPress: ${what}`.slice(0, 500) }).eq("id", d.row.id);
+      await admin.from("finding_verifications").delete().eq("store_id", store.id).eq("finding_key", d.row.finding_key);
+      out.push({ audit_id: d.row.id, kind: d.row.kind, action: "removed_in_wordpress", why: d.why });
+      continue;
+    }
     if (d.action === "lost") {
       await alert(admin, store, "fix_lost", `Fix gone again: ${what}`, { audit_id: d.row.id, kind: d.row.kind, finding_key: d.row.finding_key, why: d.why, note: "It is not put back again. If you removed it on purpose, nothing to do; otherwise apply it again from Fix Center." }, jobId);
       out.push({ audit_id: d.row.id, kind: d.row.kind, action: "lost", why: d.why });

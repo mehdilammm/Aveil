@@ -77,6 +77,7 @@ Reporting: two lines after each part; the long report after G6 and after G10.
 - APPROVED: G4 option A (write key, only empty alt text, skip images shared by several products) — 2026-10-28
 - APPROVED: migration g9_g10_g4_toggle — 2026-10-28 (applied by the owner from Claude chat; the 5 fix_audit_log rows unchanged, new store_alerts kinds present, alt_text_enabled SELECT only for authenticated)
 - NOT NOW: G8 one-click (stays guidance) — 2026-10-28
+- APPROVED: plugin 1.8.1 (record fixes removed by the merchant in WordPress admin, so G9 respects them and never re-applies) — 2026-10-28
 
 ## Reconciliation (2026-10-23)
 

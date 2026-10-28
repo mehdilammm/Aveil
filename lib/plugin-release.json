@@ -1,11 +1,9 @@
 {
-  "version": "1.8.0",
-  "file": "agentscope-core-1.8.0.zip",
-  "sha256": "5b97a18a1f4e0c44e6473928e361b43d11da1dbb67bf07d5af809dbc8ed4ccc4",
+  "version": "1.8.1",
+  "file": "agentscope-core-1.8.1.zip",
+  "sha256": "90013082c295a9167416135ace201afcd4e60771cada681c916cdfc290730e85",
   "changelog": [
-    "Product feed for AI shopping agents: products.jsonl and metadata.json (Agentic Commerce Protocol product feed 2026-04-17) and a CSV with the matching Google Merchant fields, built by the app from your store's own data and served at /agentscope-feed/ and /agentscope-feed.csv (signed, one feed per store, undo deletes it).",
-    "Structured data from your store's own data, each part a signed fix you can undo: Organization (OnlineStore), shipping details from your WooCommerce zones, WebSite with search, breadcrumbs, one offer per variation, and your return policy. Nothing is printed where WooCommerce, Yoast SEO or Rank Math already print the same part, and an existing value is never replaced.",
-    "No network requests on visitor or admin page loads; JSON-LD is encoded with JSON_HEX_TAG and JSON_HEX_AMP."
+    "A fix you remove in AgentScope Core → Fixes applied by AgentScope is remembered (its id, kind and time only), so the app never puts it back. Applying it again from the app forgets the removal."
   ],
   "requires": "6.0",
   "requires_php": "7.4",
