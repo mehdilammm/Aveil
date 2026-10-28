@@ -11,7 +11,7 @@ export type WooProduct = {
   regular_price: string | null;
   sale_price: string | null;
   description: string | null;
-  images: { id: number; src: string }[] | null;
+  images: { id: number; src: string; alt?: string }[] | null;
   virtual: boolean;
   weight: string | null;
   variations?: number[];
@@ -33,6 +33,9 @@ export type WooVariation = {
   sale_price: string | null;
   virtual: boolean;
   weight: string | null;
+  // G4: the variation's own image (WooCommerce returns the parent's when it has none) and its options.
+  image?: { id: number; src?: string; alt?: string } | null;
+  attributes?: { name: string; option: string }[];
 };
 
 export type Finding = {

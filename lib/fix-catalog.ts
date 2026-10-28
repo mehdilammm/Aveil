@@ -1,7 +1,7 @@
 // What kind of fix each finding gets (Auto-fix):
 //   auto      - technical, no business information: llms.txt from store data, robots.txt groups for the AI
 //               search agents, the brand = the store's name when a product has none (approved rule), the product
-//               feed from the store's products (G1).
+//               feed from the store's products (G1), empty image alt text = the product's name (G4, opt-in).
 //   one_click - a business decision: one button with an explanation and a confirmation (sell only where you
 //               ship, allow guest checkout).
 //   input     - a fact only the merchant has (price, image, weight, GTIN): one short question, and what they
@@ -12,7 +12,7 @@ import { SEARCH_AGENTS } from "./fixes/robots-patch";
 
 export type FixType = "auto" | "one_click" | "input" | "guide";
 export type FixKind =
-  | "llms_txt" | "robots" | "brand" | "feed"
+  | "llms_txt" | "robots" | "brand" | "feed" | "alt_text"
   | "org" | "website" | "breadcrumbs" | "shipping" | "variants" | "returns"
   | "sell_where_ship" | "guest_checkout"
   | "price" | "image" | "weight" | "gtin"
@@ -41,6 +41,8 @@ export function fixFor(f: { type: string; finding_key: string; evidence: string;
     return SEARCH_AGENTS.includes(bot) ? { type: "auto", kind: "robots" } : { type: "guide", kind: "manual" };
   }
   if (t === "feed_brand_missing") return { type: "auto", kind: "brand" };
+  // G4 (opt-in): empty image alt text = the product's name; an image several products show stays with the merchant.
+  if (t === "image_alt_missing") return { type: "auto", kind: "alt_text" };
   if (t === "checkout_shipping_gap") return { type: "one_click", kind: "sell_where_ship" };
   if (t === "checkout_guest_disabled") return { type: "one_click", kind: "guest_checkout" };
   if (/^price_(missing|invalid|negative|zero)$/.test(t)) return input("price");

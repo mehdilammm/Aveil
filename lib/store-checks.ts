@@ -2,6 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BROWSER_UA, AI_BOTS } from "./access";
 import { runStructuredChecks } from "./agent-checks";
+import { altFindings, altProductOf } from "./alt-text";
+import { imageUse } from "./alt-text-run";
 import { applyFixes, fixContext, planAuto } from "./autofix";
 import { breakageAlert, newProblems, type Change } from "./breakage";
 import { checkCheckout } from "./checkout";
@@ -13,6 +15,7 @@ import { PLANS } from "./plans";
 import { checkProduct, type Finding, type WooProduct } from "./rules";
 import { pageUrlOf } from "./sampling";
 import { politePage, schemaPage, slim } from "./scan";
+import { autoRollback, selfHeal } from "./self-heal-run";
 import { checkStructuredData } from "./structured-data";
 import { fetchProductsFor, fetchPublishedProduct, type WooCredentials } from "./woo";
 
@@ -71,6 +74,7 @@ export async function miniScan(admin: SupabaseClient, store: Store): Promise<{ f
 // The breakage job: mini-scan, compare with the last full scan, raise an alert when something new broke.
 export async function breakageCheck(admin: SupabaseClient, store: Store, jobId: string, eventIds: string[]) {
   const { data: events } = await admin.from("store_events").select("event_id, kind, subject, old_version, new_version, occurred_at").eq("store_id", store.id).in("event_id", eventIds);
+  const startedAt = Date.now();
   const { findings, scanId } = await miniScan(admin, store);
   const { data: before } = scanId ? await admin.from("findings").select("finding_key, basis").eq("scan_id", scanId) : { data: [] };
   const problems = newProblems(findings, (before ?? []) as { finding_key: string; basis: string }[]);
@@ -78,7 +82,15 @@ export async function breakageCheck(admin: SupabaseClient, store: Store, jobId: 
   if (alert) {
     await admin.from("store_alerts").insert({ store_id: store.id, owner_id: store.owner_id, kind: "breakage", title: alert.title, detail: alert.detail, event_ids: eventIds, job_id: jobId });
   }
-  return { checked: findings.length, new_problems: problems.length, alert: Boolean(alert) };
+  // G10 then G9 (Pro): undo a recent fix of ours a new problem points to; put back a fix of ours that is gone.
+  const healing: Record<string, unknown> = {};
+  if (PLANS[await planOf(admin, store.id)].autoFix) {
+    const byKey = new Map(findings.map((f) => [f.finding_key, f]));
+    healing.rollback = await autoRollback(admin, store, problems.map((p) => ({ finding_key: p.finding_key, type: p.type, title: p.title, evidence: p.evidence, product_id: byKey.get(p.finding_key)?.product_id ?? null })), jobId);
+    const { data: s } = await admin.from("stores").select("auto_fix_enabled").eq("id", store.id).maybeSingle();
+    if (s?.auto_fix_enabled) healing.self_heal = await selfHeal(admin, store, { keys: new Set(findings.filter((f) => f.basis !== "unavailable").map((f) => f.finding_key)), at: startedAt }, jobId);
+  }
+  return { checked: findings.length, new_problems: problems.length, alert: Boolean(alert), ...healing };
 }
 
 // F3 instant check: one product's data rules, feed fields and page structured data; with auto-fix on (Pro), the
@@ -87,7 +99,11 @@ export async function productCheck(admin: SupabaseClient, store: Store, productI
   const { creds, adapter, checkToken } = await setup(admin, store);
   const p = await fetchPublishedProduct(store.url, creds, productId);
   if (!p) return { skipped: "not published" };
-  const findings: Finding[] = [...checkProduct(p, p.type === "variable" ? await adapter.fetchVariations(p.id) : []), ...checkFeedProduct(p)];
+  const variations = p.type === "variable" ? await adapter.fetchVariations(p.id) : [];
+  const findings: Finding[] = [...checkProduct(p, variations), ...checkFeedProduct(p)];
+  // G4: its images without alt text (images other products also show are left alone).
+  const alt = altProductOf(p, variations);
+  if ([...alt.images, ...alt.variations.flatMap((v) => (v.image ? [v.image] : []))].some((i) => !i.alt.trim())) findings.push(...altFindings([alt], await imageUse(store, creds)));
   const url = pageUrlOf(store.url, p);
   if (url) {
     const page = schemaPage(slim(p), url, (await adapter.fetchProductSchema(url, checkToken)).page);

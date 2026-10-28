@@ -336,7 +336,13 @@
     "ret_not_stated": "Not stated",
     "ret_opt_MerchantReturnFiniteReturnWindow": "Yes, within a number of days",
     "ret_opt_MerchantReturnNotPermitted": "No returns",
-    "ret_opt_MerchantReturnUnlimitedWindow": "Yes, at any time"
+    "ret_opt_MerchantReturnUnlimitedWindow": "Yes, at any time",
+    "altTitle": "Image alt text (opt-in)",
+    "altIntro": "Writes the product's name (with a variation's options for that variation's own image) as the alt text of product images that have none. Only empty alt text is filled: it never describes the image and never replaces alt text you wrote. Images shown by several products are left for you. Each change is logged and can be undone.",
+    "altTurnOn": "Turn on image alt text",
+    "altConfirm": "Fill empty image alt text with product names, now and on later scans?",
+    "altNeedsWrite": "Needs the store's write key (below).",
+    "altEnabledNow": "Image alt text is on. {n} products updated now."
   },
   "dataControl": {
     "export": "Export all data (JSON)",
@@ -636,7 +642,19 @@
     "lastAlert": "{n, plural, one {# new issue} other {# new issues}}, see the alert below.",
     "lastPending": "check planned for {date}.",
     "lastFailed": "the check did not finish: {error}",
-    "lastAt": "Checked {date}."
+    "lastAt": "Checked {date}.",
+    "healTitle_fix_reapplied": "A fix of ours was gone and was put back",
+    "healTitle_fix_lost": "A fix of ours is gone and was not put back again",
+    "healTitle_fix_rolled_back": "A fix of ours was undone automatically",
+    "healWhy": "Why: {why}.",
+    "healVerify": "Check after: {status}.",
+    "healLost": "It is not put back again. If you removed it on purpose, there is nothing to do; otherwise apply it again from Fix Center.",
+    "healReapplied": "AgentScope puts a fix back once. If it goes again, you get an alert and it stays off. You can undo it in Fix Center.",
+    "rollbackProblem": "New problem: {title}.",
+    "rollbackNote": "Fixes are undone only while the store still shows what AgentScope wrote; your own changes are never undone.",
+    "healV_resolved": "resolved",
+    "healV_still_open": "still found",
+    "healV_unavailable": "unavailable"
   },
   "hosting": {
     "title": "Why AI bots are blocked: where to look",

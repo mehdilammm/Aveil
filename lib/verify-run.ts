@@ -13,6 +13,8 @@ import { checkProduct, type Finding } from "./rules";
 import { pageUrlOf, sampleProducts } from "./sampling";
 import { duplicateSchemaFindings, graphFor, politePage, schemaPage, slim } from "./scan";
 import { hiddenFindings } from "./hidden-pages";
+import { altFindings, altProductOf } from "./alt-text";
+import { imageUse } from "./alt-text-run";
 import { checkStructuredData } from "./structured-data";
 import { bust, groupOf, judge, type VerifyResult } from "./verify";
 import { fetchActivePlugins, fetchPublicPage, fetchPublishedProduct, WooError, type WooCredentials } from "./woo";
@@ -45,6 +47,12 @@ export async function recheck(admin: SupabaseClient, store: Store, creds: WooCre
         const currency = settings.ok && /^[A-Z]{3}$/.test(settings.data.woocommerce_currency ?? "") ? settings.data.woocommerce_currency : null;
         const page = schemaPage(slim(p), url, await fetchPublicPage(bust(url, token), BROWSER_UA, checkToken, true));
         return [...checkStructuredData([page], currency), ...duplicateSchemaFindings([page])];
+      }
+      case "alt": {
+        // G4: the product's images and its variations' images again, with which products show each image.
+        const p = await fetchPublishedProduct(store.url, creds, target.product_id!);
+        if (!p) return { unavailable: `Product #${target.product_id} is not published any more, so the fix cannot be checked.` };
+        return altFindings([altProductOf(p, p.type === "variable" ? await adapter.fetchVariations(p.id) : [])], await imageUse(store, creds));
       }
       case "robots": {
         const first = sampleProducts(store.url, (await adapter.fetchProductsPage(1)).items, 1).items[0];
@@ -84,7 +92,7 @@ export async function recheck(admin: SupabaseClient, store: Store, creds: WooCre
           pages.push(schemaPage(slim(first), url, await load(url)));
         }
         const variable = target.product_id ? items.find((p) => p.id === target.product_id) : null;
-        const products = [...(variable ? [slim(variable)] : []), ...items.map(slim)];
+        const products = [...(variable ? [slim(variable)] : []), ...items.map((p) => slim(p))];
         return graphFor(store.url, products, pages, await fetchActivePlugins(store.url, creds), load);
       }
       case "hidden": {
