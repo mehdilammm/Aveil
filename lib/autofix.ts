@@ -7,7 +7,7 @@ import { buildLlmsTxt } from "./fixes/llms-txt";
 import { patchRobots } from "./fixes/robots-patch";
 import { FEED_MAX_BYTES, FEED_PATHS, FEED_SPEC, type FeedResult } from "./feed-build";
 import { buildStoreFeed } from "./feed-run";
-import { applySchemaFix, SCHEMA_DESCRIBE } from "./schema-fixes";
+import { applyReturnsFix, applySchemaFix, SCHEMA_DESCRIBE } from "./schema-fixes";
 import { planOf } from "./orders-sync";
 import { callPlugin } from "./plugin-client";
 import { lockedReason } from "./plan-gate";
@@ -91,6 +91,7 @@ async function applyChange(admin: SupabaseClient, ctx: FixContext, f: Finding, k
   }
 
   if (kind === "org" || kind === "website" || kind === "breadcrumbs" || kind === "shipping" || kind === "variants") return applySchemaFix(ctx, kind, fixId);
+  if (kind === "returns") return applyReturnsFix(ctx, fixId, value);
 
   const pid = f.product_id;
   if (kind === "brand") {

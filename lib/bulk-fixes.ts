@@ -19,7 +19,8 @@ export function planBulk(ctx: FixContext, findings: Finding[], applied: Set<stri
   const auto = planAuto(ctx, open);
   const oneClick = open.flatMap((f): PlannedFix[] => {
     const spec = fixFor(f);
-    if (spec.type !== "one_click") return [];
+    // The return policy (G7) needs its own preview of the text it is based on, so it is not in bulk.
+    if (spec.type !== "one_click" || spec.kind === "returns") return [];
     return [{ finding: f, ...spec, ready: Boolean(ctx.write), reason: ctx.write ? null : "Add a write key first (Fix Center → Write access).", describe: ONE_CLICK[spec.kind] ?? spec.kind }];
   });
   return [...oneClick, ...auto];

@@ -7,7 +7,7 @@ import { findingsForScan, getStore, listScans, sortForFixing, openJobId } from "
 import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "../run-scan-button";
 import { VerifyButton } from "./verify-button";
-import { AutoFixPanel, FixAction, UndoButton, WriteKeyForm } from "./autofix-ui";
+import { AutoFixPanel, FixAction, UndoButton, WriteKeyForm, ReturnsFix } from "./autofix-ui";
 import { BulkApply, CsvImport } from "./bulk-ui";
 import { HostingGuide } from "@/components/hosting-guide";
 import { fixFor } from "@/lib/fix-catalog";
@@ -125,6 +125,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
                     <p className="small"><span className="badge basis-observed">{appliedFor.get(f.finding_key)!.automatic ? ta("chipAuto") : ta("chipOneClick")}</span> {appliedFor.get(f.finding_key)!.after?.describe} {editor && <UndoButton storeId={store.id} auditId={appliedFor.get(f.finding_key)!.id} />}</p>
                   ) : editor && (() => {
                     const spec = fixFor(f);
+                    if (spec.kind === "returns") return <ReturnsFix storeId={store.id} findingKey={f.finding_key} />;
                     return <FixAction storeId={store.id} findingKey={f.finding_key} type={spec.type} kind={spec.kind} field={spec.field} canWrite={Boolean(writeKey)} />;
                   })()}
                   {editor && f.basis !== "unavailable" && <VerifyButton storeId={store.id} findingKey={f.finding_key} openJobId={v?.status === "running" ? v.job_id : null} />}
