@@ -25,6 +25,7 @@ import { promises as dns } from "node:dns";
 import { wooCommerceAdapter } from "./platform/woocommerce";
 import { recordVerification } from "./ownership-store";
 import { runAutoFix } from "./autofix-run";
+import { selfHeal } from "./self-heal-run";
 import { countRequests } from "./safe-fetch";
 import { pageUrlOf, sampleProducts } from "./sampling";
 import { detectSchemaSources, SOURCE_LABEL } from "./schema-source";
@@ -513,6 +514,15 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
       need(STEP_BUDGET_MS.store);
       await progress("autofix");
       return runAutoFix(admin, store, scanId);
+    });
+    // G9: a fix of ours that is gone (not stored by the plugin any more, or its finding is back) is put back once.
+    await step("self_heal", async () => {
+      const { data: setting } = await admin.from("stores").select("auto_fix_enabled").eq("id", store.id).maybeSingle();
+      if (!setting?.auto_fix_enabled || !PLANS[await planOf(admin, store.id)].autoFix) return { skipped: "off" };
+      await progress("self_heal");
+      const [{ data: found }, { data: scanRow }] = await Promise.all([admin.from("findings").select("finding_key, basis").eq("scan_id", scanId), admin.from("scans").select("created_at").eq("id", scanId).maybeSingle()]);
+      const keys = new Set((found ?? []).filter((f) => f.basis !== "unavailable").map((f) => f.finding_key as string));
+      return selfHeal(admin, store, { keys, at: Date.parse(String(scanRow?.created_at ?? new Date().toISOString())) }, job.id);
     });
     await progress("done");
   } catch (err) {

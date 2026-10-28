@@ -64,7 +64,7 @@ describe("scan as a background job", () => {
   it("runs every step: 2 product pages, store checks, the Free sample of 5 pages (2 + 3), finish", async () => {
     const { client, tables } = db();
     expect(await runClaimedJob(client, job(), JOB_HANDLERS, Date.now() + 600_000)).toBe("succeeded");
-    expect(tables.job_steps.map((s) => s.step_key)).toEqual(["start", "products:page:1", "products:page:2", "store", "schema:0", "finish", "autofix"]);
+    expect(tables.job_steps.map((s) => s.step_key)).toEqual(["start", "products:page:1", "products:page:2", "store", "schema:0", "finish", "autofix", "self_heal"]);
     const scan = tables.scans[0];
     expect(scan).toMatchObject({ status: "complete", published_products: 13, scanned_products: 13, sampled_products: 5, sample_basis: "category_coverage", cost_usd_micros: 0 });
     // The sample's JSON-LD source: WooCommerce core, one Product per page.

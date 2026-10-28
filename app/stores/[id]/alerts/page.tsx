@@ -13,7 +13,7 @@ import { DismissButton } from "./dismiss-button";
 
 export const dynamic = "force-dynamic";
 
-type Alert = { id: string; kind: "breakage" | "product_check"; status: string; title: string; detail: Record<string, unknown>; created_at: string };
+type Alert = { id: string; kind: "breakage" | "product_check" | "fix_reapplied" | "fix_lost" | "fix_rolled_back"; status: string; title: string; detail: Record<string, unknown>; created_at: string };
 type ProductDetail = { product: { id: number; name: string; url: string | null }; issues: { title: string; severity: string; basis: string }[]; fixed: { describe: string; verify: string | null }[]; auto_fix: "on" | "off" | "plan" };
 
 // F2 / F3: what broke after a store change, and the checks of products just published or updated.
@@ -52,7 +52,7 @@ export default async function AlertsPage({ params }: { params: Promise<{ id: str
       {alerts.length === 0 && <div className="card empty"><p>{t("none")}</p></div>}
       {alerts.map((a) => (
         <div key={a.id} className={`card${a.status === "open" ? "" : " finding-resolved"}`}>
-          {a.kind === "breakage" ? <Breakage d={a.detail as unknown as BreakageDetail} t={t} /> : <ProductCheck d={a.detail as unknown as ProductDetail} t={t} />}
+          {a.kind === "breakage" ? <Breakage d={a.detail as unknown as BreakageDetail} t={t} /> : a.kind === "product_check" ? <ProductCheck d={a.detail as unknown as ProductDetail} t={t} /> : <Healing kind={a.kind} title={a.title} d={a.detail as unknown as HealDetail} t={t} />}
           <p className="muted small">{formatDate(a.created_at)} · {a.status === "open" ? t("open") : t("dismissed")}</p>
           <div className="row">
             <Link className="small" href={`/stores/${store.id}/fix`}>{t("fix")}</Link>
@@ -97,6 +97,22 @@ function LastCheckCard({ last, t }: { last: LastCheck; t: T }) {
       </p>
       {last.state !== "pending" && <p className="muted small">{t("lastAt", { date: formatDate(last.at) })}</p>}
     </div>
+  );
+}
+
+// G9 / G10: a fix of ours put back, gone again, or undone after a new problem.
+type HealDetail = { why?: string; verify?: string | null; evidence?: string | null; problem?: { title: string; evidence: string }; error?: string | null };
+function Healing({ kind, title, d, t }: { kind: "fix_reapplied" | "fix_lost" | "fix_rolled_back"; title: string; d: HealDetail; t: T }) {
+  return (
+    <>
+      <h3>{t(`healTitle_${kind}`)}</h3>
+      <p>{title}</p>
+      {d.why && <p className="small"><BasisBadge basis="observed" /> {t("healWhy", { why: d.why })}</p>}
+      {d.problem && <p className="small"><BasisBadge basis="observed" /> {t("rollbackProblem", { title: d.problem.title })} <span className="muted">{d.problem.evidence}</span></p>}
+      {d.error && <p className="error small">{d.error}</p>}
+      {kind !== "fix_lost" && <p className="small"><BasisBadge basis={d.verify === "resolved" || d.verify === "still_open" ? "observed" : "unavailable"} /> {t("healVerify", { status: t(d.verify === "resolved" || d.verify === "still_open" ? `healV_${d.verify}` : "healV_unavailable") })}</p>}
+      <p className="muted small">{kind === "fix_lost" ? t("healLost") : kind === "fix_reapplied" ? t("healReapplied") : t("rollbackNote")}</p>
+    </>
   );
 }
 

@@ -228,8 +228,9 @@ export async function applyFixes(
   return { batchId, results };
 }
 
-// Undo: puts back the "before" values (write key) or removes the plugin fix. One click per row or per batch.
-export async function revertFix(admin: SupabaseClient, ctx: FixContext, auditId: string, userId: string | null): Promise<{ ok: boolean; error?: string }> {
+// Undo: puts back the "before" values (write key) or removes the plugin fix. One click per row or per batch, or
+// G10's auto-rollback (no user, with the reason).
+export async function revertFix(admin: SupabaseClient, ctx: FixContext, auditId: string, userId: string | null, reason?: string): Promise<{ ok: boolean; error?: string }> {
   const { data: row } = await admin.from("fix_audit_log").select("*").eq("id", auditId).eq("store_id", ctx.store.id).maybeSingle();
   if (!row || row.status !== "applied") return { ok: false, error: "Nothing to undo." };
   try {
@@ -249,7 +250,7 @@ export async function revertFix(admin: SupabaseClient, ctx: FixContext, auditId:
         for (const [id, value] of Object.entries(before).reverse()) await wooWrite(ctx.store.url, "PUT", `/settings/${group}/${id}`, { value: value ?? "" }, ctx.write);
       }
     }
-    await admin.from("fix_audit_log").update({ status: "reverted", reverted_by: userId, reverted_at: new Date().toISOString() }).eq("id", auditId);
+    await admin.from("fix_audit_log").update({ status: "reverted", reverted_by: userId, reverted_at: new Date().toISOString(), ...(reason ? { revert_reason: reason.slice(0, 500) } : {}) }).eq("id", auditId);
     await admin.from("finding_verifications").delete().eq("store_id", ctx.store.id).eq("finding_key", row.finding_key);
     return { ok: true };
   } catch (err) {
