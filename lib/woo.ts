@@ -266,7 +266,7 @@ export async function fetchTopCategories(baseUrl: string, creds: WooCredentials)
 
 // Which bot protection service answered, from response headers (cf-ray, x-sucuri-id, ...), if any.
 // The response headers that tell who hosts or protects a site (hosting guide, F5). Nothing else is kept.
-const HOST_HEADERS = ["server", "x-powered-by", "cf-ray", "platform", "panel", "x-litespeed-cache", "x-kinsta-cache", "wpe-backend", "x-sucuri-id", "akamai-grn", "x-iinfo", "x-datadome"];
+const HOST_HEADERS = ["server", "x-powered-by", "cf-ray", "platform", "panel", "x-litespeed-cache", "x-kinsta-cache", "wpe-backend", "x-sucuri-id", "akamai-grn", "x-iinfo", "x-datadome", "x-robots-tag"];
 export function hostHeaders(h: { get(name: string): string | null }): Record<string, string> {
   const out: Record<string, string> = {};
   for (const name of HOST_HEADERS) {
