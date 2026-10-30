@@ -8,6 +8,7 @@ import { purgeOldHits, refreshIpRanges, verifyStoreHits } from "./bot-jobs";
 import { breakageCheck, productCheck } from "./store-checks";
 import { verifyFindingJob } from "./verify-jobs";
 import { NotVerifiedError, runAgentSim } from "./agent-sim-run";
+import { refreshMarketFindings } from "./market-fixes-run";
 import { marketOf } from "./markets";
 import { enqueueFeedRefresh, refreshFeed } from "./feed-jobs";
 
@@ -69,7 +70,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   },
   agent_sim: async ({ admin, job, step }) => {
     if (!job.store_id) throw new PermanentJobError("agent_sim needs a store");
-    const { data: store } = await admin.from("stores").select("id, url").eq("id", job.store_id).maybeSingle();
+    const { data: store } = await admin.from("stores").select("id, url, owner_id").eq("id", job.store_id).maybeSingle();
     if (!store) throw new PermanentJobError("store not found");
     const market = marketOf(job.progress?.market);
     if (!market) throw new PermanentJobError("agent_sim needs a market");
@@ -80,6 +81,12 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
         if (err instanceof NotVerifiedError) throw new PermanentJobError(err.message);
         throw err;
       }
+    });
+    // The market blockers in Fix Center again, with this test as the last one (same items, updated).
+    await step("markets", async () => {
+      const { data: c } = await admin.rpc("get_store_credentials", { p_store_id: store.id, p_owner_id: store.owner_id }).maybeSingle<{ consumer_key: string; consumer_secret: string }>();
+      if (!c) return { skipped: "no key" };
+      return refreshMarketFindings(admin, store, { consumerKey: c.consumer_key, consumerSecret: c.consumer_secret });
     });
   },
   agent_sim_browser: async ({ admin, job, step, timeLeft }) => {

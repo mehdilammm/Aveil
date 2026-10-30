@@ -13,7 +13,7 @@ import { DismissButton } from "./dismiss-button";
 
 export const dynamic = "force-dynamic";
 
-type Alert = { id: string; kind: "breakage" | "product_check" | "fix_reapplied" | "fix_lost" | "fix_rolled_back"; status: string; title: string; detail: Record<string, unknown>; created_at: string };
+type Alert = { id: string; kind: "breakage" | "product_check" | "fix_reapplied" | "fix_lost" | "fix_rolled_back" | "first_ai_order"; status: string; title: string; detail: Record<string, unknown>; created_at: string };
 type ProductDetail = { product: { id: number; name: string; url: string | null }; issues: { title: string; severity: string; basis: string }[]; fixed: { describe: string; verify: string | null }[]; auto_fix: "on" | "off" | "plan" };
 
 // F2 / F3: what broke after a store change, and the checks of products just published or updated.
@@ -52,7 +52,7 @@ export default async function AlertsPage({ params }: { params: Promise<{ id: str
       {alerts.length === 0 && <div className="card empty"><p>{t("none")}</p></div>}
       {alerts.map((a) => (
         <div key={a.id} className={`card${a.status === "open" ? "" : " finding-resolved"}`}>
-          {a.kind === "breakage" ? <Breakage d={a.detail as unknown as BreakageDetail} t={t} /> : a.kind === "product_check" ? <ProductCheck d={a.detail as unknown as ProductDetail} t={t} /> : <Healing kind={a.kind} title={a.title} d={a.detail as unknown as HealDetail} t={t} />}
+          {a.kind === "breakage" ? <Breakage d={a.detail as unknown as BreakageDetail} t={t} /> : a.kind === "product_check" ? <ProductCheck d={a.detail as unknown as ProductDetail} t={t} /> : a.kind === "first_ai_order" ? <><h3>{t("firstOrderTitle")}</h3><p><BasisBadge basis="observed" /> {a.title}</p></> : <Healing kind={a.kind} title={a.title} d={a.detail as unknown as HealDetail} t={t} />}
           <p className="muted small">{formatDate(a.created_at)} · {a.status === "open" ? t("open") : t("dismissed")}</p>
           <div className="row">
             <Link className="small" href={`/stores/${store.id}/fix`}>{t("fix")}</Link>

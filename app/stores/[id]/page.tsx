@@ -11,6 +11,7 @@ import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "./run-scan-button";
 import { OwnershipCard } from "@/components/ownership-card";
 import { AlertBanner } from "@/components/alert-banner";
+import { FirstOrderBanner } from "@/components/first-order-banner";
 import { canEdit, storeAccess } from "@/lib/workspace";
 
 export default async function OverviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -56,6 +57,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         {store.connection_status === "error" && store.connection_error && <p className="error">{store.connection_error}</p>}
       </div>
       <AlertBanner storeId={store.id} />
+      <FirstOrderBanner storeId={store.id} />
 
       {!pluginConnected && (
         <details className="card">

@@ -15,6 +15,8 @@ import { duplicateSchemaFindings, graphFor, politePage, schemaPage, slim } from 
 import { hiddenFindings } from "./hidden-pages";
 import { altFindings, altProductOf } from "./alt-text";
 import { imageUse } from "./alt-text-run";
+import { marketFindings } from "./market-fixes";
+import { marketRowsFor } from "./market-fixes-run";
 import { checkStructuredData } from "./structured-data";
 import { bust, groupOf, judge, type VerifyResult } from "./verify";
 import { fetchActivePlugins, fetchPublicPage, fetchPublishedProduct, WooError, type WooCredentials } from "./woo";
@@ -47,6 +49,11 @@ export async function recheck(admin: SupabaseClient, store: Store, creds: WooCre
         const currency = settings.ok && /^[A-Z]{3}$/.test(settings.data.woocommerce_currency ?? "") ? settings.data.woocommerce_currency : null;
         const page = schemaPage(slim(p), url, await fetchPublicPage(bust(url, token), BROWSER_UA, checkToken, true));
         return [...checkStructuredData([page], currency), ...duplicateSchemaFindings([page])];
+      }
+      case "markets": {
+        const rows = await marketRowsFor(admin, store, creds);
+        if (!rows) return { unavailable: "The store's WooCommerce settings could not be read, so the market cannot be checked." };
+        return marketFindings(store.url, rows);
       }
       case "alt": {
         // G4: the product's images and its variations' images again, with which products show each image.

@@ -10,7 +10,7 @@ export const AREAS: { key: Area; label: string; description: string }[] = [
 ];
 
 export function areaOf(f: { type: string; finding_key: string }): Area {
-  if (f.type.startsWith("checkout_") || f.type.startsWith("agentic_")) return "checkout";
+  if (f.type.startsWith("checkout_") || f.type.startsWith("agentic_") || f.type.startsWith("market_")) return "checkout";
   if (f.type.startsWith("access_")) return "access";
   if (f.type.startsWith("robots_") || f.type.startsWith("schema_") || f.type.startsWith("llms_")) return "structured_data";
   if (f.finding_key.startsWith("page:")) return "store_pages";

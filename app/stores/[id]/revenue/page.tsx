@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BasisBadge, formatDate, SeverityBadge } from "@/components/badges";
+import { FirstOrderBanner } from "@/components/first-order-banner";
 import { aiOrdersLabel, ORDER_WINDOW_DAYS, revenueByCurrency } from "@/lib/ai-orders";
 import { findingsForScan, getStore, listScans } from "@/lib/data";
 import { buildFunnel, diagnose, type FunnelInput } from "@/lib/funnel";
@@ -78,6 +79,7 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
         <h1>AI Revenue</h1>
         <p className="sub">Does AI bring this store sales? If not, where it stops and how to fix it.</p>
       </div>
+      <FirstOrderBanner storeId={id} />
 
       <div className="card">
         <p className="muted small">
