@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ATTRIBUTION_KEYS, attributionStatus, MAX_ORDERS, ORDER_WINDOW_DAYS, reconcileFrom, staleOrderIds, summarizeOrders } from "./ai-orders";
+import { firstOrderAction, firstOrderTitle, type AiOrderRow, type FirstOrderAlert } from "./first-order";
 import { PLANS, type PlanId } from "./plans";
 import { fetchRecentOrders, type WooCredentials } from "./woo";
 
@@ -50,5 +51,28 @@ export async function syncOrders(admin: SupabaseClient, store: Store, creds: Woo
     ai_orders: summary.aiOrders.length,
     agent_checkouts: summary.agentCheckouts,
   });
+  await noteFirstAiOrder(admin, store);
   return { status: st.status, reason: st.reason, aiOrders: summary.aiOrders.length };
+}
+
+// The first AI-referred order: one alert per store, closed when that order no longer counts (cancelled). A failure
+// here never fails the sync.
+export async function noteFirstAiOrder(admin: SupabaseClient, store: Store) {
+  try {
+    const [{ data: existing }, { data: orders }] = await Promise.all([
+      admin.from("store_alerts").select("id, status, detail").eq("store_id", store.id).eq("kind", "first_ai_order").order("created_at", { ascending: true }).limit(1).maybeSingle(),
+      admin.from("ai_orders").select("order_id, ordered_at, total, currency, source, via, agent_checkout").eq("store_id", store.id),
+    ]);
+    const action = firstOrderAction((existing as FirstOrderAlert | null) ?? null, (orders ?? []) as AiOrderRow[]);
+    if (!action) return;
+    if ("insert" in action) {
+      const o = action.insert;
+      const { error } = await admin.from("store_alerts").insert({ store_id: store.id, owner_id: store.owner_id, kind: "first_ai_order", title: firstOrderTitle(o), detail: { order_id: Number(o.order_id), ordered_at: o.ordered_at, total: Number(o.total), currency: o.currency, source: o.source, via: o.via, agent_checkout: Boolean(o.agent_checkout) }, event_ids: [] });
+      if (error) console.error("first AI order alert not saved", store.id, error.message);
+    } else {
+      await admin.from("store_alerts").update({ status: "dismissed", dismissed_at: new Date().toISOString(), dismissed_by: null }).eq("id", action.close);
+    }
+  } catch (err) {
+    console.error("first AI order check failed", store.id, err instanceof Error ? err.message : "unknown");
+  }
 }

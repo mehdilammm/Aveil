@@ -184,3 +184,13 @@ alter table public.visibility_results add column access_method text, add column 
 
 Each migration: RLS on, security definer functions with `set search_path = ''`, grants to `service_role` only where
 needed, Supabase security advisor run after applying.
+
+
+## Critical features (2026-10-30)
+
+F3, F5 and F6 of the "Critical Features Only" prompt are already built (G2 / G3 / G7 with audit, undo and verify; bot IP verification; ai_orders). F2 and F4 wait for paid grounding (not approved).
+
+| # | Feature | Status | Acceptance |
+|---|---|---|---|
+| C1 | Checkout by market → Fix Center | Built (2026-10-30) | Each blocker of a market row (selling location, shipping location / zone / method, payment, guest checkout) and its address and currency notes is one finding `market:<market>:<reason>` (type `market_<reason>`): title, evidence, severity (blocker high, note low), the row's badge, the WooCommerce setting path and a link to that settings tab. Written to the latest complete scan under step `markets`, replaced on every check: the scan (before its finish step), each purchase test (agent_sim) and verify (group `markets`); the item keeps its state. Fix Center links to the market row and to the purchase test; the evidence names where the last test stopped. Test: matha.site US "No shipping method" is one item after 3 checks. |
+| C2 | First order from an AI assistant | Built (2026-10-30); migration `20261030120000_first_ai_order_alert.sql` to apply by the owner | After each order sync, the store's first AI-referred order (processing, completed, on-hold: the statuses ai_orders keeps) raises one `first_ai_order` alert, once per store; a banner on Overview and AI Revenue while that order still counts; a cancelled order leaves ai_orders on the next sync, the alert is closed and the banner goes. |

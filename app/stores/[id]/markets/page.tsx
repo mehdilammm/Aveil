@@ -80,7 +80,7 @@ type T = Awaited<ReturnType<typeof getTranslations<"markets">>>;
 function Row({ r, t, storeUrl }: { r: MarketRow; t: T; storeUrl: string }) {
   const basis = r.verdict === "unknown" ? "unavailable" : r.verdict === "probably" ? "heuristic" : "observed";
   return (
-    <tr>
+    <tr id={`market-${r.market}`}>
       <td>{marketOf(r.market)?.country ?? r.market}</td>
       <td><BasisBadge basis={basis} /> {t(`verdict.${r.verdict}`)}</td>
       <td className="small">
@@ -114,7 +114,7 @@ async function AgentSim({ storeId, markets, canRun, verified }: { storeId: strin
   const apiResult = api.result as SimResult | null;
   const webResult = web.result as BrowserResult | null;
   return (
-    <div className="card">
+    <div className="card" id="purchase-test">
       <h2>{t("title")}</h2>
       <p className="sub">{t("sub")}</p>
       <p className="muted small">{t("limits")}</p>

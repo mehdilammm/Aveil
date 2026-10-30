@@ -654,7 +654,10 @@
     "rollbackNote": "لا يتم التراجع عن إصلاح إلا إذا كان المتجر ما زال يعرض ما كتبه AgentScope؛ لا يتم التراجع عن تغييراتك أنت أبدًا.",
     "healV_resolved": "تم الحل",
     "healV_still_open": "ما زال موجودًا",
-    "healV_unavailable": "غير متاح"
+    "healV_unavailable": "غير متاح",
+    "firstOrder": "أول طلب من مساعد ذكاء اصطناعي: #{order}، {total} {currency}، من {source}، بتاريخ {date} (كما سجّل WooCommerce مصدر المشتري).",
+    "firstOrderSee": "عرض إيرادات الذكاء الاصطناعي",
+    "firstOrderTitle": "أول طلب من مساعد ذكاء اصطناعي"
   },
   "hosting": {
     "title": "لماذا تُحجب روبوتات الذكاء الاصطناعي: أين تبحث",

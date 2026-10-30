@@ -114,7 +114,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
               const f = item.finding;
               const v = verifications.get(f.finding_key);
               return (
-                <FindingCard key={f.finding_key} finding={f} storeUrl={store.url}>
+                <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} storeId={store.id}>
                   {item && <p className="small muted">{t("score", { score: item.score, impact: item.impact, confidence: item.confidence, effort: item.effort })}</p>}
                   {v && v.status !== "running" && (
                     <p className="small">
@@ -140,7 +140,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
         <section>
           <h2>{t("g_check")} ({unavailable.length})</h2>
           <p className="muted small">{t("checkNote")}</p>
-          {unavailable.map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} />)}
+          {unavailable.map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} storeId={store.id} />)}
         </section>
       )}
 
@@ -150,7 +150,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
           {resolvedNow.map((f) => {
             const v = verifications.get(f.finding_key)!;
             return (
-              <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} resolvedLabel={t("v_resolved")}>
+              <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} storeId={store.id} resolvedLabel={t("v_resolved")}>
                 <p className="small">{v.checked_at ? t("checkedAt", { date: formatDate(v.checked_at) }) : ""} {v.evidence}</p>
               </FindingCard>
             );

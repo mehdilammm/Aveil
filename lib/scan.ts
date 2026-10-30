@@ -25,6 +25,7 @@ import { promises as dns } from "node:dns";
 import { wooCommerceAdapter } from "./platform/woocommerce";
 import { recordVerification } from "./ownership-store";
 import { runAutoFix } from "./autofix-run";
+import { refreshMarketFindings } from "./market-fixes-run";
 import { selfHeal } from "./self-heal-run";
 import { countRequests } from "./safe-fetch";
 import { pageUrlOf, sampleProducts } from "./sampling";
@@ -448,6 +449,14 @@ export async function scanJob(ctx: StepContext, store: Store, trigger: ScanTrigg
       }));
     }
 
+    // Checkout by market → Fix Center: one finding per market and blocker (replaced on every check, never added).
+    await step("markets", async () => {
+      try {
+        return await refreshMarketFindings(admin, store, creds, scanId, products.some((p) => !p.virtual));
+      } catch (err) {
+        return { error: err instanceof Error ? err.message.slice(0, 200) : "failed" };
+      }
+    });
     await step("finish", async () => {
       need(STEP_BUDGET_MS.finish);
       // History state per finding (new / ongoing / recurred), set once every step is in.

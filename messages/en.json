@@ -654,7 +654,10 @@
     "rollbackNote": "Fixes are undone only while the store still shows what AgentScope wrote; your own changes are never undone.",
     "healV_resolved": "resolved",
     "healV_still_open": "still found",
-    "healV_unavailable": "unavailable"
+    "healV_unavailable": "unavailable",
+    "firstOrder": "First order from an AI assistant: #{order}, {total} {currency}, from {source}, on {date} (as WooCommerce recorded where the buyer came from).",
+    "firstOrderSee": "See AI Revenue",
+    "firstOrderTitle": "First order from an AI assistant"
   },
   "hosting": {
     "title": "Why AI bots are blocked: where to look",
