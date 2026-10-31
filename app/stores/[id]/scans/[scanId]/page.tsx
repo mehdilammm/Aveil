@@ -42,8 +42,8 @@ export default async function ScanPage({ params }: { params: Promise<{ id: strin
     <>
       <p><Link href={`/stores/${store.id}/readiness`}>← {tn("readiness")}</Link></p>
       <div className="page-head">
-        <h1>Scan of {formatDate(scan.finished_at, locale)}</h1>
-        <p className="sub">{scan.scanned_products ?? 0} products scanned · {scan.findings_count ?? 0} findings</p>
+        <h1>{t("title", { date: formatDate(scan.finished_at, locale) })}</h1>
+        <p className="sub">{t("summary", { products: scan.scanned_products ?? 0, findings: scan.findings_count ?? 0 })}</p>
         {scan.error && <p className={scan.status === "failed" ? "error" : "muted"}>{scan.error}</p>}
         <p>
           {prev ? (

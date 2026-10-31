@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { getTranslations, getLocale } from "next-intl/server";
 import { formatDate } from "@/components/badges";
 import { FunnelChart } from "@/components/charts";
-import { FindingCard } from "@/components/finding-card";
 import { AREA_ICON, Icon } from "@/components/icons";
 import { IssuesChart } from "@/components/issues-chart";
+import { TopFixes } from "@/components/top-fixes";
 import { EmptyState, HeroAction, PageHead, StatStrip } from "@/components/ui";
 import { areaOf, AREAS } from "@/lib/categories";
 import { getStore, listScans, sortForFixing, openJobId } from "@/lib/data";
+import { groupByType, plainSentence } from "@/lib/finding-groups";
 import { loadFunnel } from "@/lib/funnel-data";
 import { PluginOnboarding } from "@/components/plugin-onboarding";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -30,6 +31,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
   const t = await getTranslations("overview");
   const ta = await getTranslations("areas");
   const tf = await getTranslations("funnelUi");
+  const tp = await getTranslations("plain");
   const scanJobId = await openJobId(supabase, store.id, "scan");
   const access = user ? await storeAccess(supabase, user.id, store.id) : null;
 
@@ -54,7 +56,9 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
     return { ...a, total: inArea.length, high: inArea.filter((f) => f.severity === "high").length, medium: inArea.filter((f) => f.severity === "medium").length, low: inArea.filter((f) => f.severity === "low").length, unavailable: inArea.filter((f) => f.basis === "unavailable").length };
   });
   const critical = findings.filter((f) => f.severity === "high").length;
-  const next = findings.find((f) => f.basis !== "unavailable");
+  // Identical findings are one fix ("Brand missing on 15 products"); ones that could not be checked are not a next step.
+  const groups = groupByType(findings.filter((f) => f.basis !== "unavailable"));
+  const next = groups[0];
   const status = ["connected", "error", "not-connected"].includes(store.connection_status) ? store.connection_status : "not-connected";
 
   return (
@@ -73,10 +77,18 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
       ) : (
         <>
           {next ? (
-            <HeroAction eyebrow={t("nextAction")} title={next.title} text={next.guidance} href={`/stores/${store.id}/fix#f-${next.finding_key}`} cta={t("fixIt")} />
+            <HeroAction eyebrow={t("nextAction")} title={plainSentence(tp, next)} href={`/stores/${store.id}/fix#g-${next.type}`} cta={t("fixIt")} />
           ) : lastComplete ? (
             <HeroAction done eyebrow={t("nextAction")} title={t("allClearTitle")} text={t("allClear")} />
           ) : null}
+
+          {groups.length > 1 && (
+            <>
+              <h2 className="section-title"><Icon name="fix" /> {t("topTitle", { n: Math.min(5, groups.length) })}</h2>
+              <TopFixes groups={groups.slice(0, 5)} storeId={store.id} />
+              {findings.length > 0 && <p><Link className="button secondary" href={`/stores/${store.id}/fix`}>{t("seeAll", { n: findings.length })}</Link></p>}
+            </>
+          )}
 
           {lastComplete && (
             <StatStrip
@@ -120,16 +132,6 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
                   </div>
                 ))}
               </div>
-
-              <h2 className="section-title"><Icon name="fix" /> {t("topTitle")}</h2>
-              {findings.length === 0 ? (
-                <EmptyState icon="check" title={t("allClearTitle")} text={t("allClear")} />
-              ) : (
-                <>
-                  {findings.slice(0, 3).map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} storeId={store.id} />)}
-                  {findings.length > 3 && <p><Link className="button secondary" href={`/stores/${store.id}/fix`}>{t("seeAll", { n: findings.length })}</Link></p>}
-                </>
-              )}
             </>
           )}
         </>

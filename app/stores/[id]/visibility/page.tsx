@@ -179,7 +179,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                           </p>
                         )}
                         <details>
-                          <summary className="muted small">What {ENGINE_NAME[r.engine]} said ({r.model ?? ENGINE_MODEL[r.engine]}){r.extractor ? ` · names read by ${r.extractor === "mistral" ? "Mistral" : TASK_BY_LABEL[r.extractor]}` : ""}</summary>
+                          <summary className="muted small">{tv("whatSaid", { engine: ENGINE_NAME[r.engine], model: r.model ?? ENGINE_MODEL[r.engine] })}{r.extractor ? tv("namesReadBy", { who: r.extractor === "mistral" ? "Mistral" : TASK_BY_LABEL[r.extractor] }) : ""}</summary>
                           <pre style={{ whiteSpace: "pre-wrap", font: "inherit", fontSize: 14 }}>{r.answer}</pre>
                         </details>
                       </>

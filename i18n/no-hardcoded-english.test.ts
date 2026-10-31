@@ -27,6 +27,12 @@ export function englishIn(source: string): string[] {
     const text = m[1].trim();
     if (text && !ALLOWED.test(text) && /[a-z]{2,}/.test(text) && !/^[\s\w.]*\?$/.test(text)) out.push(text);
   }
+  // JSX text next to an expression: <p>Latest run: {date}</p>, {n} answers have sources.</p>.
+  for (const m of s.matchAll(/([>}])([^<>{}=;()\n`|&[\]]*[A-Za-z]{3,}[^<>{}=;()\n`|&[\]]*)([<{])/g)) {
+    const text = m[2].trim();
+    if (m[1] === ">" && m[3] === "<") continue;
+    if (/[a-z]{2,} [a-z]{2,}|^[A-Z][a-z]+:?$/.test(text) && !/^(else|return|try|finally)\b/.test(text) && !ALLOWED.test(text)) out.push(text);
+  }
   // JSX text alone on a line inside an element.
   for (const m of s.matchAll(/\n\s+([A-Z][a-z]+(?: [A-Za-z'’,.]+)+)\s*\n\s*</g)) out.push(m[1].trim());
   // User-facing attributes and messages.
@@ -48,6 +54,7 @@ describe("no hardcoded English in the dashboard, /check and login", () => {
     expect(englishIn(`<input placeholder="Store name" />`)).toEqual(["Store name"]);
     expect(englishIn(`setError("Network error. Please try again.")`)).toEqual(["Network error. Please try again."]);
     expect(englishIn(`<b>{busy ? "Saving…" : "Save the store"}</b>`)).toEqual(["Saving…", "Save the store"]);
+    expect(englishIn(`<p>Latest run: {d}. {n} answers have sources.</p>`)).toEqual(["Latest run:", "answers have sources."]);
     expect(englishIn(`<p>{t("x")}</p><b>WooCommerce</b><a title="https://x.y/z">x</a>`)).toEqual([]);
   });
 });

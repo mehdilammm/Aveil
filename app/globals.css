@@ -61,6 +61,7 @@ p { margin: var(--s-2) 0; }
 .drawer-backdrop { position: fixed; inset: 0; background: rgba(13, 59, 46, .45); z-index: 30; animation: fade var(--base) var(--ease); }
 .drawer { position: fixed; inset-block: 0; inset-inline-start: 0; width: min(320px, 86vw); z-index: 31; background: var(--forest); color: var(--on-forest); padding: var(--s-4); overflow-y: auto; display: flex; flex-direction: column; gap: var(--s-2); animation: slide-in var(--base) var(--ease); }
 [dir="rtl"] .drawer { animation-name: slide-in-rtl; }
+[dir="rtl"] .icon-dir { transform: scaleX(-1); } /* arrows point the reading way */
 .drawer .drawer-head { display: flex; justify-content: space-between; align-items: center; }
 .navlist { display: flex; flex-direction: column; gap: 2px; }
 .navlist a { display: flex; align-items: center; gap: var(--s-3); min-height: var(--tap); padding: 0 var(--s-3); color: var(--on-forest); text-decoration: none; border-radius: var(--r-md); font-size: var(--t-base); transition: background var(--fast) var(--ease); }
@@ -97,6 +98,15 @@ p { margin: var(--s-2) 0; }
 .card > :last-child { margin-bottom: 0; }
 .card h2:first-child, .card h3:first-child { margin-top: 0; }
 .section-title { display: flex; align-items: center; gap: var(--s-2); }
+
+/* Top fixes on Overview: one row per fix, severity and a plain sentence */
+.top-fixes { list-style: none; padding: 0; margin: 0 0 var(--s-4); }
+.top-fixes li + li { border-top: 1px solid var(--border); }
+.top-fixes a { display: flex; align-items: center; gap: var(--s-3); min-height: var(--tap); padding: var(--s-3) var(--s-4); color: var(--ink); text-decoration: none; }
+.top-fixes a:hover { background: var(--surface-2); }
+.top-fixes a > span:not(.badge) { flex: 1; min-width: 0; }
+.top-fixes a .badge { flex: none; }
+.top-fixes.card { padding: 0; overflow: hidden; }
 
 /* The one big thing at the top of a page */
 .hero-action { background: var(--forest); color: var(--on-forest); border-radius: var(--r-lg); padding: var(--s-6); margin-bottom: var(--s-4); box-shadow: var(--shadow-2); display: grid; gap: var(--s-2); }
