@@ -210,7 +210,13 @@
     "colWhen": "When",
     "colWhat": "What",
     "colBy": "By",
-    "colCheck": "Check"
+    "colCheck": "Check",
+    "sumCritical": "{n} critical",
+    "sumWarning": "{n, plural, one {# warning} other {# warnings}}",
+    "sumLow": "{n} low",
+    "sumFixed": "{n} fixed this week",
+    "sumVerified": "{n} verified fixed",
+    "fixAllSafe": "Fix all safe issues"
   },
   "descriptions": {
     "title": "Factual descriptions",
@@ -918,7 +924,9 @@
     "editProduct": "Edit product #{id}",
     "marketRow": "Market row",
     "lastTest": "Last purchase test",
-    "noData": "No data yet"
+    "noData": "No data yet",
+    "seeProducts": "See the products ({n})",
+    "seeList": "See the list ({n})"
   },
   "areas": {
     "feed": {

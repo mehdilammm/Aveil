@@ -18,6 +18,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
   const store = await getStore(supabase, id);
   if (!store) notFound();
   const t = await getTranslations("reports");
+  const tp = await getTranslations("plain");
 
   const scans = await listScans(supabase, id, 50);
   const deltas = await deltasForScans(supabase, scans);
@@ -28,12 +29,18 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
   const { data: shareRows } = await supabase.from("share_reports").select("id, created_at, expires_at, revoked_at, views").eq("store_id", store.id).order("created_at", { ascending: false }).limit(50);
   const now = Date.now();
   const links = (shareRows ?? []).map((r) => ({ ...r, state: shareState(r, now) as "ok" | "expired" | "revoked" }));
-  // Same titles grouped with a count ("Feed: brand missing × 15") instead of one line each.
+  // Identical findings as one line with a plain sentence ("15 products have no brand"), as in Fix Center.
   const titleList = (keys: string[]) => {
     if (!keys.length) return <p className="muted">{t("none")}</p>;
-    const counts = new Map<string, number>();
-    for (const k of keys) { const title = weekly?.titles.get(k) ?? k; counts.set(title, (counts.get(title) ?? 0) + 1); }
-    return <ul>{[...counts.entries()].sort((a, b) => b[1] - a[1]).map(([title, n]) => <li key={title}>{title}{n > 1 ? <span className="meta"> × {n}</span> : null}</li>)}</ul>;
+    const byType = new Map<string, string[]>();
+    for (const k of keys) { const type = weekly?.types.get(k) ?? k; byType.set(type, [...(byType.get(type) ?? []), k]); }
+    return (
+      <ul>
+        {[...byType.entries()].sort((a, b) => b[1].length - a[1].length).map(([type, ks]) => (
+          <li key={type}>{tp.has(type) ? tp(type, { n: ks.length }) : <>{weekly?.titles.get(ks[0]) ?? ks[0]}{ks.length > 1 ? <span className="meta"> × {ks.length}</span> : null}</>}</li>
+        ))}
+      </ul>
+    );
   };
 
   return (

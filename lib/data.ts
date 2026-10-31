@@ -92,23 +92,25 @@ export function editorUrl(storeUrl: string, f: Pick<FindingRow, "product_id" | "
   return null;
 }
 
-// Weekly report for the store, with finding titles for display.
-export async function weeklyReport(supabase: Client, scans: ScanRow[]): Promise<{ summary: WeeklySummary; titles: Map<string, string> } | null> {
+// Weekly report for the store, with finding titles and types for display.
+export async function weeklyReport(supabase: Client, scans: ScanRow[]): Promise<{ summary: WeeklySummary; titles: Map<string, string>; types: Map<string, string> } | null> {
   const complete = scans.filter((s) => s.status === "complete" && s.finished_at).reverse();
   if (complete.length < 2) return null;
   const keys = new Map<string, string[]>(complete.map((s) => [s.id, []]));
   const titles = new Map<string, string>();
+  const types = new Map<string, string>();
   const ids = complete.map((s) => s.id);
   for (let from = 0; ; from += 1000) {
-    const { data } = await supabase.from("findings").select("scan_id, finding_key, title").in("scan_id", ids).range(from, from + 999);
+    const { data } = await supabase.from("findings").select("scan_id, finding_key, title, type").in("scan_id", ids).range(from, from + 999);
     for (const f of data ?? []) {
       keys.get(f.scan_id)?.push(f.finding_key);
       titles.set(f.finding_key, f.title);
+      types.set(f.finding_key, f.type);
     }
     if (!data || data.length < 1000) break;
   }
   const summary = weeklySummary(complete.map((s) => ({ id: s.id, finishedAt: s.finished_at!, keys: keys.get(s.id) ?? [] })));
-  return summary ? { summary, titles } : null;
+  return summary ? { summary, titles, types } : null;
 }
 
 // The store's queued or running job of this kind (started in the last 30 minutes), so a page can follow it.

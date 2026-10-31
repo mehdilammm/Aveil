@@ -108,6 +108,20 @@ p { margin: var(--s-2) 0; }
 .top-fixes a .badge { flex: none; }
 .top-fixes.card { padding: 0; overflow: hidden; }
 
+/* Fix Center: one summary line and one button, grouped findings, items folded */
+.fix-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s-3) var(--s-4); margin-bottom: var(--s-4); }
+.fix-summary > p { margin: 0; font-weight: 600; }
+.bulk-cta { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.bulk-cta[open] { flex-basis: 100%; }
+.bulk-cta > summary.button { list-style: none; display: inline-flex; }
+.bulk-cta > summary.button::-webkit-details-marker { display: none; }
+.bulk-cta > :not(summary) { margin-top: var(--s-3); }
+.group-items > summary { cursor: pointer; color: var(--emerald); font-weight: 600; display: flex; align-items: center; }
+.group-list { list-style: none; padding: 0; margin: var(--s-2) 0 0; }
+.group-list li { padding: var(--s-2) 0; border-top: 1px solid var(--border); }
+.group-list .finding-actions { margin-top: 0; }
+details.fold.tools { margin-top: var(--s-6); }
+
 /* The one big thing at the top of a page */
 .hero-action { background: var(--forest); color: var(--on-forest); border-radius: var(--r-lg); padding: var(--s-6); margin-bottom: var(--s-4); box-shadow: var(--shadow-2); display: grid; gap: var(--s-2); }
 .hero-action .eyebrow { font-size: var(--t-xs); text-transform: uppercase; letter-spacing: .08em; color: var(--on-forest-muted); }
