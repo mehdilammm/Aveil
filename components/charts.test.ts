@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import en from "../messages/en.json";
 import { BarChart, LineChart } from "./charts";
 
-const render = (el: React.ReactElement, locale = "en") => renderToStaticMarkup(h(NextIntlClientProvider, { locale, messages: en, timeZone: "UTC" }, el));
+const render = (el: React.ReactElement, locale = "en") => renderToStaticMarkup(h(NextIntlClientProvider, { locale, messages: en, timeZone: "UTC", children: el }));
 const EMPTY = h("p", null, "EMPTY-STATE");
 
 describe("charts draw only real data", () => {
