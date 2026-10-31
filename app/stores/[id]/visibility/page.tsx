@@ -51,14 +51,14 @@ function Verdict({ r, engine }: { r: Result | undefined; engine: EngineId }) {
   if (!r) return <span className="muted">{engine === "mistral" && !engineConfigured("mistral") ? tv("mistralOff") : tv("notAsked")}</span>;
   if (r.error) return <span className="muted" title={r.error}>{tv("unavailable")}</span>;
   return (
-    <>
+    <div className="verdict">
       {r.mentioned ? <span className="badge state-resolved">{tv("mentioned")}{r.mention_rank ? ` #${r.mention_rank}` : ""}</span> : <span className="badge sev-medium">{tv("notMentioned")}</span>}
       {r.extraction === "failed" ? (
         <div className="muted small">{tv("noNames")}</div>
       ) : (
         r.competitors.length > 0 && <div className="small">{r.competitors.slice(0, 6).join(", ")}{r.competitors.length > 6 ? "…" : ""}</div>
       )}
-    </>
+    </div>
   );
 }
 
