@@ -93,7 +93,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
             <>
               <h2 className="section-title"><Icon name="revenue" /> {t("funnelTitle")}</h2>
               <div className="card">
-                <FunnelChart steps={funnel.stages.map((s) => ({ key: s.key, question: tf(`q.${s.key}`), status: s.status, value: s.value, basis: s.basis, statusLabel: tf(`status.${s.status}`) }))} />
+                <FunnelChart steps={funnel.stages.map((s) => ({ key: s.key, question: tf(`q.${s.key}`), status: s.status, value: s.value, basis: s.basis, statusLabel: tf(`status.${s.status}`), laterLabel: tf("status.later") }))} />
                 <p className="small"><Link href={`/stores/${store.id}/revenue`}>{t("funnelMore")}</Link></p>
               </div>
 

@@ -40,8 +40,9 @@ export default async function ReadinessPage({ params }: { params: Promise<{ id: 
       ) : (
         <>
           <IssuesChart supabase={supabase} storeId={store.id} />
-          <h2>{t("history")}</h2>
-          <div className="card table-wrap">
+          <details className="card fold">
+          <summary>{t("history")} <span className="meta">{scans.length}</span></summary>
+          <div className="table-wrap">
             <table className="rtable">
               <thead>
                 <tr>
@@ -69,6 +70,7 @@ export default async function ReadinessPage({ params }: { params: Promise<{ id: 
               </tbody>
             </table>
           </div>
+          </details>
         </>
       )}
       {scans.some((s) => s.status === "failed" && s.error) && (

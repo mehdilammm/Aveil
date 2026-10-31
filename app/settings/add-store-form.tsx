@@ -7,6 +7,7 @@ import { addStore, type AddStoreState } from "@/app/stores/actions";
 export function AddStoreForm({ workspaces, prefill = null }: { workspaces: { id: string; name: string }[]; prefill?: { reportId: string; host: string; url: string } | null }) {
   const [state, action, pending] = useActionState<AddStoreState, FormData>(addStore, {});
   const t = useTranslations("handoff");
+  const ta = useTranslations("addStore");
   return (
     <form action={action} className="stack card" autoComplete="off">
       {prefill && (
@@ -18,7 +19,7 @@ export function AddStoreForm({ workspaces, prefill = null }: { workspaces: { id:
       )}
       {workspaces.length > 1 && (
         <label>
-          Workspace
+          {ta("workspace")}
           <select name="workspace_id" defaultValue={workspaces[0].id}>
             {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
@@ -26,25 +27,25 @@ export function AddStoreForm({ workspaces, prefill = null }: { workspaces: { id:
       )}
       {workspaces.length === 1 && <input type="hidden" name="workspace_id" value={workspaces[0].id} />}
       <label>
-        Store name
+        {ta("name")}
         <input name="name" maxLength={120} required defaultValue={prefill?.host ?? ""} />
       </label>
       <label>
-        Store URL
+        {ta("url")}
         <input name="url" type="url" placeholder="https://shop.example.com" pattern="https://.*" required defaultValue={prefill?.url ?? ""} />
       </label>
       <label>
-        Consumer key <small className="hint">WooCommerce → Settings → Advanced → REST API, permission: Read</small>
+        {ta("key")} <small className="hint">{ta("keyHint")}</small>
         <input name="consumer_key" placeholder="ck_…" required />
       </label>
       <label>
-        Consumer secret
+        {ta("secret")}
         <input name="consumer_secret" type="password" placeholder="cs_…" required />
       </label>
-      <p className="muted">The key and secret are stored encrypted in Supabase Vault and never shown again.</p>
+      <p className="muted">{ta("stored")}</p>
       {state.error && <p className="error">{state.error}</p>}
       <div>
-        <button disabled={pending} aria-busy={pending}>{pending ? "Saving…" : prefill ? t("submit") : "Add store"}</button>
+        <button disabled={pending} aria-busy={pending}>{pending ? ta("saving") : prefill ? t("submit") : ta("add")}</button>
       </div>
     </form>
   );
