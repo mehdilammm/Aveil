@@ -1,22 +1,14 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Tabs } from "./tabs";
 
 const TABS = [
-  { label: "Questions & answers", path: "" },
-  { label: "Brand profile", path: "/profile" },
-  { label: "Share of voice", path: "/share" },
-  { label: "Citations", path: "/citations" },
-];
+  { key: "", label: "tabQa" },
+  { key: "/profile", label: "tabProfile" },
+  { key: "/share", label: "tabShare" },
+  { key: "/citations", label: "tabCitations" },
+] as const;
 
 export function VisibilityTabs({ storeId, active }: { storeId: string; active: string }) {
-  return (
-    <p className="row small" style={{ gap: 12, flexWrap: "wrap" }}>
-      {TABS.map((t) =>
-        t.path === active ? (
-          <strong key={t.path}>{t.label}</strong>
-        ) : (
-          <Link key={t.path} href={`/stores/${storeId}/visibility${t.path}`}>{t.label}</Link>
-        ),
-      )}
-    </p>
-  );
+  const t = useTranslations("visibilityPage");
+  return <Tabs label={t("title")} active={active} items={TABS.map((x) => ({ key: x.key, href: `/stores/${storeId}/visibility${x.key}`, label: t(x.label) }))} />;
 }

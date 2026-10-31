@@ -7,14 +7,13 @@ import { useEffect, useState } from "react";
 import { Icon, type IconName } from "./icons";
 
 type Item = { label: string; path: string; icon: IconName };
-// Grouped by what the merchant does: act, check readiness, see AI results, then reports.
+// Main pages first (Overview → Fix Center → AI Revenue → AI Visibility → Store Readiness → AI Traffic), then the rest.
 const GROUPS: { group: string; items: Item[] }[] = [
-  { group: "groupWork", items: [{ label: "overview", path: "", icon: "overview" }, { label: "fix", path: "/fix", icon: "fix" }, { label: "alerts", path: "/alerts", icon: "alert" }] },
-  { group: "groupReadiness", items: [{ label: "readiness", path: "/readiness", icon: "readiness" }, { label: "markets", path: "/markets", icon: "market" }, { label: "feed", path: "/feed", icon: "feed" }, { label: "impact", path: "/impact", icon: "impact" }] },
-  { group: "groupAi", items: [{ label: "visibility", path: "/visibility", icon: "visibility" }, { label: "traffic", path: "/traffic", icon: "traffic" }, { label: "bots", path: "/bots", icon: "bot" }, { label: "revenue", path: "/revenue", icon: "revenue" }] },
-  { group: "groupMore", items: [{ label: "reports", path: "/reports", icon: "report" }] },
+  { group: "groupMain", items: [{ label: "overview", path: "", icon: "overview" }, { label: "fix", path: "/fix", icon: "fix" }, { label: "revenue", path: "/revenue", icon: "revenue" }, { label: "visibility", path: "/visibility", icon: "visibility" }, { label: "readiness", path: "/readiness", icon: "readiness" }, { label: "traffic", path: "/traffic", icon: "traffic" }] },
+  { group: "groupMore", items: [{ label: "alerts", path: "/alerts", icon: "alert" }, { label: "markets", path: "/markets", icon: "market" }, { label: "feed", path: "/feed", icon: "feed" }, { label: "impact", path: "/impact", icon: "impact" }, { label: "bots", path: "/bots", icon: "bot" }, { label: "reports", path: "/reports", icon: "report" }] },
 ];
-const BOTTOM: Item[] = [GROUPS[0].items[0], GROUPS[0].items[1], GROUPS[0].items[2], GROUPS[2].items[3]];
+// Phone bottom bar: Overview, Fix Center, Visibility, Revenue, More.
+const BOTTOM: Item[] = [GROUPS[0].items[0], GROUPS[0].items[1], GROUPS[0].items[3], GROUPS[0].items[2]];
 
 function useActive(storeId: string | null) {
   const pathname = usePathname();
