@@ -6,11 +6,14 @@ import { SiteFooter } from "@/components/site-footer";
 import { getTranslations } from "next-intl/server";
 import { CheckForm } from "./check-form";
 
-export const metadata: Metadata = {
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("checkPage");
+  return {
   title: { absolute: `Free AI agent readiness check for WooCommerce and Shopify stores – ${SITE.name}` },
   alternates: { canonical: "/check" },
-  description: "See whether AI assistants and shopping agents can read your store: robots.txt, bot access, product structured data and prices.",
-};
+  description: t("metaDescription"),
+  };
+}
 
 export default async function CheckPage() {
   const t = await getTranslations("checkPage");

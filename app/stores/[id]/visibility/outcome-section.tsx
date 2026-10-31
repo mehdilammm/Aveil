@@ -1,10 +1,11 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { BasisBadge, formatDate } from "@/components/badges";
 import { getUser } from "@/lib/supabase/server";
 import { visibilityOutcomes, type OutcomeRecheck, type OutcomeResult } from "@/lib/visibility-outcome";
 
 // "After your fixes" (G5): answers before a verified fix vs. the 7 / 14 / 30-day re-checks.
 export async function OutcomeSection({ storeId }: { storeId: string }) {
+  const locale = await getLocale();
   const t = await getTranslations("outcome");
   const { supabase } = await getUser();
   const { data: rows } = await supabase.from("visibility_rechecks").select("due_on, day, finding_keys, job_id").eq("store_id", storeId).order("due_on").limit(60);
@@ -43,12 +44,12 @@ export async function OutcomeSection({ storeId }: { storeId: string }) {
           <tbody>
             {outcomes.map((o) => (
               <tr key={o.due_on}>
-                <td>{formatDate(o.fixedAt)}<div className="muted small">{t("fixes", { n: o.fixes })}</div></td>
+                <td>{formatDate(o.fixedAt, locale)}<div className="muted small">{t("fixes", { n: o.fixes })}</div></td>
                 <td>{t("day", { day: o.day })}<div className="muted small">{o.due_on}</div></td>
                 {o.state === "done" ? (
                   <>
-                    <td>{t("named", { named: o.before!.named, total: o.before!.answered })}<div className="muted small">{formatDate(o.before!.at)}</div></td>
-                    <td><BasisBadge basis="observed" /> {t("named", { named: o.after!.named, total: o.after!.answered })}<div className="muted small">{formatDate(o.after!.at)}</div></td>
+                    <td>{t("named", { named: o.before!.named, total: o.before!.answered })}<div className="muted small">{formatDate(o.before!.at, locale)}</div></td>
+                    <td><BasisBadge basis="observed" /> {t("named", { named: o.after!.named, total: o.after!.answered })}<div className="muted small">{formatDate(o.after!.at, locale)}</div></td>
                     <td className="small">
                       {o.gained.length === 0 && o.lost.length === 0 && <span className="muted">{t("noChange")}</span>}
                       {o.gained.length > 0 && <div className="status-connected">{t("gained", { n: o.gained.length })}: {o.gained.slice(0, 3).join(" · ")}</div>}

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { formatDate } from "@/components/badges";
 import { EmptyState, PageHead, StatStrip } from "@/components/ui";
 import { deltasForScans, getStore, listScans, weeklyReport } from "@/lib/data";
@@ -12,6 +12,7 @@ import { workspacePlan } from "@/lib/plan-gate";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function ReportsPage({ params }: { params: Promise<{ id: string }> }) {
+  const locale = await getLocale();
   const { id } = await params;
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
@@ -57,7 +58,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
       ) : weekly ? (
         <div className="card">
           <p className="muted">
-            {formatDate(weekly.summary.fromDate)} → {formatDate(weekly.summary.toDate)}
+            {formatDate(weekly.summary.fromDate, locale)} → {formatDate(weekly.summary.toDate, locale)}
           </p>
           <details className="fold" open><summary className="status-connected">{t("fixed", { n: weekly.summary.fixed.length })}</summary>{titleList(weekly.summary.fixed)}</details>
           <details className="fold"><summary>{t("new", { n: weekly.summary.added.length })}</summary>{titleList(weekly.summary.added)}</details>
@@ -87,7 +88,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
                 const d = deltas.get(s.id);
                 return (
                   <tr key={s.id}>
-                    <td data-label={t("date")}>{formatDate(s.finished_at ?? s.started_at)}</td>
+                    <td data-label={t("date")}>{formatDate(s.finished_at ?? s.started_at, locale)}</td>
                     <td data-label={t("status")} className={s.status === "failed" ? "error" : undefined}>{s.status}</td>
                     <td data-label={t("by")}>{s.trigger === "scheduled" ? t("schedule") : t("you")}</td>
                     <td className="num" data-label={t("products")}>{s.scanned_products ?? "—"}</td>

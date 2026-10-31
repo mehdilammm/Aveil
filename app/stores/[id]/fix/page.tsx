@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { formatDate } from "@/components/badges";
 import { Icon } from "@/components/icons";
 import { EmptyState, PageHead, StatStrip } from "@/components/ui";
@@ -20,6 +20,7 @@ import { fixQueue, weightsFrom } from "@/lib/fix-queue";
 import { canEdit, storeAccess } from "@/lib/workspace";
 
 export default async function FixCenterPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
+  const locale = await getLocale();
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
@@ -71,7 +72,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
       <PageHead
         title={t("title")}
         icon="fix"
-        sub={lastComplete ? t("sub", { date: formatDate(lastComplete.finished_at) }) : t("noScan")}
+        sub={lastComplete ? t("sub", { date: formatDate(lastComplete.finished_at, locale) }) : t("noScan")}
         action={<RunScanButton storeId={store.id} openJobId={scanJobId} label={t("rescan")} />}
       />
       {lastComplete && (
@@ -111,7 +112,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
                   {v && v.status !== "running" && (
                     <p className="small">
                       <span className={`badge ${v.status === "resolved" ? "state-resolved" : v.status === "still_open" ? "sev-medium" : "basis-unavailable"}`}>{t(`v_${v.status}`)}</span>{" "}
-                      {v.checked_at ? t("checkedAt", { date: formatDate(v.checked_at) }) : ""} {v.evidence}
+                      {v.checked_at ? t("checkedAt", { date: formatDate(v.checked_at, locale) }) : ""} {v.evidence}
                     </p>
                   )}
                   {appliedFor.get(f.finding_key) ? (
@@ -143,7 +144,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
             const v = verifications.get(f.finding_key)!;
             return (
               <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} storeId={store.id} resolvedLabel={t("v_resolved")}>
-                <p className="small">{v.checked_at ? t("checkedAt", { date: formatDate(v.checked_at) }) : ""} {v.evidence}</p>
+                <p className="small">{v.checked_at ? t("checkedAt", { date: formatDate(v.checked_at, locale) }) : ""} {v.evidence}</p>
               </FindingCard>
             );
           })}
@@ -187,7 +188,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
               <tbody>
                 {auditRows.map((r) => (
                   <tr key={r.id}>
-                    <td data-label={t("colWhen")}>{formatDate(r.applied_at)}</td>
+                    <td data-label={t("colWhen")}>{formatDate(r.applied_at, locale)}</td>
                     <td data-label={t("colWhat")}>{r.after?.describe ?? r.kind}{r.error ? ` · ${r.error}` : ""}</td>
                     <td data-label={t("colBy")}>{r.automatic ? ta("byAuto") : ta("byYou")}</td>
                     <td data-label={t("colCheck")}>{r.status === "reverted" ? ta("reverted") : r.status === "failed" ? ta("failedRow") : r.verify_status ? ta(`v_${r.verify_status}`) : ""} {editor && r.status === "applied" && <UndoButton storeId={store.id} auditId={r.id} />}</td>

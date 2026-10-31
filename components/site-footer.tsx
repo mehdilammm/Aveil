@@ -7,7 +7,7 @@ export async function SiteFooter() {
   const t = await getTranslations("footer");
   return (
     <footer className="site-footer">
-      <nav aria-label="Footer" className="row">
+      <nav aria-label={t("navLabel")} className="row">
         <Link href="/check">{t("check")}</Link>
         <Link href="/pricing">{t("pricing")}</Link>
         <Link href="/bot">{t("bot")}</Link>

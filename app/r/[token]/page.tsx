@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { BasisBadge, formatDate, SeverityBadge } from "@/components/badges";
 import { PublicHeader } from "@/components/public-header";
 import { hashShareToken, isShareToken, shareState, type ShareSnapshot } from "@/lib/share-report";
@@ -10,6 +10,7 @@ export const metadata: Metadata = { title: "AI agent readiness report", robots: 
 
 // Public, read-only report (G3). Looks the link up by the hash of its token and shows only the frozen snapshot.
 export default async function SharedReportPage({ params }: { params: Promise<{ token: string }> }) {
+  const locale = await getLocale();
   const { token } = await params;
   const t = await getTranslations("share");
   const admin = createAdminClient();
@@ -37,7 +38,7 @@ export default async function SharedReportPage({ params }: { params: Promise<{ t
       <main className="public-main">
       <div className="page-head">
         <h1>{t("pageTitle", { host: s.store.host })}</h1>
-        <p className="sub">{t("scannedOn", { date: formatDate(s.scan.finished_at), count: s.scan.scanned_products ?? 0 })}</p>
+        <p className="sub">{t("scannedOn", { date: formatDate(s.scan.finished_at, locale), count: s.scan.scanned_products ?? 0 })}</p>
       </div>
       {s.preparedBy && <p><strong>{t("preparedBy", { name: s.preparedBy })}</strong></p>}
       <p className="muted">{t("snapshotNote")}</p>

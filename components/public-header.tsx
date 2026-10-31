@@ -8,7 +8,7 @@ export function PublicHeader() {
     <header className="public-header">
       <div className="brand-row">
         <Link href="/" className="brand">{SITE.name}</Link>
-        <nav aria-label="Public" className="public-nav">
+        <nav aria-label={t("label")} className="public-nav">
           <Link href="/check">{t("check")}</Link>
           <Link href="/pricing">{t("pricing")}</Link>
           <Link href="/login">{t("login")}</Link>

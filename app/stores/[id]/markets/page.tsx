@@ -1,6 +1,6 @@
 import { EmptyState, PageHead } from "@/components/ui";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { BasisBadge, formatDate } from "@/components/badges";
 import type { SimResult, SimStep, SimStepKey } from "@/lib/agent-sim";
 import { BROWSER_LIMITS } from "@/lib/browser-sim";
@@ -99,6 +99,7 @@ function Row({ r, t, storeUrl }: { r: MarketRow; t: T; storeUrl: string }) {
 // F7: the agent purchase test (Store API, never places an order), its real-browser version (Mode B, Pro), and the
 // last result of each as a timeline.
 async function AgentSim({ storeId, markets, canRun, verified }: { storeId: string; markets: MarketId[]; canRun: boolean; verified: boolean }) {
+  const locale = await getLocale();
   const t = await getTranslations("agentSim");
   const admin = createAdminClient();
   const last = async (kind: string, stepKey: string) => {
@@ -119,7 +120,7 @@ async function AgentSim({ storeId, markets, canRun, verified }: { storeId: strin
       <p className="muted small">{t("limits")}</p>
       {!verified ? <p><BasisBadge basis="unavailable" /> {t("notVerified")} <a href={`/stores/${storeId}`}>{t("verifyLink")}</a></p> : canRun ? <SimButton storeId={storeId} markets={options} openJobId={openOf(api.job)} /> : null}
       {api.job?.status === "failed" && <p className="error">{t("lastFailed", { error: String(api.job.error ?? "") })}</p>}
-      {apiResult ? <Timeline t={t} steps={apiResult.steps} stoppedAt={apiResult.stoppedAt} meta={t("last", { market: marketOf(apiResult.market)?.country ?? apiResult.market, date: formatDate(api.job!.created_at), n: apiResult.requests })} /> : !api.job ? <p className="muted small">{t("none")}</p> : null}
+      {apiResult ? <Timeline t={t} steps={apiResult.steps} stoppedAt={apiResult.stoppedAt} meta={t("last", { market: marketOf(apiResult.market)?.country ?? apiResult.market, date: formatDate(api.job!.created_at, locale), n: apiResult.requests })} /> : !api.job ? <p className="muted small">{t("none")}</p> : null}
 
       <h3>{t("browserTitle")}</h3>
       <p className="muted small">{t("browserSub", { max: BROWSER_LIMITS.perStoreDay, seconds: BROWSER_LIMITS.budgetMs / 1000 })}</p>
@@ -132,7 +133,7 @@ async function AgentSim({ storeId, markets, canRun, verified }: { storeId: strin
       {web.job?.status === "failed" && <p className="error">{t("lastFailed", { error: String(web.job.error ?? "") })}</p>}
       {webResult && (
         <>
-          <Timeline t={t} steps={webResult.steps} stoppedAt={webResult.stoppedAt} meta={t("lastBrowser", { date: formatDate(web.job!.created_at), n: webResult.requests, version: webResult.woocommerce ?? "?" })} />
+          <Timeline t={t} steps={webResult.steps} stoppedAt={webResult.stoppedAt} meta={t("lastBrowser", { date: formatDate(web.job!.created_at, locale), n: webResult.requests, version: webResult.woocommerce ?? "?" })} />
           <p className="muted small">{t("cost", { usd: (webResult.cost.usd_micros / 1_000_000).toFixed(4), seconds: (webResult.cost.wall_ms / 1000).toFixed(1), memory: (webResult.cost.memory_mb / 1024).toFixed(1) })}</p>
         </>
       )}

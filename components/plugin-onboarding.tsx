@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { PLUGIN_RELEASE, pluginDownloadPath } from "@/lib/plugin-release";
 import { BasisBadge, formatDate } from "./badges";
 
@@ -12,12 +12,13 @@ type Props = {
 
 // Download, install and connect the agentscope-core WordPress plugin, with the connection status.
 export function PluginOnboarding({ connected, codeHere = false, children }: Props) {
+  const locale = useLocale();
   const t = useTranslations("pluginSteps");
   return (
     <div className="onboarding">
       <p className="small">
         {connected ? (
-          <><BasisBadge basis="observed" /> {t("connected")} · {t("last", { date: connected.lastIngestAt ? formatDate(connected.lastIngestAt) : t("none") })}</>
+          <><BasisBadge basis="observed" /> {t("connected")} · {t("last", { date: connected.lastIngestAt ? formatDate(connected.lastIngestAt, locale) : t("none") })}</>
         ) : (
           <><BasisBadge basis="unavailable" /> {t("notConnected")}</>
         )}
