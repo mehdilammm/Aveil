@@ -19,6 +19,7 @@ import { storeAccess } from "@/lib/workspace";
 import { isAdminEmail, UsageAlert } from "@/components/usage-alert";
 import { PLANS, RUN_DAYS, type PlanId } from "@/lib/plans";
 import { groundingEnabled } from "@/lib/grounding";
+import { BarChart } from "@/components/charts";
 
 type Run = { id: string; status: string; model: string; created_at: string; finished_at: string | null; requests_count: number; input_tokens: number; output_tokens: number; error: string | null };
 type Result = {
@@ -72,7 +73,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
   const store = await getStore(supabase, id);
   if (!store) notFound();
   const visibilityJobId = await openJobId(supabase, store.id, "visibility");
-  const [tp, ta, tv] = await Promise.all([getTranslations("prompts"), getTranslations("answer"), getTranslations("visibilityPage")]);
+  const [tp, ta, tv, tc] = await Promise.all([getTranslations("prompts"), getTranslations("answer"), getTranslations("visibilityPage"), getTranslations("charts")]);
   const access = user ? await storeAccess(supabase, user.id, id) : null;
   const { data: wsPlan } = access ? await supabase.from("workspaces").select("plan").eq("id", access.workspace_id).maybeSingle() : { data: null };
   const planId = ((wsPlan?.plan as PlanId | undefined) ?? "free") in PLANS ? ((wsPlan?.plan as PlanId | undefined) ?? "free") : "free";
@@ -125,6 +126,11 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
   const latestRows = latestRun ? results.filter((r) => r.run_id === latestRun.id && !r.error && r.answer) : [];
   const mentioned = latestRows.filter((r) => r.mentioned).length;
   const named = new Set(latestRows.flatMap((r) => r.competitors)).size;
+  // Trend: answers naming the store in each finished run (oldest first), counted from the stored results only.
+  const trend = [...completedRuns].reverse().map((run) => {
+    const rows = results.filter((r) => r.run_id === run.id && !r.error && r.answer);
+    return { at: run.created_at, answered: rows.length, named: rows.filter((r) => r.mentioned).length };
+  }).filter((r) => r.answered > 0);
 
   return (
     <>
@@ -138,6 +144,17 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
           { label: tv("statOthers"), value: latestRun ? named : "—", basis: latestRun ? "heuristic" : "unavailable" },
         ]}
       />
+      {latestRun && (
+        <div className="card">
+          <div className="row" style={{ justifyContent: "space-between" }}><strong>{tc("visTitle")}</strong> <BasisBadge basis="observed" /></div>
+          {trend.length < 2 ? (
+            <p className="muted small"><strong>{tc("visEmptyTitle")}.</strong> {tc("visEmpty")}</p>
+          ) : (
+            <BarChart periods={trend.map((r) => r.at)} series={[{ name: tc("visLegend"), tone: 1, values: trend.map((r) => r.named) }]} label={tc("visTitle")}
+              tip={(i) => tc("visPoint", { n: trend[i].named, of: trend[i].answered })} empty={<p className="muted">{tc("visNone")}</p>} />
+          )}
+        </div>
+      )}
       <h2 className="section-title">{tv("results")}</h2>
       {!latestRun ? (
         <EmptyState icon="visibility" title={tv("noAnswersTitle")} text={tv("noAnswers")} />

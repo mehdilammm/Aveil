@@ -1,89 +1,127 @@
-// Charts drawn as SVG on the server: no chart library, no client JavaScript. Every point is a real value passed in;
-// a series with no data is never drawn (the caller shows an empty state instead).
+// Charts drawn on the server in HTML and a little SVG: no chart library and no client JavaScript. Bars and points are
+// positioned with logical CSS (inset-inline-start), so time runs in the reading direction (right to left in Arabic),
+// and the text stays at its real size on phones. Every mark is a real value; when there is nothing to draw the caller's
+// `empty` state is shown instead of a flat or invented line. A tap or hover shows the value; "Show the numbers" lists
+// them as a table (screen readers and print).
+import { useLocale, useTranslations } from "next-intl";
 import { BasisBadge } from "./badges";
 
 export type Point = { at: string; value: number };
 
-const W = 640;
-const H = 200;
-const PAD = { t: 16, r: 12, b: 28, l: 32 };
 const niceMax = (v: number) => {
   if (v <= 5) return Math.max(1, Math.ceil(v));
   const p = 10 ** Math.floor(Math.log10(v));
   return Math.ceil(v / p) * p;
 };
-const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+export const shortDate = (iso: string, locale: string) =>
+  new Intl.DateTimeFormat(locale === "ar" ? "ar-u-nu-latn" : "en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso));
+const edge = (i: number, n: number) => (i < 2 ? " tip-start" : i > n - 3 ? " tip-end" : "");
 
-// Issues over time (one point per complete scan), with the days a fix was applied marked.
-export function LineChart({ points, marks = [], label, valueLabel }: { points: Point[]; marks?: { at: string; label: string }[]; label: string; valueLabel: (p: Point) => string }) {
+function Axis({ max }: { max: number }) {
+  return (
+    <div className="chart-y" aria-hidden="true">
+      <span style={{ bottom: "100%" }}>{max}</span>
+      <span style={{ bottom: "50%" }}>{Math.round(max / 2)}</span>
+      <span style={{ bottom: "0%" }}>0</span>
+    </div>
+  );
+}
+
+function XLabels({ labels }: { labels: string[] }) {
+  return (
+    <div className="chart-x" aria-hidden="true">
+      {labels.map((l, i) => <span key={i}>{l}</span>)}
+    </div>
+  );
+}
+
+function DataTable({ head, rows }: { head: string[]; rows: (string | number)[][] }) {
+  const t = useTranslations("charts");
+  return (
+    <details className="chart-data">
+      <summary>{t("showData")}</summary>
+      <table className="rtable">
+        <thead><tr>{head.map((h) => <th key={h}>{h}</th>)}</tr></thead>
+        <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} data-label={j ? head[j] : ""} className={j ? "num" : undefined}>{c}</td>)}</tr>)}</tbody>
+      </table>
+    </details>
+  );
+}
+
+// Issues over time (one point per complete scan), with the days a fix was applied marked. Needs two points.
+export function LineChart({ points, marks = [], label, valueLabel, seriesName, empty }: { points: Point[]; marks?: { at: string; label: string }[]; label: string; valueLabel: (p: Point, date: string) => string; seriesName: string; empty: React.ReactNode }) {
+  const locale = useLocale();
+  const t = useTranslations("charts");
+  if (points.length < 2) return <>{empty}</>;
   const sorted = [...points].sort((a, b) => a.at.localeCompare(b.at));
   const t0 = Date.parse(sorted[0].at);
-  const t1 = Math.max(Date.parse(sorted[sorted.length - 1].at), t0 + 1);
+  const span = Math.max(Date.parse(sorted[sorted.length - 1].at) - t0, 1);
   const max = niceMax(Math.max(...sorted.map((p) => p.value)));
-  const x = (at: string) => PAD.l + ((Date.parse(at) - t0) / (t1 - t0)) * (W - PAD.l - PAD.r);
-  const y = (v: number) => PAD.t + (1 - v / max) * (H - PAD.t - PAD.b);
-  const path = sorted.map((p, i) => `${i ? "L" : "M"}${x(p.at).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
-  const ticks = [0, max / 2, max];
-  const shownMarks = marks.filter((m) => Date.parse(m.at) >= t0 && Date.parse(m.at) <= t1);
+  const x = (at: string) => ((Date.parse(at) - t0) / span) * 100;
+  const y = (v: number) => (v / max) * 100;
+  const shown = marks.filter((m) => x(m.at) >= 0 && x(m.at) <= 100);
   return (
-    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} direction="ltr">
-      {ticks.map((v) => (
-        <g key={v}>
-          <line className="axis" x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} />
-          <text x={PAD.l - 6} y={y(v) + 4} textAnchor="end">{Math.round(v)}</text>
-        </g>
-      ))}
-      {shownMarks.map((m, i) => (
-        <g key={i}>
-          <line className="fix-mark" x1={x(m.at)} x2={x(m.at)} y1={PAD.t} y2={H - PAD.b} />
-          <title>{m.label}</title>
-        </g>
-      ))}
-      <path className="line" d={path} />
-      {sorted.map((p, i) => (
-        <circle key={i} className="dot" cx={x(p.at)} cy={y(p.value)} r={3.5}>
-          <title>{valueLabel(p)}</title>
-        </circle>
-      ))}
-      <text x={PAD.l} y={H - 8}>{shortDate(sorted[0].at)}</text>
-      <text x={W - PAD.r} y={H - 8} textAnchor="end">{shortDate(sorted[sorted.length - 1].at)}</text>
-    </svg>
+    <figure className="chart" aria-label={label}>
+      <div className="chart-plot">
+        <Axis max={max} />
+        <div className="chart-area" aria-hidden="true">
+          <div className="chart-grid"><i /><i /><i /></div>
+          {shown.map((m, i) => <i key={i} className="fix-mark" style={{ insetInlineStart: `${x(m.at)}%` }} title={m.label} />)}
+          <svg className="chart-line" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polyline points={sorted.map((p) => `${x(p.at).toFixed(2)},${(100 - y(p.value)).toFixed(2)}`).join(" ")} vectorEffect="non-scaling-stroke" />
+          </svg>
+          {sorted.map((p, i) => (
+            <span key={i} className={`pt${edge(i, sorted.length)}`} tabIndex={-1} style={{ insetInlineStart: `${x(p.at)}%`, bottom: `${y(p.value)}%` }}>
+              <span className="tip">{valueLabel(p, shortDate(p.at, locale))}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+      <XLabels labels={[shortDate(sorted[0].at, locale), shortDate(sorted[sorted.length - 1].at, locale)]} />
+      <DataTable head={[t("date"), seriesName]} rows={[...sorted].reverse().map((p) => [shortDate(p.at, locale), p.value])} />
+    </figure>
   );
 }
 
 // Bars per period, one or two series side by side (for example verified / not verified bot visits per day).
-export function BarChart({ periods, series, label }: { periods: string[]; series: { name: string; className: string; values: number[] }[]; label: string }) {
+// tone 1 = emerald, 2 = blue (validated for colour blindness, light and dark). Nothing to draw when every value is 0.
+export type Series = { name: string; tone: 1 | 2; values: number[] };
+export function BarChart({ periods, series, label, empty, periodLabel, tip }: { periods: string[]; series: Series[]; label: string; empty: React.ReactNode; periodLabel?: (p: string) => string; tip?: (i: number) => string }) {
+  const locale = useLocale();
+  const t = useTranslations("charts");
+  if (!series.some((s) => s.values.some((v) => v > 0))) return <>{empty}</>;
   const max = niceMax(Math.max(1, ...series.flatMap((s) => s.values)));
-  const slot = (W - PAD.l - PAD.r) / periods.length;
-  const bw = Math.max(2, Math.min(18, (slot * 0.8) / series.length));
-  const y = (v: number) => PAD.t + (1 - v / max) * (H - PAD.t - PAD.b);
-  const every = Math.ceil(periods.length / 6);
+  const name = periodLabel ?? ((p: string) => shortDate(p, locale));
+  const mid = Math.floor((periods.length - 1) / 2);
   return (
-    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} direction="ltr">
-      {[0, max / 2, max].map((v) => (
-        <g key={v}>
-          <line className="axis" x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} />
-          <text x={PAD.l - 6} y={y(v) + 4} textAnchor="end">{Math.round(v)}</text>
-        </g>
-      ))}
-      {periods.map((p, i) => (
-        <g key={p}>
-          {series.map((s, j) => (
-            <rect key={s.name} className={s.className} x={PAD.l + i * slot + (slot - bw * series.length) / 2 + j * bw} y={y(s.values[i])} width={bw - 1} height={Math.max(0, H - PAD.b - y(s.values[i]))} rx={2}>
-              <title>{`${shortDate(p)} · ${s.name}: ${s.values[i]}`}</title>
-            </rect>
-          ))}
-          {i % every === 0 && <text x={PAD.l + i * slot + slot / 2} y={H - 8} textAnchor="middle">{shortDate(p)}</text>}
-        </g>
-      ))}
-    </svg>
+    <figure className="chart" aria-label={label}>
+      <div className="chart-plot">
+        <Axis max={max} />
+        <div className="chart-area" aria-hidden="true">
+          <div className="chart-grid"><i /><i /><i /></div>
+          <div className="chart-bars">
+            {periods.map((p, i) => (
+              <div key={p} className={`col${edge(i, periods.length)}`} tabIndex={-1}>
+                {series.map((s) => <span key={s.name} className={`bar s${s.tone}`} style={{ height: `${(s.values[i] / max) * 100}%` }} />)}
+                <span className="tip">
+                  <strong>{name(p)}</strong>
+                  {tip ? <span>{tip(i)}</span> : series.map((s) => <span key={s.name}>{s.name}: {s.values[i]}</span>)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <XLabels labels={periods.length > 2 ? [name(periods[0]), name(periods[mid]), name(periods[periods.length - 1])] : periods.map(name)} />
+      <DataTable head={[t("date"), ...series.map((s) => s.name)]} rows={periods.map((p, i) => [name(p), ...series.map((s) => s.values[i])]).filter((r) => r.slice(1).some((v) => Number(v) > 0)).reverse()} />
+    </figure>
   );
 }
 
-export function Legend({ items }: { items: { name: string; color: string }[] }) {
+export function Legend({ items }: { items: { name: string; tone?: 1 | 2; dashed?: boolean }[] }) {
   return (
     <div className="chart-legend">
-      {items.map((i) => <span key={i.name}><i style={{ background: i.color }} />{i.name}</span>)}
+      {items.map((i) => <span key={i.name}><i className={i.dashed ? "key-dashed" : `key s${i.tone ?? 1}`} />{i.name}</span>)}
     </div>
   );
 }

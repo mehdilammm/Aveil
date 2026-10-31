@@ -102,8 +102,9 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
       {botRows.length > 0 ? (
         <div className="card">
           <div className="row" style={{ justifyContent: "space-between" }}><strong>{tc("botsTitle")}</strong></div>
-          <BarChart periods={days} series={[{ name: tc("botsUnverified"), className: "bar-b", values: claimed }, ...(everVerified ? [{ name: tc("botsVerified"), className: "bar-a", values: verified }] : [])]} label={tc("botsTitle")} />
-          <Legend items={[{ name: tc("botsUnverified"), color: "#c9d8d1" }, ...(everVerified ? [{ name: tc("botsVerified"), color: "var(--emerald)" }] : [])]} />
+          <BarChart periods={days} series={[{ name: tc("botsUnverified"), tone: 2, values: claimed }, ...(everVerified ? [{ name: tc("botsVerified"), tone: 1 as const, values: verified }] : [])]} label={tc("botsTitle")}
+            empty={<p className="muted">{tc("botsNone", { days: DAYS })}</p>} />
+          {everVerified ? <Legend items={[{ name: tc("botsUnverified"), tone: 2 }, { name: tc("botsVerified"), tone: 1 }]} /> : null}
           <p className="small"><BasisBadge basis="heuristic" /> {tc("botsUnverified")} · {everVerified ? <><BasisBadge basis="observed" /> {tc("botsVerified")}</> : <><BasisBadge basis="unavailable" /> {tc("botsVerifiedOff")}</>}</p>
         </div>
       ) : (

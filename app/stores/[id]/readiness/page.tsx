@@ -26,6 +26,7 @@ export default async function ReadinessPage({ params }: { params: Promise<{ id: 
   const complete = scans.filter((s) => s.status === "complete");
   const last = complete[0];
   const d = last ? deltas.get(last.id) : undefined;
+  const history = complete.filter((s) => s.findings_count !== null).map((s) => Number(s.findings_count)).reverse();
 
   return (
     <>
@@ -33,7 +34,7 @@ export default async function ReadinessPage({ params }: { params: Promise<{ id: 
       {last && (
         <StatStrip
           stats={[
-            { label: t("statOpen"), value: last.findings_count ?? 0, basis: "observed", foot: formatDate(last.finished_at, locale) },
+            { label: t("statOpen"), value: last.findings_count ?? 0, basis: "observed", foot: formatDate(last.finished_at, locale), spark: history.slice(-12), delta: history.length > 1 ? { n: history[history.length - 1] - history[history.length - 2], lowerIsBetter: true } : undefined },
             { label: t("statResolved"), value: d?.resolved ?? 0, tone: d?.resolved ? "good" : undefined, basis: "observed" },
             { label: t("statNew"), value: d?.new ?? 0, tone: d?.new ? "warn" : undefined, basis: "observed" },
             { label: t("statScans"), value: complete.length, basis: "observed" },
