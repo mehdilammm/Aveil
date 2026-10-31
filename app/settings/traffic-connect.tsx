@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 import { createTrafficToken, disconnectTraffic, type TrafficTokenState } from "@/app/stores/actions";
 
@@ -13,29 +14,30 @@ function connectionCode(endpoint: string, storeId: string, token: string): strin
 
 export function TrafficConnect({ storeId, connected, endpoint }: Props) {
   const [state, action, pending] = useActionState<TrafficTokenState, FormData>(createTrafficToken, {});
+  const tc = useTranslations("formsUi");
   return (
     <div className="stack" style={{ display: "grid", gap: 8 }}>
-      {connected && <p className="muted small">Connected with token {connected.hint}.</p>}
+      {connected && <p className="muted small">{tc("connectedWith", { hint: connected.hint })}</p>}
       {state.token && (
         <div className="card" style={{ background: "var(--emerald-soft)" }}>
-          <strong>Copy this into the plugin now (AgentScope → Settings → Connection token). It is shown only once.</strong>
-          <p style={{ wordBreak: "break-all" }}>Connection code: <code>{connectionCode(endpoint, storeId, state.token)}</code></p>
-          <p className="muted small">Plugin 1.0 with the separate Connect page uses the three values below instead.</p>
-          <p>Endpoint: <code>{endpoint}</code></p>
-          <p>Store ID: <code>{storeId}</code></p>
-          <p style={{ wordBreak: "break-all" }}>Token: <code>{state.token}</code></p>
+          <strong>{tc("copyNow")}</strong>
+          <p style={{ wordBreak: "break-all" }}>{tc("code")} <code>{connectionCode(endpoint, storeId, state.token)}</code></p>
+          <p className="muted small">{tc("old")}</p>
+          <p>{tc("endpoint")} <code>{endpoint}</code></p>
+          <p>{tc("storeId")} <code>{storeId}</code></p>
+          <p style={{ wordBreak: "break-all" }}>{tc("token")} <code>{state.token}</code></p>
         </div>
       )}
       {state.error && <p className="error">{state.error}</p>}
       <div className="row">
         <form action={action}>
           <input type="hidden" name="store_id" value={storeId} />
-          <button disabled={pending} aria-busy={pending}>{pending ? "Creating…" : connected ? "Create new token" : "Connect traffic plugin"}</button>
+          <button disabled={pending} aria-busy={pending}>{pending ? tc("creating") : connected ? tc("newToken") : tc("connect")}</button>
         </form>
         {connected && (
-          <form action={disconnectTraffic} onSubmit={(e) => { if (!window.confirm("Disconnect the traffic plugin? The current token stops working.")) e.preventDefault(); }}>
+          <form action={disconnectTraffic} onSubmit={(e) => { if (!window.confirm(tc("confirmDisconnect"))) e.preventDefault(); }}>
             <input type="hidden" name="store_id" value={storeId} />
-            <button className="secondary">Disconnect</button>
+            <button className="secondary">{tc("disconnect")}</button>
           </form>
         )}
       </div>

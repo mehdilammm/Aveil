@@ -1,9 +1,11 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 export function ShareLink({ path }: { path: string }) {
   const [copied, setCopied] = useState(false);
+  const tc = useTranslations("formsUi");
   const url = typeof window === "undefined" ? path : `${window.location.origin}${path}`;
   return (
     <div className="row">
@@ -20,7 +22,7 @@ export function ShareLink({ path }: { path: string }) {
           }
         }}
       >
-        {copied ? "Copied" : "Copy link"}
+        {copied ? tc("copied") : tc("copyLink")}
       </button>
     </div>
   );

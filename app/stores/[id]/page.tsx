@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { formatDate } from "@/components/badges";
 import { FunnelChart } from "@/components/charts";
 import { FindingCard } from "@/components/finding-card";
@@ -22,6 +22,7 @@ import { canEdit, storeAccess } from "@/lib/workspace";
 const WEEK_MS = 7 * 86_400_000;
 
 export default async function OverviewPage({ params }: { params: Promise<{ id: string }> }) {
+  const locale = await getLocale();
   const { id } = await params;
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
@@ -80,7 +81,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
           {lastComplete && (
             <StatStrip
               stats={[
-                { label: t("statOpen"), value: findings.length, basis: "observed", foot: t("statFrom", { date: formatDate(lastComplete.finished_at) }) },
+                { label: t("statOpen"), value: findings.length, basis: "observed", foot: t("statFrom", { date: formatDate(lastComplete.finished_at, locale) }) },
                 { label: t("statCritical"), value: critical, tone: critical ? "bad" : "good", basis: "observed" },
                 { label: t("statFixed"), value: fixedWeek ?? 0, tone: fixedWeek ? "good" : undefined, basis: "observed" },
                 { label: t("statProducts"), value: lastComplete.scanned_products ?? 0, basis: "observed" },

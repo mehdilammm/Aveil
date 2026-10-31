@@ -5,10 +5,11 @@ import { FindingCard } from "@/components/finding-card";
 import { findingsForScan, getStore, sortForFixing } from "@/lib/data";
 import { resolvedKeys } from "@/lib/history";
 import { getUser } from "@/lib/supabase/server";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { BasisBadge } from "@/components/badges";
 
 export default async function ScanPage({ params }: { params: Promise<{ id: string; scanId: string }> }) {
+  const locale = await getLocale();
   const { id, scanId } = await params;
   const { supabase } = await getUser();
   const [store, { data: scan }] = await Promise.all([
@@ -35,19 +36,20 @@ export default async function ScanPage({ params }: { params: Promise<{ id: strin
     supabase.from("scan_schema_pages").select("product_id, url, primary_source, primary_id, duplicate, sources, error").eq("scan_id", scanId).order("product_id"),
     getTranslations("scanDetail"),
   ]);
+  const tn = await getTranslations("nav");
 
   return (
     <>
-      <p><Link href={`/stores/${store.id}/readiness`}>← Store Readiness</Link></p>
+      <p><Link href={`/stores/${store.id}/readiness`}>← {tn("readiness")}</Link></p>
       <div className="page-head">
-        <h1>Scan of {formatDate(scan.finished_at)}</h1>
+        <h1>Scan of {formatDate(scan.finished_at, locale)}</h1>
         <p className="sub">{scan.scanned_products ?? 0} products scanned · {scan.findings_count ?? 0} findings</p>
         {scan.error && <p className={scan.status === "failed" ? "error" : "muted"}>{scan.error}</p>}
         <p>
           {prev ? (
-            <>Compared with {formatDate(prev.finished_at)}: <strong>{count("new")}</strong> new · <strong>{count("ongoing")}</strong> ongoing · <strong>{count("recurred")}</strong> recurred · <strong className="status-connected">{resolved.length}</strong> resolved</>
+            <>{t("compared", { date: formatDate(prev.finished_at, locale), new: count("new"), ongoing: count("ongoing"), recurred: count("recurred"), resolved: resolved.length })}</>
           ) : (
-            <span className="muted">First scan for this store.</span>
+            <span className="muted">{t("firstScan")}</span>
           )}
         </p>
       </div>
@@ -87,7 +89,7 @@ export default async function ScanPage({ params }: { params: Promise<{ id: strin
 
       {resolved.length > 0 && (
         <>
-          <h2>Resolved since the previous scan</h2>
+          <h2>{t("resolvedSince")}</h2>
           {resolved.map((f) => <FindingCard key={f.finding_key} finding={{ ...f, state: "resolved" }} storeUrl={store.url} />)}
         </>
       )}

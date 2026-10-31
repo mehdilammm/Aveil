@@ -178,8 +178,8 @@ export function WriteKeyForm({ storeId, hint }: { storeId: string; hint: string 
       <summary className="small">{hint ? t("writeKeySaved", { hint }) : t("writeKeyAdd")}</summary>
       <p className="muted small">{t("writeKeyIntro")}</p>
       <div className="row small" style={{ flexWrap: "wrap" }}>
-        <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="ck_…" aria-label="Consumer key" autoComplete="off" />
-        <input value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="cs_…" aria-label="Consumer secret" type="password" autoComplete="off" />
+        <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="ck_…" aria-label={t("consumerKey")} autoComplete="off" />
+        <input value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="cs_…" aria-label={t("consumerSecret")} type="password" autoComplete="off" />
         <button className="secondary" disabled={busy || !key || !secret} onClick={async () => {
           setBusy(true);
           const r = await post(`/api/stores/${storeId}/write-key`, { consumer_key: key, consumer_secret: secret });

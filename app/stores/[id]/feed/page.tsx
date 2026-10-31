@@ -1,7 +1,7 @@
 import { EmptyState, PageHead } from "@/components/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { BasisBadge, formatDate } from "@/components/badges";
 import { PlanLock } from "@/components/plan-lock";
 import { getStore } from "@/lib/data";
@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 // G1: the product feed's health: what the plugin serves now, and, from the store's products read now, which
 // products are in it and which are left out (with the reason and the missing fields).
 export default async function FeedPage({ params }: { params: Promise<{ id: string }> }) {
+  const locale = await getLocale();
   const { id } = await params;
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
@@ -62,7 +63,7 @@ export default async function FeedPage({ params }: { params: Promise<{ id: strin
           : status && status.feed === undefined ? <p><BasisBadge basis="unavailable" /> {t("oldPlugin", { version: status.plugin_version })}</p>
           : served ? (
             <>
-              <p><BasisBadge basis="observed" /> {t("served", { n: served.products, date: formatDate(new Date(served.updated_at * 1000).toISOString()) })}</p>
+              <p><BasisBadge basis="observed" /> {t("served", { n: served.products, date: formatDate(new Date(served.updated_at * 1000).toISOString(), locale) })}</p>
               <ul className="small">
                 <li>JSONL ({FEED_SPEC.name}): <a href={served.urls.jsonl} target="_blank" rel="noopener noreferrer">{served.urls.jsonl}</a></li>
                 <li>metadata.json: <a href={served.urls.metadata} target="_blank" rel="noopener noreferrer">{served.urls.metadata}</a></li>
@@ -70,7 +71,7 @@ export default async function FeedPage({ params }: { params: Promise<{ id: strin
               </ul>
             </>
           ) : <p><BasisBadge basis="observed" /> {t("notServed")} {active ? null : <Link href={`/stores/${store.id}/fix`}>{t("toFix")}</Link>}</p>}
-        {lastRefresh && <p className="muted small">{t("lastRefresh", { status: lastRefresh.status, date: formatDate(lastRefresh.updated_at) })}{lastRefresh.error ? ` ${lastRefresh.error}` : ""}</p>}
+        {lastRefresh && <p className="muted small">{t("lastRefresh", { status: lastRefresh.status, date: formatDate(lastRefresh.updated_at, locale) })}{lastRefresh.error ? ` ${lastRefresh.error}` : ""}</p>}
         <p className="muted small">{t("submit")}</p>
       </div>
 

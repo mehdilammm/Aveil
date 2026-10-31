@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { splitCheckerRows } from "@/lib/traffic";
 import { BotIdentity } from "@/components/bot-identity";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { PlanLock } from "@/components/plan-lock";
 import { storePlan } from "@/lib/plan-gate";
 import { BasisBadge, formatDate } from "@/components/badges";
@@ -23,6 +23,7 @@ function sumBy(rows: Row[], key: (r: Row) => string) {
 }
 
 export default async function AiTrafficPage({ params }: { params: Promise<{ id: string }> }) {
+  const locale = await getLocale();
   const { id } = await params;
   const { supabase } = await getUser();
   const store = await getStore(supabase, id);
@@ -88,7 +89,7 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
           { label: t("statRequests", { days: DAYS }), value: total, basis: "heuristic" },
           { label: t("statSources"), value: new Set(rows.map((r) => r.source)).size, basis: "heuristic" },
           { label: t("statVerified"), value: everVerified ? verified.reduce((a, b) => a + b, 0) : "—", basis: everVerified ? "observed" : "unavailable" },
-          { label: t("statLast"), value: connector?.last_ingest_at ? formatDate(connector.last_ingest_at).replace(/ UTC.*/, "") : "—", basis: connector?.last_ingest_at ? "observed" : "unavailable" },
+          { label: t("statLast"), value: connector?.last_ingest_at ? formatDate(connector.last_ingest_at, locale).replace(/ UTC.*/, "") : "—", basis: connector?.last_ingest_at ? "observed" : "unavailable" },
         ]}
       />
       {botRows.length > 0 ? (

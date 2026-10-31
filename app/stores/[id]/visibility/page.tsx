@@ -3,7 +3,7 @@ import { useTranslations } from "next-intl";
 import { BasisBadge, formatDate } from "@/components/badges";
 import { EmptyState, PageHead, StatStrip } from "@/components/ui";
 import { getStore, openJobId } from "@/lib/data";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import type { MarketId } from "@/lib/markets";
 import { ENGINE_MODEL, engineConfigured } from "@/lib/engines";
 import { MISTRAL_OFF_REASON } from "@/lib/mistral";
@@ -16,7 +16,7 @@ import { OutcomeSection } from "./outcome-section";
 import { PromptsForm } from "./prompts-form";
 import { RereadButton, RunVisibilityButton, TestRunButton } from "./run-button";
 import { storeAccess } from "@/lib/workspace";
-import { UsageAlert } from "@/components/usage-alert";
+import { isAdminEmail, UsageAlert } from "@/components/usage-alert";
 import { PLANS, RUN_DAYS, type PlanId } from "@/lib/plans";
 import { groundingEnabled } from "@/lib/grounding";
 
@@ -62,6 +62,7 @@ function Verdict({ r, engine }: { r: Result | undefined; engine: EngineId }) {
 }
 
 export default async function AiVisibilityPage({ params }: { params: Promise<{ id: string }> }) {
+  const locale = await getLocale();
   const { id } = await params;
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
@@ -101,7 +102,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
       : running
         ? tv("dRunning")
         : lastCounted && lastCounted.status === "complete" && !canRun(lastCounted.created_at, new Date(), RUN_DAYS[PLANS[planId].visibilityPer])
-          ? tv("dLimit", { per: PLANS[planId].visibilityPer, plan: PLANS[planId].name, date: formatDate(nextRunAt(lastCounted.created_at, RUN_DAYS[PLANS[planId].visibilityPer])!.toISOString()) })
+          ? tv("dLimit", { per: PLANS[planId].visibilityPer, plan: PLANS[planId].name, date: formatDate(nextRunAt(lastCounted.created_at, RUN_DAYS[PLANS[planId].visibilityPer])!.toISOString(), locale) })
           : null;
 
   // Usage this month per engine, from the result rows (extraction requests are counted on the answer's row).
@@ -125,11 +126,11 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
     <>
       <PageHead title={tv("title")} icon="visibility" sub={tv("sub")} action={<RunVisibilityButton storeId={store.id} disabledReason={disabledReason} openJobId={visibilityJobId} />} />
       <VisibilityTabs storeId={store.id} active="" />
-      {access && <UsageAlert supabase={supabase} workspaceId={access.workspace_id} plan={planId} always />}
+      {access && <UsageAlert supabase={supabase} workspaceId={access.workspace_id} plan={planId} admin={isAdminEmail(user?.email)} />}
       <StatStrip
         stats={[
-          { label: tv("statMentioned"), value: latestRun ? `${mentioned}/${latestRows.length}` : "—", tone: latestRun ? (mentioned ? "good" : "bad") : undefined, basis: latestRun ? "observed" : "unavailable", foot: latestRun ? formatDate(latestRun.created_at) : tv("notRun") },
-          { label: tv("statQuestions"), value: `${prompts.length}/${PLANS[planId].visibilityQuestions}` },
+          { label: tv("statMentioned"), value: latestRun ? `${mentioned}/${latestRows.length}` : "—", tone: latestRun ? (mentioned ? "good" : "bad") : undefined, basis: latestRun ? "observed" : "unavailable", foot: latestRun ? formatDate(latestRun.created_at, locale) : tv("notRun") },
+          { label: tv("statQuestionsPer", { per: tv(`per_${PLANS[planId].visibilityPer}`) }), value: `${prompts.length}/${PLANS[planId].visibilityQuestions}` },
           { label: tv("statOthers"), value: latestRun ? named : "—", basis: latestRun ? "heuristic" : "unavailable" },
         ]}
       />
@@ -167,7 +168,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                   <div key={r.engine} style={{ borderTop: "1px solid var(--border)", paddingTop: 6, marginTop: 6 }}>
                     <span className="badge basis-observed">{ENGINE_LABEL[r.engine]}</span>{" "}
                     <span className={`badge ${r.grounded ? "basis-observed" : "basis-heuristic"}`}>{r.grounded ? ta("grounded") : ta("ungrounded")}</span>
-                    <p className="muted small">{ta("provenance", { engine: ENGINE_NAME[r.engine], model: r.model ?? ENGINE_MODEL[r.engine], method: r.access_method ?? ta("notRecorded"), market: r.country ?? ta("notRecorded"), language: r.language ?? ta("notRecorded"), date: formatDate(r.created_at) })}</p>
+                    <p className="muted small">{ta("provenance", { engine: ENGINE_NAME[r.engine], model: r.model ?? ENGINE_MODEL[r.engine], method: r.access_method ?? ta("notRecorded"), market: r.country ?? ta("notRecorded"), language: r.language ?? ta("notRecorded"), date: formatDate(r.created_at, locale) })}</p>
                     {r.error ? (
                       <p className="muted small"><BasisBadge basis="unavailable" /> {r.error}</p>
                     ) : (
@@ -203,7 +204,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                     </table>
                   </div>
                 )}
-                <p className="muted small">{ta("apiNote", { date: formatDate(rows[0].created_at) })} {GEMINI_DISCLAIMER}</p>
+                <p className="muted small">{ta("apiNote", { date: formatDate(rows[0].created_at, locale) })} {GEMINI_DISCLAIMER}</p>
               </details>
             );
           })}

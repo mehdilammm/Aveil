@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { BasisBadge, formatDate, SeverityBadge } from "@/components/badges";
 import { BarChart, FunnelChart, Legend, weekOf } from "@/components/charts";
 import { FirstOrderBanner } from "@/components/first-order-banner";
@@ -20,6 +20,7 @@ export async function generateMetadata() {
 const WEEKS = 13;
 
 export default async function AiRevenuePage({ params }: { params: Promise<{ id: string }> }) {
+  const locale = await getLocale();
   const { id } = await params;
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
@@ -61,7 +62,7 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
         <FunnelChart steps={stages.map((s) => ({ key: s.key, question: tf(`q.${s.key}`), status: s.status, value: s.value, basis: s.basis, statusLabel: tf(`status.${s.status}`), laterLabel: tf("status.later") }))} />
         <Tech label={tu("technical")}>
           <ul className="small">{stages.map((s) => <li key={s.key}><strong>{tf(`q.${s.key}`)}</strong> {s.detail}</li>)}</ul>
-          <p className="muted small">{t("note", { date: lastComplete ? formatDate(lastComplete.finished_at) : "—" })}</p>
+          <p className="muted small">{t("note", { date: lastComplete ? formatDate(lastComplete.finished_at, locale) : "—" })}</p>
         </Tech>
       </div>
 
@@ -132,7 +133,7 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
       {plan.aiRevenue && (
         <p className="muted small">
           {sync?.status === "ok" && sync.agent_checkouts > 0 ? t("agentCheckouts", { n: sync.agent_checkouts }) : t("agentCheckoutNone")}
-          {sync && <> · {t("lastRead", { date: formatDate(sync.synced_at) })}</>}
+          {sync && <> · {t("lastRead", { date: formatDate(sync.synced_at, locale) })}</>}
         </p>
       )}
     </>

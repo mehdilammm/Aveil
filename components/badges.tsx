@@ -21,7 +21,10 @@ export function StateBadge({ state }: { state: string | null }) {
   return <span className={`badge state ${state === "resolved" ? "state-resolved" : ""}`}>{t(`state_${state}`)}</span>;
 }
 
-// Dates in UTC, kept left-to-right inside Arabic text (Unicode isolates), e.g. "28 Oct 2026, 22:17 UTC".
-export function formatDate(value: string | null) {
-  return value ? `⁦${new Date(value).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC⁩` : "—";
+// Dates in UTC in the reader's language (Intl), isolated so they keep their order inside the other direction's text.
+// Arabic uses Western digits, as Moroccan stores do.
+export function formatDate(value: string | null, locale = "en") {
+  if (!value) return "—";
+  const tag = locale === "ar" ? "ar-u-nu-latn" : "en-GB";
+  return `\u2068${new Intl.DateTimeFormat(tag, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(value))} UTC\u2069`;
 }

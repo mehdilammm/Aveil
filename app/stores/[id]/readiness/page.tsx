@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { formatDate } from "@/components/badges";
 import { IssuesChart } from "@/components/issues-chart";
 import { EmptyState, PageHead, StatStrip } from "@/components/ui";
@@ -9,6 +9,7 @@ import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "../run-scan-button";
 
 export default async function ReadinessPage({ params }: { params: Promise<{ id: string }> }) {
+  const locale = await getLocale();
   const { id } = await params;
   const { supabase } = await getUser();
   const store = await getStore(supabase, id);
@@ -28,7 +29,7 @@ export default async function ReadinessPage({ params }: { params: Promise<{ id: 
       {last && (
         <StatStrip
           stats={[
-            { label: t("statOpen"), value: last.findings_count ?? 0, basis: "observed", foot: formatDate(last.finished_at) },
+            { label: t("statOpen"), value: last.findings_count ?? 0, basis: "observed", foot: formatDate(last.finished_at, locale) },
             { label: t("statResolved"), value: d?.resolved ?? 0, tone: d?.resolved ? "good" : undefined, basis: "observed" },
             { label: t("statNew"), value: d?.new ?? 0, tone: d?.new ? "warn" : undefined, basis: "observed" },
             { label: t("statScans"), value: complete.length, basis: "observed" },
@@ -55,7 +56,7 @@ export default async function ReadinessPage({ params }: { params: Promise<{ id: 
                   const x = deltas.get(s.id);
                   return (
                     <tr key={s.id}>
-                      <td data-label={t("date")}>{formatDate(s.finished_at ?? s.started_at)}</td>
+                      <td data-label={t("date")}>{formatDate(s.finished_at ?? s.started_at, locale)}</td>
                       <td data-label={t("status")} className={s.status === "failed" ? "error" : undefined} title={s.error ?? undefined}>{t(`s_${["complete", "failed", "running", "queued"].includes(s.status) ? s.status : "queued"}`)}</td>
                       <td className="num" data-label={t("products")}>{s.scanned_products ?? "—"}</td>
                       <td className="num" data-label={t("findings")}>{s.findings_count ?? "—"}</td>

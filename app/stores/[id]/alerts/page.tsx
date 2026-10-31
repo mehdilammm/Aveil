@@ -1,7 +1,8 @@
+import { useLocale } from "next-intl";
 import { EmptyState, PageHead } from "@/components/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { BasisBadge, formatDate } from "@/components/badges";
 import { PlanLock } from "@/components/plan-lock";
 import { lastCheck, type BreakageDetail, type Change, type LastCheck } from "@/lib/breakage";
@@ -19,6 +20,7 @@ type ProductDetail = { product: { id: number; name: string; url: string | null }
 
 // F2 / F3: what broke after a store change, and the checks of products just published or updated.
 export default async function AlertsPage({ params }: { params: Promise<{ id: string }> }) {
+  const locale = await getLocale();
   const { id } = await params;
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
@@ -51,7 +53,7 @@ export default async function AlertsPage({ params }: { params: Promise<{ id: str
       {alerts.map((a) => (
         <div key={a.id} className={`card${a.status === "open" ? "" : " finding-resolved"}`}>
           {a.kind === "breakage" ? <Breakage d={a.detail as unknown as BreakageDetail} t={t} /> : a.kind === "product_check" ? <ProductCheck d={a.detail as unknown as ProductDetail} t={t} /> : a.kind === "first_ai_order" ? <><h3>{t("firstOrderTitle")}</h3><p><BasisBadge basis="observed" /> {a.title}</p></> : <Healing kind={a.kind} title={a.title} d={a.detail as unknown as HealDetail} t={t} />}
-          <p className="muted small">{formatDate(a.created_at)} · {a.status === "open" ? t("open") : t("dismissed")}</p>
+          <p className="muted small">{formatDate(a.created_at, locale)} · {a.status === "open" ? t("open") : t("dismissed")}</p>
           <div className="row">
             <Link className="small" href={`/stores/${store.id}/fix`}>{t("fix")}</Link>
             {editor && a.status === "open" && <DismissButton storeId={store.id} alertId={a.id} />}
@@ -65,13 +67,14 @@ export default async function AlertsPage({ params }: { params: Promise<{ id: str
 type T = Awaited<ReturnType<typeof getTranslations<"alerts">>>;
 
 function Breakage({ d, t }: { d: BreakageDetail; t: T }) {
+  const locale = useLocale();
   const c = d.change;
   return (
     <>
       <h3>{t("breakageTitle")}</h3>
       {d.problems.map((p) => (
         <p key={p.finding_key}>
-          {t("after", { kind: c.kind, subject: c.subject ?? "", old: c.old_version ?? "?", new: c.new_version ?? "?", date: formatDate(c.occurred_at) })}{" "}
+          {t("after", { kind: c.kind, subject: c.subject ?? "", old: c.old_version ?? "?", new: c.new_version ?? "?", date: formatDate(c.occurred_at, locale) })}{" "}
           <BasisBadge basis={p.basis} /> {p.title}. <span className="muted small">{p.evidence}</span>
         </p>
       ))}
@@ -81,8 +84,9 @@ function Breakage({ d, t }: { d: BreakageDetail; t: T }) {
 }
 
 function LastCheckCard({ last, t }: { last: LastCheck; t: T }) {
+  const locale = useLocale();
   const c = last.change;
-  const after = c ? t("after", { kind: c.kind, subject: c.subject ?? "", old: c.old_version ?? "?", new: c.new_version ?? "?", date: formatDate(c.occurred_at) }) : t("lastNoChange");
+  const after = c ? t("after", { kind: c.kind, subject: c.subject ?? "", old: c.old_version ?? "?", new: c.new_version ?? "?", date: formatDate(c.occurred_at, locale) }) : t("lastNoChange");
   return (
     <div className="card">
       <h3>{t("lastTitle")}</h3>
@@ -90,10 +94,10 @@ function LastCheckCard({ last, t }: { last: LastCheck; t: T }) {
         {after}{" "}
         {last.state === "clean" && <><BasisBadge basis="observed" /> {t("lastClean", { n: last.checked })}</>}
         {last.state === "alert" && <><BasisBadge basis="observed" /> {t("lastAlert", { n: last.problems })}</>}
-        {last.state === "pending" && <><BasisBadge basis="unavailable" /> {t("lastPending", { date: formatDate(last.at) })}</>}
+        {last.state === "pending" && <><BasisBadge basis="unavailable" /> {t("lastPending", { date: formatDate(last.at, locale) })}</>}
         {last.state === "failed" && <><BasisBadge basis="unavailable" /> {t("lastFailed", { error: last.error })}</>}
       </p>
-      {last.state !== "pending" && <p className="muted small">{t("lastAt", { date: formatDate(last.at) })}</p>}
+      {last.state !== "pending" && <p className="muted small">{t("lastAt", { date: formatDate(last.at, locale) })}</p>}
     </div>
   );
 }

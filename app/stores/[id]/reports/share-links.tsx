@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { formatDate } from "@/components/badges";
@@ -8,6 +8,7 @@ import { formatDate } from "@/components/badges";
 type Link = { id: string; created_at: string; expires_at: string; revoked_at: string | null; views: number; state: "ok" | "expired" | "revoked" };
 
 export function ShareLinks({ storeId, links, canShare, hasScan }: { storeId: string; links: Link[]; canShare: boolean; hasScan: boolean }) {
+  const locale = useLocale();
   const t = useTranslations("share");
   const router = useRouter();
   const [days, setDays] = useState(30);
@@ -72,8 +73,8 @@ export function ShareLinks({ storeId, links, canShare, hasScan }: { storeId: str
             <tbody>
               {links.map((l) => (
                 <tr key={l.id}>
-                  <td>{formatDate(l.created_at)}</td>
-                  <td>{formatDate(l.expires_at)}</td>
+                  <td>{formatDate(l.created_at, locale)}</td>
+                  <td>{formatDate(l.expires_at, locale)}</td>
                   <td className="num">{l.views}</td>
                   <td>{label[l.state]}</td>
                   <td>{canShare && l.state === "ok" && <button type="button" className="secondary" disabled={busy} onClick={() => call({ revoke: l.id })}>{t("revoke")}</button>}</td>

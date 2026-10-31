@@ -78,6 +78,7 @@ export function TestRunButton({ storeId }: { storeId: string }) {
 
 export function RereadButton({ storeId, count }: { storeId: string; count: number }) {
   const router = useRouter();
+  const t = useTranslations("visibilityRun");
   const running = useRef(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -90,10 +91,10 @@ export function RereadButton({ storeId, count }: { storeId: string; count: numbe
     try {
       const res = await fetch(`/api/stores/${storeId}/visibility/reread`, { method: "POST" });
       const body = await res.json().catch(() => ({}));
-      setMessage(body.error ?? `Re-read ${body.updated} answers.`);
+      setMessage(body.error ?? t("reread", { n: Number(body.updated ?? 0) }));
       router.refresh();
     } catch {
-      setMessage("Network error. Please try again.");
+      setMessage(t("network"));
     } finally {
       running.current = false;
       setBusy(false);
@@ -103,9 +104,9 @@ export function RereadButton({ storeId, count }: { storeId: string; count: numbe
   return (
     <div style={{ marginTop: 8 }}>
       <button className="secondary" onClick={run} disabled={busy} aria-busy={busy}>
-        {busy ? "Re-reading…" : `Re-read ${count} stored answer${count === 1 ? "" : "s"}`}
+        {busy ? t("rereading") : t("rereadCta", { n: count })}
       </button>
-      <p className="muted small">Reads the shop names again from answers saved before the structured extraction. One small Gemini request per answer, once.</p>
+      <p className="muted small">{t("rereadNote")}</p>
       {message && <p className="muted">{message}</p>}
     </div>
   );

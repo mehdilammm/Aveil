@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { BasisBadge, formatDate } from "@/components/badges";
 import { CopyBox } from "@/components/copy-box";
 import { getStore } from "@/lib/data";
@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 type DraftRow = { id: string; product_id: number; product_name: string; current_html: string; proposed_html: string; inputs: Record<string, string>; unknowns: string[]; status: string; approved_at: string | null };
 
 export default async function DescriptionsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ product?: string }> }) {
+  const locale = await getLocale();
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
@@ -83,7 +84,7 @@ export default async function DescriptionsPage({ params, searchParams }: { param
           <p className="muted small">{t("onlyFacts")}</p>
           {draft.status === "approved" ? (
             <>
-              <p className="small"><BasisBadge basis="observed" /> {t("approvedOn", { date: formatDate(draft.approved_at) })}</p>
+              <p className="small"><BasisBadge basis="observed" /> {t("approvedOn", { date: formatDate(draft.approved_at, locale) })}</p>
               <CopyBox text={draft.proposed_html} rows={10} />
             </>
           ) : (
