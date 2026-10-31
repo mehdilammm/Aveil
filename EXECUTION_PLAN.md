@@ -207,3 +207,19 @@ matha.site, 2026-10-30 (DB before: 0 market findings, 0 ai_orders, 3 alerts): 3 
 | H3 | Shell | Done | Phone: slim top bar with ☰ (menu drawer, Escape / backdrop closes) and a bottom bar (Overview, Fix, Alerts, Revenue, More). Desktop: full-height sticky sidebar, menu grouped (Work, Store readiness, AI results, Reports). |
 | H4 | Charts | Done | Server-rendered SVG, no library and no client JavaScript (`components/charts.tsx`): funnel as horizontal steps with the first break highlighted; open issues after each scan (scans.findings_count) with the days fixes were applied (fix_audit_log); AI bot visits per day, user agent (traffic_daily) vs verified by IP (bot_hits, only when the store has any); AI-referred orders per week (ai_orders). Every value is real with its badge; a series with no data shows an empty state. |
 | H5 | Pages | Done | Overview starts with "Your next best action" + 4 numbers + funnel + issues chart; Fix Center: numbers, findings first (later groups folded), plain title and "How to fix" first, evidence and priority under "Technical details", tools and audit log folded at the bottom; stat strips on Readiness, Revenue, Traffic, Visibility, Reports; empty states with an icon, a sentence and a button; texts moved to the catalogs (en + ar). |
+
+### Milestone H, phase 1 (second spec, 2026-10-31): before / after in `audit/after/` (390 + 1440 px, EN + AR)
+
+| # | Part | Status | What |
+|---|---|---|---|
+| P1 | Design system + navigation | Done | Phone header ≤ 64 px with ☰ drawer (Log out and language inside) and bottom bar (Overview, Fix, Visibility, Revenue, More); desktop sidebar full height and sticky; menu order Overview → Fix Center → AI Revenue → AI Visibility → Store Readiness → AI Traffic → the rest; tap targets ≥ 44 px; shared Tabs and ResponsiveTable. `p1-nav-*` |
+| P2 | Arabic complete | Done | Every dashboard, /check and login string from the catalogs; dates through Intl in the reader's language; `i18n/no-hardcoded-english.test.ts` fails on English JSX text, attributes, messages and text next to an expression. `p2-arabic-*` |
+| P3 | Overview | Done | Next best action (one plain sentence + one button), then the top 5 fixes as short rows (severity + plain sentence), then numbers and the funnel; zero-count badges hidden. `p3-overview-*` |
+| P4 | Fix Center | Done | One summary line ("2 critical · 5 warnings · …") + one button (Fix all safe issues = the bulk apply, review first); one card per kind of finding (`lib/finding-groups.ts`, plain sentences in the `plain` catalog with Arabic plural forms) with the products folded in a list, each with its actions; basis, area, scan title, evidence, guidance and priority under Technical details; every tool in one folded Tools section; audit log as cards on phones. Reports and scan detail group the same way. `p4-fix-*`, `p4-reports-*` |
+| P5 | Tables → cards | Done | Every table in the dashboard uses `.rtable` with labels (Readiness, Traffic, Markets, scan history, Bots, Citations, Share of voice, Feed, share links, CSV preview, descriptions). |
+| P6 | AI Visibility | Done | Results first; usage only when a cap is near; model and engine notes folded. |
+| P7 | Empty states | Done | A sentence on why and a button to fix it (Settings for the key or a read error, connect the plugin, run a scan). |
+| P8 | Page titles | Done | Every page has its own `<title>` ("Fix Center – AgentScope"). |
+| P9 | Hide internals | Done | Provider counts (Gemini / Groq / NVIDIA) only for ADMIN_EMAILS; customers see questions used this week. |
+| P10 | Plain labels | Done | Funnel values and details from the catalogs (`Stage.msg`); traffic categories, page types and HTTP status in plain words (`lib/traffic-labels.ts`, raw value kept as a hint); purchase test HTTP lines under Technical details. `p5-revenue-*`, `p5-traffic-*` |
+| — | Phase 2 | Waiting | Starts after approval of the phase 1 screenshots. |

@@ -71,14 +71,14 @@ export default async function ScanPage({ params }: { params: Promise<{ id: strin
             <details>
               <summary className="small">{t("schemaTitle")}</summary>
               <div className="table-wrap">
-                <table>
+                <table className="rtable">
                   <thead><tr><th>{t("page")}</th><th>{t("source")}</th><th>{t("productId")}</th></tr></thead>
                   <tbody>
                     {(schemaPages ?? []).map((r) => (
                       <tr key={r.product_id}>
-                        <td><a href={r.url} target="_blank" rel="noopener noreferrer">{new URL(r.url).pathname}</a></td>
-                        <td>{r.error ? <span className="muted">{t("unavailable", { reason: r.error })}</span> : r.primary_source ? `${t(`src_${r.primary_source}`)}${r.duplicate ? ` · ${t("duplicate")}` : ""}` : t("noProduct")}</td>
-                        <td className="small">{r.primary_id ?? "—"}</td>
+                        <td data-label={t("page")}><a href={r.url} target="_blank" rel="noopener noreferrer">{new URL(r.url).pathname}</a></td>
+                        <td data-label={t("source")}>{r.error ? <span className="muted">{t("unavailable", { reason: r.error })}</span> : r.primary_source ? `${t(`src_${r.primary_source}`)}${r.duplicate ? ` · ${t("duplicate")}` : ""}` : t("noProduct")}</td>
+                        <td data-label={t("productId")} className="small">{r.primary_id ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -75,13 +75,13 @@ export default async function DescriptionsPage({ params, searchParams }: { param
           <h2>{t("review")}</h2>
           {draft.unknowns.length > 0 && <p className="small"><BasisBadge basis="unavailable" /> {t("unknowns", { list: draft.unknowns.join(", ") })}</p>}
           <div className="table-wrap">
-            <table>
+            <table className="rtable">
               <thead><tr><th>{t("current")}</th><th>{t("proposed")}</th></tr></thead>
               <tbody>
                 {diffLines(plain(draft.current_html), plain(draft.proposed_html)).map((r, i) => (
                   <tr key={i}>
-                    <td style={{ whiteSpace: "normal", background: r.kind === "removed" ? "var(--red-bg, #fdecec)" : undefined }}>{r.kind !== "added" ? r.text : ""}</td>
-                    <td style={{ whiteSpace: "normal", background: r.kind === "added" ? "var(--green-bg, #e8f6ef)" : undefined }}>{r.kind !== "removed" ? r.text : ""}</td>
+                    <td data-label={t("current")} style={{ whiteSpace: "normal", background: r.kind === "removed" ? "var(--red-bg, #fdecec)" : undefined }}>{r.kind !== "added" ? r.text : ""}</td>
+                    <td data-label={t("proposed")} style={{ whiteSpace: "normal", background: r.kind === "added" ? "var(--green-bg, #e8f6ef)" : undefined }}>{r.kind !== "removed" ? r.text : ""}</td>
                   </tr>
                 ))}
               </tbody>

@@ -30,11 +30,11 @@ export async function BotIdentity({ supabase, storeId }: { supabase: SupabaseCli
           <p><span className="badge basis-unavailable">{t("unavailable")}</span> {t("none")}</p>
         ) : (
           <div className="table-wrap">
-            <table>
+            <table className="rtable">
               <thead><tr><th>{t("bot")}</th><th className="num">{t("verified")}</th><th className="num">{t("claim")}</th><th className="num">{t("pending")}</th></tr></thead>
               <tbody>
                 {[...by.entries()].sort((a, b) => b[1].verified + b[1].claim - (a[1].verified + a[1].claim)).map(([bot, v]) => (
-                  <tr key={bot}><td>{bot}</td><td className="num">{v.verified}</td><td className="num">{v.claim}</td><td className="num">{v.pending}</td></tr>
+                  <tr key={bot}><td data-label={t("bot")}>{bot}</td><td data-label={t("verified")} className="num">{v.verified}</td><td data-label={t("claim")} className="num">{v.claim}</td><td data-label={t("pending")} className="num">{v.pending}</td></tr>
                 ))}
               </tbody>
             </table>

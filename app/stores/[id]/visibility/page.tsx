@@ -192,15 +192,15 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                 ))}
                 {completedRuns.length > 1 && (
                   <div className="table-wrap" style={{ marginTop: 8 }}>
-                    <table>
+                    <table className="rtable">
                       <thead><tr><th>{tv("weekOf")}</th>{ENGINES.map((e) => <th key={e}>{ENGINE_NAME[e]}</th>)}</tr></thead>
                       <tbody>
                         {completedRuns.map((run) => (
                           <tr key={run.id}>
-                            <td>{run.created_at.slice(0, 10)}</td>
+                            <td data-label={tv("weekOf")}>{run.created_at.slice(0, 10)}</td>
                             {ENGINES.map((e) => {
                               const res = resultFor(p.id, run.id, e);
-                              return <td key={e}>{!res ? "—" : res.error ? tv("unavailable") : res.mentioned ? `${tv("mentioned")}${res.mention_rank ? ` (#${res.mention_rank})` : ""}` : tv("notMentioned")}</td>;
+                              return <td data-label={ENGINE_NAME[e]} key={e}>{!res ? "—" : res.error ? tv("unavailable") : res.mentioned ? `${tv("mentioned")}${res.mention_rank ? ` (#${res.mention_rank})` : ""}` : tv("notMentioned")}</td>;
                             })}
                           </tr>
                         ))}

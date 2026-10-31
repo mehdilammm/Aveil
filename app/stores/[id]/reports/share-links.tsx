@@ -66,18 +66,18 @@ export function ShareLinks({ storeId, links, canShare, hasScan }: { storeId: str
         <p className="muted">{t("none")}</p>
       ) : (
         <div className="table-wrap">
-          <table>
+          <table className="rtable">
             <thead>
               <tr><th>{t("created")}</th><th>{t("expires")}</th><th className="num">{t("views")}</th><th>{t("status")}</th><th /></tr>
             </thead>
             <tbody>
               {links.map((l) => (
                 <tr key={l.id}>
-                  <td>{formatDate(l.created_at, locale)}</td>
-                  <td>{formatDate(l.expires_at, locale)}</td>
-                  <td className="num">{l.views}</td>
-                  <td>{label[l.state]}</td>
-                  <td>{canShare && l.state === "ok" && <button type="button" className="secondary" disabled={busy} onClick={() => call({ revoke: l.id })}>{t("revoke")}</button>}</td>
+                  <td data-label={t("created")}>{formatDate(l.created_at, locale)}</td>
+                  <td data-label={t("expires")}>{formatDate(l.expires_at, locale)}</td>
+                  <td data-label={t("views")} className="num">{l.views}</td>
+                  <td data-label={t("status")}>{label[l.state]}</td>
+                  <td data-label="">{canShare && l.state === "ok" && <button type="button" className="secondary" disabled={busy} onClick={() => call({ revoke: l.id })}>{t("revoke")}</button>}</td>
                 </tr>
               ))}
             </tbody>
