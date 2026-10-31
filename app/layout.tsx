@@ -22,7 +22,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const locale = isLocale(current) ? current : DEFAULT_LOCALE;
   return (
     <html lang={locale} dir={dirOf(locale)}>
-      <body>
+      <body data-build={process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local"}>
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>
     </html>

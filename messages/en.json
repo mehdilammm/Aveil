@@ -307,16 +307,14 @@
     "more": "More",
     "logout": "Log out",
     "store": "Store",
-    "groupWork": "Work",
-    "groupReadiness": "Store readiness",
-    "groupAi": "AI results",
-    "groupMore": "Reports",
+    "groupMore": "More pages",
     "short": {
       "overview": "Overview",
       "fix": "Fix",
-      "alerts": "Alerts",
-      "revenue": "Revenue"
-    }
+      "revenue": "Revenue",
+      "visibility": "Visibility"
+    },
+    "groupMain": "Main"
   },
   "autofix": {
     "title": "Auto-fix technical issues",
@@ -1134,7 +1132,11 @@
     "dNoKey": "Not set up on the server yet (no AI engine key).",
     "dNoQuestion": "Add at least one question first.",
     "dRunning": "A run is in progress.",
-    "dLimit": "Once a {per} on the {plan} plan. Next run: {date}."
+    "dLimit": "Once a {per} on the {plan} plan. Next run: {date}.",
+    "tabQa": "Questions & answers",
+    "tabProfile": "Brand profile",
+    "tabShare": "Share of voice",
+    "tabCitations": "Citations"
   },
   "common": {
     "noKeyHelp": "Add the store's WooCommerce read key in Settings to see this page.",

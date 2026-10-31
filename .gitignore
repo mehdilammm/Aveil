@@ -8,3 +8,4 @@ next-env.d.ts
 .vercel
 audit/before/
 audit/crops/
+audit/full-after/
