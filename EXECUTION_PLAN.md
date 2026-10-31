@@ -222,4 +222,13 @@ matha.site, 2026-10-30 (DB before: 0 market findings, 0 ai_orders, 3 alerts): 3 
 | P8 | Page titles | Done | Every page has its own `<title>` ("Fix Center – AgentScope"). |
 | P9 | Hide internals | Done | Provider counts (Gemini / Groq / NVIDIA) only for ADMIN_EMAILS; customers see questions used this week. |
 | P10 | Plain labels | Done | Funnel values and details from the catalogs (`Stage.msg`); traffic categories, page types and HTTP status in plain words (`lib/traffic-labels.ts`, raw value kept as a hint); purchase test HTTP lines under Technical details. `p5-revenue-*`, `p5-traffic-*` |
-| — | Phase 2 | Waiting | Starts after approval of the phase 1 screenshots. |
+| — | Phase 2 | Done | Approved 2026-10-31; see below. |
+
+### Milestone H, phase 2 (approved 2026-10-31): before / after in `audit/after/` (`q1-*`, `q2-*`, `phase2-*`)
+
+| # | Part | Status | What |
+|---|---|---|---|
+| Q1 | Charts | Done | `components/charts.tsx` rebuilt in HTML and a little SVG, no chart library and no client JavaScript: text at its real size on phones, bars and points placed with logical CSS so time runs in the reading direction in Arabic, dates through Intl in the reader's language (Latin digits), tap or hover shows the value, "Show the numbers" lists them as a table. Every chart takes an `empty` state: all-zero bars or fewer than two points draw nothing (`components/charts.test.ts`). Colours: emerald + blue, checked with the dataviz validator for colour blindness and contrast in light and dark (`--chart-1`, `--chart-2`). |
+| Q2 | New charts and tiles | Done | AI Visibility: answers naming the store per run (from visibility_results; fewer than two runs = a sentence, no chart). Overview and Store Readiness: open issues tile with a sparkline of the last scans and the change since the previous scan (scans.findings_count). |
+| Q3 | Dark mode, polish | Done | Dark mode (device setting) keeps headline numbers and titles readable (`--strong`); verdict badges no longer stretch on phones; existing motion (cards rise, bars grow) is off with reduced motion. `q2-dark-traffic-*` |
+| — | Demo account | Waiting | Password change or deletion only after the user says which. |
