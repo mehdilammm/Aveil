@@ -14,7 +14,7 @@ export async function FirstOrderBanner({ storeId }: { storeId: string }) {
   if (!count) return null;
   const t = await getTranslations("alerts");
   return (
-    <p className="notice row status-connected" style={{ justifyContent: "space-between" }}>
+    <p className="alert-line">
       <strong>{t("firstOrder", { order: d.order_id, total: Number(d.total ?? 0).toFixed(2), currency: d.currency ?? "", source: d.source ?? "", date: formatDate(d.ordered_at ?? "") })}</strong>
       <Link href={`/stores/${storeId}/revenue`}>{t("firstOrderSee")}</Link>
     </p>

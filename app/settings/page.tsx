@@ -11,10 +11,13 @@ import { ChangeUrlForm } from "./change-url-form";
 import { DeleteStoreForm } from "./delete-store-form";
 import { TrafficConnect } from "./traffic-connect";
 import { PluginOnboarding } from "@/components/plugin-onboarding";
+import { EmptyState, PageHead } from "@/components/ui";
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ from_check?: string }> }) {
   const { supabase, user } = await getUser();
   const tu = await getTranslations("urlChange");
+  const t = await getTranslations("settingsPage");
+  const to = await getTranslations("overview");
   if (user) await ensurePersonalWorkspace(createAdminClient(), user.id).catch(() => null);
   const workspaces = user ? await listWorkspaces(supabase, user.id) : [];
   const roleOf = new Map(workspaces.map((w) => [w.id, w]));
@@ -37,47 +40,44 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <div className="page-head">
-        <h1>Settings</h1>
-        <p className="sub">Your stores and their WooCommerce connection. <Link href="/settings/workspaces">Workspaces and members</Link></p>
-      </div>
+      <PageHead title={t("title")} icon="settings" sub={<>{t("sub")} <Link href="/settings/workspaces">{t("workspaces")}</Link></>} action={<a className="button secondary" href="#add-store">{t("addStore")}</a>} />
 
-      <h2>Stores</h2>
-      {stores.length === 0 && <p className="muted">No stores yet. Add your first store below.</p>}
+      <h2>{t("stores")}</h2>
+      {stores.length === 0 && <EmptyState icon="store" title={t("noStoresTitle")} text={t("noStores")} action={<a className="button" href="#add-store">{t("addStore")}</a>} />}
       {stores.map((s) => (
         <div key={s.id} className="card">
           <div className="row" style={{ justifyContent: "space-between" }}>
             <Link href={`/stores/${s.id}`}><strong>{s.name}</strong></Link>
-            <span className={`status-${s.connection_status}`}>{s.connection_status}</span>
+            <span className={`status-${s.connection_status}`}>{["connected", "error", "not-connected"].includes(s.connection_status) ? to(`status.${s.connection_status}`) : s.connection_status}</span>
           </div>
-          <div className="muted">{s.url} · {roleOf.get(s.workspace_id)?.name ?? "workspace"} ({roleOf.get(s.workspace_id)?.role ?? "member"})</div>
-          {s.connection_status === "error" && s.connection_error && <p className="error">Last error: {s.connection_error}</p>}
+          <div className="muted"><bdi>{s.url}</bdi> · {roleOf.get(s.workspace_id)?.name ?? t("workspace")} ({roleOf.get(s.workspace_id)?.role ?? "member"})</div>
+          {s.connection_status === "error" && s.connection_error && <p className="error">{t("lastError")}: {s.connection_error}</p>}
           {canEdit(roleOf.get(s.workspace_id)?.role) ? (
             <>
-              <details>
-                <summary className="muted">AI traffic plugin{connectors.get(s.id) ? " (connected)" : " (not connected)"}</summary>
+              <details className="fold">
+                <summary>{t("plugin")} · {connectors.get(s.id) ? to("status.connected") : to("status.not-connected")}</summary>
                 <PluginOnboarding connected={connectors.get(s.id) ?? null} codeHere>
                   <TrafficConnect storeId={s.id} connected={connectors.get(s.id) ?? null} endpoint={endpoint} />
                 </PluginOnboarding>
               </details>
               {roleOf.get(s.workspace_id)?.role === "owner" && (
-                <details>
-                  <summary className="muted">{tu("title")}</summary>
+                <details className="fold">
+                  <summary>{tu("title")}</summary>
                   <ChangeUrlForm storeId={s.id} />
                 </details>
               )}
-              <details>
-                <summary className="muted">Delete this store</summary>
+              <details className="fold">
+                <summary>{t("delete")}</summary>
                 <DeleteStoreForm storeId={s.id} storeName={s.name} />
               </details>
             </>
           ) : (
-            <p className="muted small">You are a viewer in this workspace: you can read reports, not change keys or delete.</p>
+            <p className="muted small">{t("viewer")}</p>
           )}
         </div>
       ))}
 
-      <h2 id="add-store">Add store</h2>
+      <h2 id="add-store">{t("addStore")}</h2>
       <AddStoreForm prefill={prefill} workspaces={workspaces.filter((w) => canEdit(w.role)).map((w) => ({ id: w.id, name: w.personal ? `${w.name} (personal)` : w.name }))} />
     </>
   );

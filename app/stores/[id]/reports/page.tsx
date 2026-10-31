@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { formatDate } from "@/components/badges";
+import { EmptyState, PageHead, StatStrip } from "@/components/ui";
 import { deltasForScans, getStore, listScans, weeklyReport } from "@/lib/data";
 import { shareState } from "@/lib/share-report";
 import { getUser } from "@/lib/supabase/server";
@@ -14,6 +16,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
+  const t = await getTranslations("reports");
 
   const scans = await listScans(supabase, id, 50);
   const deltas = await deltasForScans(supabase, scans);
@@ -24,54 +27,58 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
   const { data: shareRows } = await supabase.from("share_reports").select("id, created_at, expires_at, revoked_at, views").eq("store_id", store.id).order("created_at", { ascending: false }).limit(50);
   const now = Date.now();
   const links = (shareRows ?? []).map((r) => ({ ...r, state: shareState(r, now) as "ok" | "expired" | "revoked" }));
-  const titleList = (keys: string[]) => (keys.length ? <ul>{keys.map((k) => <li key={k}>{weekly?.titles.get(k) ?? k}</li>)}</ul> : <p className="muted">None.</p>);
+  // Same titles grouped with a count ("Feed: brand missing × 15") instead of one line each.
+  const titleList = (keys: string[]) => {
+    if (!keys.length) return <p className="muted">{t("none")}</p>;
+    const counts = new Map<string, number>();
+    for (const k of keys) { const title = weekly?.titles.get(k) ?? k; counts.set(title, (counts.get(title) ?? 0) + 1); }
+    return <ul>{[...counts.entries()].sort((a, b) => b[1] - a[1]).map(([title, n]) => <li key={title}>{title}{n > 1 ? <span className="meta"> × {n}</span> : null}</li>)}</ul>;
+  };
 
   return (
     <>
-      <div className="page-head">
-        <h1>Reports</h1>
-        <p className="sub">Download findings and review scan history.</p>
-      </div>
-
-      <div className="card row" style={{ justifyContent: "space-between" }}>
-        <div>
-          <strong>Findings of the latest scan (CSV)</strong>
-          <div className="muted">{lastComplete ? formatDate(lastComplete.finished_at) : "No complete scan yet"}</div>
-        </div>
-        {lastComplete && <a className="button" href={`/api/stores/${store.id}/report.csv`} download>Download CSV</a>}
-      </div>
+      <PageHead title={t("title")} icon="report" sub={t("sub")} action={lastComplete ? <a className="button" href={`/api/stores/${store.id}/report.csv`} download>{t("csv")}</a> : undefined} />
+      {weekly && (
+        <StatStrip
+          stats={[
+            { label: t("statFixed"), value: weekly.summary.fixed.length, tone: weekly.summary.fixed.length ? "good" : undefined, basis: "observed" },
+            { label: t("statNew"), value: weekly.summary.added.length, tone: weekly.summary.added.length ? "warn" : undefined, basis: "observed" },
+            { label: t("statBack"), value: weekly.summary.recurred.length, tone: weekly.summary.recurred.length ? "bad" : undefined, basis: "observed" },
+            { label: t("statOpen"), value: weekly.summary.open, basis: "observed" },
+          ]}
+        />
+      )}
 
       {plan?.shareReports ? <ShareLinks storeId={store.id} links={links} canShare={Boolean(access && canEdit(access.role))} hasScan={Boolean(lastComplete)} /> : <PlanLock feature="shareReports" />}
 
-      <h2>Weekly report</h2>
+      <h2>{t("weekly")}</h2>
       {!plan?.shareReports ? (
         <PlanLock feature="shareReports" />
       ) : weekly ? (
         <div className="card">
           <p className="muted">
-            {formatDate(weekly.summary.fromDate)} → {formatDate(weekly.summary.toDate)} · {weekly.summary.open} open findings now
+            {formatDate(weekly.summary.fromDate)} → {formatDate(weekly.summary.toDate)}
           </p>
-          <h3 className="status-connected">Fixed ({weekly.summary.fixed.length})</h3>
-          {titleList(weekly.summary.fixed)}
-          <h3>New ({weekly.summary.added.length})</h3>
-          {titleList(weekly.summary.added)}
-          <h3 className="error">Came back ({weekly.summary.recurred.length})</h3>
-          {titleList(weekly.summary.recurred)}
+          <details className="fold" open><summary className="status-connected">{t("fixed", { n: weekly.summary.fixed.length })}</summary>{titleList(weekly.summary.fixed)}</details>
+          <details className="fold"><summary>{t("new", { n: weekly.summary.added.length })}</summary>{titleList(weekly.summary.added)}</details>
+          <details className="fold"><summary className="error">{t("back", { n: weekly.summary.recurred.length })}</summary>{titleList(weekly.summary.recurred)}</details>
         </div>
       ) : (
-        <p className="muted">The weekly report needs at least two complete scans. Scheduled scans run once a week.</p>
+        <EmptyState icon="report" title={t("weeklyEmptyTitle")} text={t("weeklyEmpty")} />
       )}
 
-      <h2>Scan history</h2>
+      <h2>{t("history")}</h2>
       {scans.length === 0 ? (
-        <p className="muted">No scans yet.</p>
+        <EmptyState icon="search" title={t("noScans")} />
       ) : (
-        <div className="card table-wrap">
-          <table>
+        <details className="card fold">
+          <summary>{t("historyTable", { n: scans.length })}</summary>
+          <div className="table-wrap">
+          <table className="rtable">
             <thead>
               <tr>
-                <th>Date</th><th>Status</th><th>By</th><th className="num">Products</th><th className="num">Critical</th><th className="num">Warnings</th><th className="num">Low</th>
-                <th className="num">New</th><th className="num">Resolved</th>
+                <th>{t("date")}</th><th>{t("status")}</th><th>{t("by")}</th><th className="num">{t("products")}</th><th className="num">{t("critical")}</th><th className="num">{t("warnings")}</th><th className="num">{t("low")}</th>
+                <th className="num">{t("newCol")}</th><th className="num">{t("resolved")}</th>
               </tr>
             </thead>
             <tbody>
@@ -80,21 +87,22 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
                 const d = deltas.get(s.id);
                 return (
                   <tr key={s.id}>
-                    <td>{formatDate(s.finished_at ?? s.started_at)}</td>
-                    <td className={s.status === "failed" ? "error" : undefined}>{s.status}</td>
-                    <td>{s.trigger === "scheduled" ? "Schedule" : "You"}</td>
-                    <td className="num">{s.scanned_products ?? "—"}</td>
-                    <td className="num">{s.status === "complete" ? c.high ?? 0 : "—"}</td>
-                    <td className="num">{s.status === "complete" ? c.medium ?? 0 : "—"}</td>
-                    <td className="num">{s.status === "complete" ? c.low ?? 0 : "—"}</td>
-                    <td className="num">{d?.new ?? "—"}</td>
-                    <td className="num">{d?.resolved ?? "—"}</td>
+                    <td data-label={t("date")}>{formatDate(s.finished_at ?? s.started_at)}</td>
+                    <td data-label={t("status")} className={s.status === "failed" ? "error" : undefined}>{s.status}</td>
+                    <td data-label={t("by")}>{s.trigger === "scheduled" ? t("schedule") : t("you")}</td>
+                    <td className="num" data-label={t("products")}>{s.scanned_products ?? "—"}</td>
+                    <td className="num" data-label={t("critical")}>{s.status === "complete" ? c.high ?? 0 : "—"}</td>
+                    <td className="num" data-label={t("warnings")}>{s.status === "complete" ? c.medium ?? 0 : "—"}</td>
+                    <td className="num" data-label={t("low")}>{s.status === "complete" ? c.low ?? 0 : "—"}</td>
+                    <td className="num" data-label={t("newCol")}>{d?.new ?? "—"}</td>
+                    <td className="num" data-label={t("resolved")}>{d?.resolved ?? "—"}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </details>
       )}
     </>
   );

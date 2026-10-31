@@ -1,3 +1,4 @@
+import { EmptyState, PageHead } from "@/components/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -23,11 +24,9 @@ export default async function BotProductMapPage({ params }: { params: Promise<{ 
   const store = await getStore(supabase, id);
   if (!store) notFound();
   const t = await getTranslations("botMap");
+  const tx = await getTranslations("common");
   const head = (
-    <div className="page-head">
-      <h1>{t("title")}</h1>
-      <p className="sub">{t("sub", { days: DAYS })}</p>
-    </div>
+    <PageHead title={t("title")} icon="bot" sub={t("sub", { days: DAYS })} />
   );
   const access = user ? await storeAccess(supabase, user.id, store.id) : null;
   if (!access) notFound();
@@ -35,7 +34,7 @@ export default async function BotProductMapPage({ params }: { params: Promise<{ 
   if (!(await storePlan(admin, store.id)).botTraffic) return <>{head}<PlanLock feature="botTraffic" /></>;
 
   const { data: creds } = await admin.rpc("get_store_credentials", { p_store_id: store.id, p_owner_id: access.owner_id }).maybeSingle<{ consumer_key: string; consumer_secret: string }>();
-  if (!creds) return <>{head}<div className="card"><p><BasisBadge basis="unavailable" /> {t("noKey")}</p></div></>;
+  if (!creds) return <>{head}<EmptyState icon="lock" title={<><BasisBadge basis="unavailable" /> {t("noKey")}</>} text={tx("noKeyHelp")} action={<a className="button" href="/settings">{tx("openSettings")}</a>} /></>;
   let products;
   try {
     products = await fetchPublishedProducts(store.url, { consumerKey: creds.consumer_key, consumerSecret: creds.consumer_secret });
@@ -63,7 +62,7 @@ export default async function BotProductMapPage({ params }: { params: Promise<{ 
       {head}
       <p className="muted small">{t("note")}</p>
       {hits.length >= MAX_HITS && <p className="muted small">{t("capped", { n: MAX_HITS })}</p>}
-      {!hits.length && <div className="card"><p><BasisBadge basis="unavailable" /> {t("noHits", { days: DAYS })}</p></div>}
+      {!hits.length && <EmptyState icon="bot" title={<><BasisBadge basis="unavailable" /> {t("noHits", { days: DAYS })}</>} />}
 
       <h2>{t("visitedTitle", { n: map.visited.length })}</h2>
       {map.visited.length === 0 ? <p className="muted">{t("visitedNone")}</p> : map.visited.map((r) => (

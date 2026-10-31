@@ -1,10 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { formatDate } from "@/components/badges";
+import { FunnelChart } from "@/components/charts";
 import { FindingCard } from "@/components/finding-card";
-import { ACCESS_NOTE } from "@/lib/access";
+import { AREA_ICON, Icon } from "@/components/icons";
+import { IssuesChart } from "@/components/issues-chart";
+import { EmptyState, HeroAction, PageHead, StatStrip } from "@/components/ui";
 import { areaOf, AREAS } from "@/lib/categories";
-import { findingsForScan, getStore, listScans, sortForFixing, openJobId } from "@/lib/data";
+import { getStore, listScans, sortForFixing, openJobId } from "@/lib/data";
+import { loadFunnel } from "@/lib/funnel-data";
 import { PluginOnboarding } from "@/components/plugin-onboarding";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
@@ -14,11 +19,16 @@ import { AlertBanner } from "@/components/alert-banner";
 import { FirstOrderBanner } from "@/components/first-order-banner";
 import { canEdit, storeAccess } from "@/lib/workspace";
 
+const WEEK_MS = 7 * 86_400_000;
+
 export default async function OverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
+  const t = await getTranslations("overview");
+  const ta = await getTranslations("areas");
+  const tf = await getTranslations("funnelUi");
   const scanJobId = await openJobId(supabase, store.id, "scan");
   const access = user ? await storeAccess(supabase, user.id, store.id) : null;
 
@@ -33,89 +43,90 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
 
   const scans = await listScans(supabase, id, 20);
   const last = scans[0];
-  const lastComplete = scans.find((s) => s.status === "complete");
-  const findings = lastComplete ? sortForFixing(await findingsForScan(supabase, lastComplete.id)) : [];
+  const funnel = await loadFunnel(supabase, id);
+  const { lastComplete } = funnel;
+  const findings = sortForFixing(funnel.findings);
+  const since = new Date(Date.now() - WEEK_MS).toISOString();
+  const { count: fixedWeek } = await supabase.from("fix_audit_log").select("id", { count: "exact", head: true }).eq("store_id", id).in("status", ["applied", "reapplied"]).gte("applied_at", since);
   const areas = AREAS.map((a) => {
     const inArea = findings.filter((f) => areaOf(f) === a.key);
-    return {
-      ...a,
-      total: inArea.length,
-      high: inArea.filter((f) => f.severity === "high").length,
-      medium: inArea.filter((f) => f.severity === "medium").length,
-      low: inArea.filter((f) => f.severity === "low").length,
-      unavailable: inArea.filter((f) => f.basis === "unavailable").length,
-    };
+    return { ...a, total: inArea.length, high: inArea.filter((f) => f.severity === "high").length, medium: inArea.filter((f) => f.severity === "medium").length, low: inArea.filter((f) => f.severity === "low").length, unavailable: inArea.filter((f) => f.basis === "unavailable").length };
   });
+  const critical = findings.filter((f) => f.severity === "high").length;
+  const next = findings.find((f) => f.basis !== "unavailable");
+  const status = ["connected", "error", "not-connected"].includes(store.connection_status) ? store.connection_status : "not-connected";
 
   return (
     <>
-      <div className="page-head">
-        <h1>{store.name}</h1>
-        <p className="sub">
-          {store.url} · <span className={`status-${store.connection_status}`}>{store.connection_status}</span>
-        </p>
-        {store.connection_status === "error" && store.connection_error && <p className="error">{store.connection_error}</p>}
-      </div>
+      <PageHead
+        title={store.name}
+        sub={<><bdi>{store.url}</bdi> · <span className={`status-${status}`}>{t(`status.${status}`)}</span></>}
+        action={last ? <RunScanButton storeId={store.id} openJobId={scanJobId} label={t("rescan")} /> : undefined}
+      />
+      {store.connection_status === "error" && store.connection_error && <p className="error">{store.connection_error}</p>}
       <AlertBanner storeId={store.id} />
       <FirstOrderBanner storeId={store.id} />
 
-      {!pluginConnected && (
-        <details className="card">
-          <summary><strong>Measure real AI bot traffic</strong> <span className="muted small">install the WordPress plugin</span></summary>
-          <PluginOnboarding connected={null} />
-        </details>
-      )}
-
       {!last ? (
-        <div className="card empty">
-          <strong>No scan yet</strong>
-          <p>Run the first scan to see how ready this store is for AI shopping agents.</p>
-          <RunScanButton storeId={store.id} openJobId={scanJobId} label="Run first scan" />
-        </div>
+        <EmptyState icon="search" title={t("noScanTitle")} text={t("noScan")} action={<RunScanButton storeId={store.id} openJobId={scanJobId} label={t("firstScan")} />} />
       ) : (
         <>
-          <div className="card">
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <div>
-                <div className="muted">Last scan</div>
-                <strong>{formatDate(last.finished_at ?? last.started_at)}</strong> · {last.status}
-                {last.status === "failed" && last.error && <p className="error">{last.error}</p>}
-                {lastComplete && <div className="muted">{lastComplete.scanned_products ?? 0} products scanned</div>}
-              </div>
-              <RunScanButton storeId={store.id} openJobId={scanJobId} label="Rescan" />
-            </div>
-          </div>
+          {next ? (
+            <HeroAction eyebrow={t("nextAction")} title={next.title} text={next.guidance} href={`/stores/${store.id}/fix#f-${next.finding_key}`} cta={t("fixIt")} />
+          ) : lastComplete ? (
+            <HeroAction done eyebrow={t("nextAction")} title={t("allClearTitle")} text={t("allClear")} />
+          ) : null}
+
+          {lastComplete && (
+            <StatStrip
+              stats={[
+                { label: t("statOpen"), value: findings.length, basis: "observed", foot: t("statFrom", { date: formatDate(lastComplete.finished_at) }) },
+                { label: t("statCritical"), value: critical, tone: critical ? "bad" : "good", basis: "observed" },
+                { label: t("statFixed"), value: fixedWeek ?? 0, tone: fixedWeek ? "good" : undefined, basis: "observed" },
+                { label: t("statProducts"), value: lastComplete.scanned_products ?? 0, basis: "observed" },
+              ]}
+            />
+          )}
+          {last.status === "failed" && last.error && <p className="error">{last.error}</p>}
 
           {lastComplete && (
             <>
-              <h2>Agent Readiness</h2>
-              <p className="muted">Open findings per area from the last scan. Counts only, no score.</p>
+              <h2 className="section-title"><Icon name="revenue" /> {t("funnelTitle")}</h2>
+              <div className="card">
+                <FunnelChart steps={funnel.stages.map((s) => ({ key: s.key, question: tf(`q.${s.key}`), status: s.status, value: s.value, basis: s.basis, statusLabel: tf(`status.${s.status}`) }))} />
+                <p className="small"><Link href={`/stores/${store.id}/revenue`}>{t("funnelMore")}</Link></p>
+              </div>
+
+              <IssuesChart supabase={supabase} storeId={store.id} />
+
+              <h2 className="section-title"><Icon name="readiness" /> {t("areasTitle")}</h2>
               <div className="areas">
                 {areas.map((a) => (
                   <div key={a.key} className="card area">
                     <div className="row" style={{ justifyContent: "space-between" }}>
-                      <strong>{a.label}</strong>
+                      <strong className="row"><Icon name={AREA_ICON[a.key]} /> {ta(`${a.key}.label`)}</strong>
                       <span className="area-total">{a.total}</span>
                     </div>
-                    <p className="muted small">{a.description}</p>
-                    <div className="row small">
-                      <span className="badge sev-high">{a.high} critical</span>
-                      <span className="badge sev-medium">{a.medium} warning</span>
-                      <span className="badge sev-low">{a.low} low</span>
-                    </div>
-                    {a.unavailable > 0 && <p className="muted small">{a.unavailable} could not be checked (unavailable).</p>}
-                    {a.key === "access" && <p className="muted small">{ACCESS_NOTE}</p>}
+                    <p className="muted small">{ta(`${a.key}.description`)}</p>
+                    {a.total > 0 && (
+                      <div className="row small">
+                        {a.high > 0 && <span className="badge sev-high">{t("nCritical", { n: a.high })}</span>}
+                        {a.medium > 0 && <span className="badge sev-medium">{t("nWarning", { n: a.medium })}</span>}
+                        {a.low > 0 && <span className="meta">{t("nLow", { n: a.low })}</span>}
+                      </div>
+                    )}
+                    {a.unavailable > 0 && <p className="meta">{t("nUnavailable", { n: a.unavailable })}</p>}
                   </div>
                 ))}
               </div>
 
-              <h2>Top 5 to fix</h2>
+              <h2 className="section-title"><Icon name="fix" /> {t("topTitle")}</h2>
               {findings.length === 0 ? (
-                <p className="notice">Nothing to fix. Every check passed.</p>
+                <EmptyState icon="check" title={t("allClearTitle")} text={t("allClear")} />
               ) : (
                 <>
-                  {findings.slice(0, 5).map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} />)}
-                  {findings.length > 5 && <p><Link href={`/stores/${store.id}/fix`}>See all {findings.length} in Fix Center →</Link></p>}
+                  {findings.slice(0, 3).map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} storeId={store.id} />)}
+                  {findings.length > 3 && <p><Link className="button secondary" href={`/stores/${store.id}/fix`}>{t("seeAll", { n: findings.length })}</Link></p>}
                 </>
               )}
             </>
@@ -123,6 +134,12 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         </>
       )}
 
+      {!pluginConnected && (
+        <details className="card fold">
+          <summary><Icon name="plug" /> {t("pluginTitle")}</summary>
+          <PluginOnboarding connected={null} />
+        </details>
+      )}
       <OwnershipCard supabase={supabase} storeId={store.id} storeUrl={store.url} canEdit={Boolean(access && canEdit(access.role))} />
     </>
   );

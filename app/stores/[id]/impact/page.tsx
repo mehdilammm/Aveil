@@ -1,3 +1,4 @@
+import { EmptyState, PageHead } from "@/components/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -21,19 +22,17 @@ export default async function ProductImpactPage({ params }: { params: Promise<{ 
   const store = await getStore(supabase, id);
   if (!store) notFound();
   const t = await getTranslations("impact");
+  const tx = await getTranslations("common");
   const access = user ? await storeAccess(supabase, user.id, store.id) : null;
   const scan = (await listScans(supabase, id, 20)).find((s) => s.status === "complete");
   const head = (
-    <div className="page-head">
-      <h1>{t("title")}</h1>
-      <p className="sub">{t("sub")}</p>
-    </div>
+    <PageHead title={t("title")} icon="impact" sub={t("sub")} />
   );
   if (!scan || !access) return <>{head}<div className="card empty"><p>{t("noScan")}</p></div></>;
 
   const admin = createAdminClient();
   const { data: creds } = await admin.rpc("get_store_credentials", { p_store_id: store.id, p_owner_id: access.owner_id }).maybeSingle<{ consumer_key: string; consumer_secret: string }>();
-  if (!creds) return <>{head}<div className="card"><p><BasisBadge basis="unavailable" /> {t("noKey")}</p></div></>;
+  if (!creds) return <>{head}<EmptyState icon="lock" title={<><BasisBadge basis="unavailable" /> {t("noKey")}</>} text={tx("noKeyHelp")} action={<a className="button" href="/settings">{tx("openSettings")}</a>} /></>;
   const [{ data: sample }, findings, catalog, { data: runs }] = await Promise.all([
     supabase.from("scan_schema_pages").select("product_id, url").eq("scan_id", scan.id).order("product_id"),
     findingsForScan(supabase, scan.id),
