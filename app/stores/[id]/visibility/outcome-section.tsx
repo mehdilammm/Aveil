@@ -37,27 +37,27 @@ export async function OutcomeSection({ storeId }: { storeId: string }) {
       <h2>{t("title")}</h2>
       <p className="muted small">{t("note")}</p>
       <div className="card table-wrap">
-        <table>
+        <table className="rtable">
           <thead>
             <tr><th>{t("fixed")}</th><th>{t("recheck")}</th><th>{t("before")}</th><th>{t("after")}</th><th>{t("changes")}</th></tr>
           </thead>
           <tbody>
             {outcomes.map((o) => (
               <tr key={o.due_on}>
-                <td>{formatDate(o.fixedAt, locale)}<div className="muted small">{t("fixes", { n: o.fixes })}</div></td>
-                <td>{t("day", { day: o.day })}<div className="muted small">{o.due_on}</div></td>
+                <td data-label={t("fixed")}>{formatDate(o.fixedAt, locale)}<div className="muted small">{t("fixes", { n: o.fixes })}</div></td>
+                <td data-label={t("recheck")}>{t("day", { day: o.day })}<div className="muted small">{o.due_on}</div></td>
                 {o.state === "done" ? (
                   <>
-                    <td>{t("named", { named: o.before!.named, total: o.before!.answered })}<div className="muted small">{formatDate(o.before!.at, locale)}</div></td>
-                    <td><BasisBadge basis="observed" /> {t("named", { named: o.after!.named, total: o.after!.answered })}<div className="muted small">{formatDate(o.after!.at, locale)}</div></td>
-                    <td className="small">
+                    <td data-label={t("before")}>{t("named", { named: o.before!.named, total: o.before!.answered })}<div className="muted small">{formatDate(o.before!.at, locale)}</div></td>
+                    <td data-label={t("after")}><BasisBadge basis="observed" /> {t("named", { named: o.after!.named, total: o.after!.answered })}<div className="muted small">{formatDate(o.after!.at, locale)}</div></td>
+                    <td data-label={t("changes")} className="small">
                       {o.gained.length === 0 && o.lost.length === 0 && <span className="muted">{t("noChange")}</span>}
                       {o.gained.length > 0 && <div className="status-connected">{t("gained", { n: o.gained.length })}: {o.gained.slice(0, 3).join(" · ")}</div>}
                       {o.lost.length > 0 && <div className="error">{t("lost", { n: o.lost.length })}: {o.lost.slice(0, 3).join(" · ")}</div>}
                     </td>
                   </>
                 ) : (
-                  <td colSpan={3}>
+                  <td data-label="" colSpan={3}>
                     <BasisBadge basis="unavailable" />{" "}
                     {o.state === "pending" ? t("pending", { date: o.due_on }) : o.state === "failed" ? `${t("failed")} ${o.reason ?? ""}` : o.state === "no_baseline" ? t("noBaseline") : t("noOverlap")}
                   </td>

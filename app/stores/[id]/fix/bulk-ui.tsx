@@ -126,15 +126,15 @@ export function CsvImport({ storeId, canWrite }: { storeId: string; canWrite: bo
       {preview && (
         <>
           <div className="table-wrap">
-            <table>
+            <table className="rtable">
               <thead><tr><th>{t("line")}</th><th>{t("product")}</th><th>{t("changes")}</th><th>{t("status")}</th></tr></thead>
               <tbody>
                 {preview.rows.map((r) => (
                   <tr key={r.line}>
-                    <td className="num">{r.line}</td>
-                    <td>{r.productId ? `#${r.productId}` : "—"} {r.name}</td>
-                    <td dir="ltr" className="small">{r.changes.map((c) => <div key={c.field}>{c.field}: {c.before || "(empty)"} → <strong>{c.after}</strong></div>)}</td>
-                    <td className={r.status === "error" ? "error small" : "small"}>{statusLabel[r.status]}{r.reason ? ` · ${r.reason}` : ""}</td>
+                    <td data-label={t("line")} className="num">{r.line}</td>
+                    <td data-label={t("product")}>{r.productId ? `#${r.productId}` : "—"} {r.name}</td>
+                    <td data-label={t("changes")} dir="ltr" className="small">{r.changes.map((c) => <div key={c.field}>{c.field}: {c.before || "(empty)"} → <strong>{c.after}</strong></div>)}</td>
+                    <td data-label={t("status")} className={r.status === "error" ? "error small" : "small"}>{statusLabel[r.status]}{r.reason ? ` · ${r.reason}` : ""}</td>
                   </tr>
                 ))}
               </tbody>

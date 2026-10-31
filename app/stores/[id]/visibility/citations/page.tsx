@@ -60,15 +60,15 @@ export default async function CitationsPage({ params }: { params: Promise<{ id: 
             <p className="muted">{tv("cNoSite")}</p>
           ) : (
             <div className="card table-wrap">
-              <table>
+              <table className="rtable">
                 <thead><tr><th>{tv("cSite")}</th><th>{tv("cIn")}</th><th>{tv("cWho")}</th><th>{tv("cPart")}</th></tr></thead>
                 <tbody>
                   {summary.domains.slice(0, 30).map((d) => (
                     <tr key={d.domain} style={d.isStore ? { fontWeight: 600 } : undefined}>
-                      <td>{d.domain}</td>
-                      <td>{tv("nOf", { n: d.answers, of: summary.grounded })}</td>
-                      <td>{d.isStore ? tv("yourStore") : d.competitor ? tv("competitor", { name: d.competitor }) : "—"}</td>
-                      <td style={{ whiteSpace: "normal" }} className="small">{d.examples[0] ? `“${d.examples[0]}”` : "—"}</td>
+                      <td data-label={tv("cSite")}>{d.domain}</td>
+                      <td data-label={tv("cIn")}>{tv("nOf", { n: d.answers, of: summary.grounded })}</td>
+                      <td data-label={tv("cWho")}>{d.isStore ? tv("yourStore") : d.competitor ? tv("competitor", { name: d.competitor }) : "—"}</td>
+                      <td data-label={tv("cPart")} style={{ whiteSpace: "normal" }} className="small">{d.examples[0] ? `“${d.examples[0]}”` : "—"}</td>
                     </tr>
                   ))}
                 </tbody>

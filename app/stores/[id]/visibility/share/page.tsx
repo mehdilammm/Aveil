@@ -50,14 +50,14 @@ export default async function ShareOfVoicePage({ params }: { params: Promise<{ i
         <>
           <h2>{tv("sLatest", { date: formatDate(latest.date, locale) })}</h2>
           <div className="card table-wrap">
-            <table>
+            <table className="rtable">
               <thead><tr><th>#</th><th>{tv("sName")}</th><th>{tv("sNamedIn")}</th></tr></thead>
               <tbody>
                 {latest.entries.filter((e) => e.isStore || e.questions > 0).map((e, i) => (
                   <tr key={e.name} style={e.isStore ? { fontWeight: 600 } : undefined}>
-                    <td>{e.questions > 0 ? i + 1 : "—"}</td>
-                    <td>{e.name}{e.isStore ? ` (${tv("yourStore")})` : ""}</td>
-                    <td>{tv("nOfQ", { n: e.questions, of: latest.answered })}</td>
+                    <td data-label="#">{e.questions > 0 ? i + 1 : "—"}</td>
+                    <td data-label={tv("sName")}>{e.name}{e.isStore ? ` (${tv("yourStore")})` : ""}</td>
+                    <td data-label={tv("sNamedIn")}>{tv("nOfQ", { n: e.questions, of: latest.answered })}</td>
                   </tr>
                 ))}
               </tbody>
@@ -67,17 +67,17 @@ export default async function ShareOfVoicePage({ params }: { params: Promise<{ i
 
           <h2>{tv("sWeeks")}</h2>
           <div className="card table-wrap">
-            <table>
+            <table className="rtable">
               <thead><tr><th>{tv("sRun")}</th><th>{tv("yourStoreCap")}</th><th>{tv("sPosition")}</th>{top.map((n) => <th key={n}>{n}</th>)}</tr></thead>
               <tbody>
                 {weeks.map((w) => {
                   const pos = storePosition(w);
                   return (
                     <tr key={w.runId}>
-                      <td>{w.date.slice(0, 10)}</td>
-                      <td>{tv("nOf", { n: w.entries.find((e) => e.isStore)?.questions ?? 0, of: w.answered })}</td>
-                      <td>{pos ?? tv("notNamed")}</td>
-                      {top.map((n) => <td key={n}>{tv("nOf", { n: w.entries.find((e) => e.name.toLowerCase() === n.toLowerCase())?.questions ?? 0, of: w.answered })}</td>)}
+                      <td data-label={tv("sRun")}>{w.date.slice(0, 10)}</td>
+                      <td data-label={tv("yourStoreCap")}>{tv("nOf", { n: w.entries.find((e) => e.isStore)?.questions ?? 0, of: w.answered })}</td>
+                      <td data-label={tv("sPosition")}>{pos ?? tv("notNamed")}</td>
+                      {top.map((n) => <td data-label={n} key={n}>{tv("nOf", { n: w.entries.find((e) => e.name.toLowerCase() === n.toLowerCase())?.questions ?? 0, of: w.answered })}</td>)}
                     </tr>
                   );
                 })}

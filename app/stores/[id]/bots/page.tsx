@@ -81,11 +81,11 @@ export default async function BotProductMapPage({ params }: { params: Promise<{ 
             ))}
           </p>
           <div className="table-wrap">
-            <table>
+            <table className="rtable">
               <thead><tr><th>{t("bot")}</th><th className="num">{t("verified")}</th><th className="num">{t("claimed")}</th><th className="num">{t("pending")}</th></tr></thead>
               <tbody>
                 {r.bots.map((b) => (
-                  <tr key={b.bot}><td>{b.bot}</td><td className="num">{b.verified}</td><td className="num">{b.claimed}</td><td className="num">{b.pending}</td></tr>
+                  <tr key={b.bot}><td data-label={t("bot")}>{b.bot}</td><td data-label={t("verified")} className="num">{b.verified}</td><td data-label={t("claimed")} className="num">{b.claimed}</td><td data-label={t("pending")} className="num">{b.pending}</td></tr>
                 ))}
               </tbody>
             </table>
@@ -99,13 +99,13 @@ export default async function BotProductMapPage({ params }: { params: Promise<{ 
       {map.unvisited.length === 0 ? <p className="muted">{t("unvisitedNone")}</p> : (
         <div className="card table-wrap">
           <p className="muted small">{t("unvisitedNote")}</p>
-          <table>
+          <table className="rtable">
             <thead><tr><th>{t("product")}</th><th>{t("topIssue")}</th></tr></thead>
             <tbody>
               {map.unvisited.map((u) => (
                 <tr key={u.product.id}>
-                  <td><a href={u.product.url} target="_blank" rel="noopener noreferrer">{u.product.name}</a></td>
-                  <td>{u.findings[0] ? <><BasisBadge basis={u.findings[0].basis} /> {u.findings[0].title}</> : <span className="muted">{t("noOpen")}</span>}</td>
+                  <td data-label={t("product")}><a href={u.product.url} target="_blank" rel="noopener noreferrer">{u.product.name}</a></td>
+                  <td data-label={t("topIssue")}>{u.findings[0] ? <><BasisBadge basis={u.findings[0].basis} /> {u.findings[0].title}</> : <span className="muted">{t("noOpen")}</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -117,11 +117,11 @@ export default async function BotProductMapPage({ params }: { params: Promise<{ 
         <>
           <h2>{t("otherTitle")}</h2>
           <div className="card table-wrap">
-            <table>
+            <table className="rtable">
               <thead><tr><th>{t("page")}</th><th className="num">{t("verified")}</th><th className="num">{t("claimed")}</th><th className="num">{t("pending")}</th></tr></thead>
               <tbody>
                 {map.otherPages.map((o) => (
-                  <tr key={o.path}><td dir="ltr">{o.path}</td><td className="num">{o.verified}</td><td className="num">{o.claimed}</td><td className="num">{o.pending}</td></tr>
+                  <tr key={o.path}><td data-label={t("page")} dir="ltr">{o.path}</td><td data-label={t("verified")} className="num">{o.verified}</td><td data-label={t("claimed")} className="num">{o.claimed}</td><td data-label={t("pending")} className="num">{o.pending}</td></tr>
                 ))}
               </tbody>
             </table>

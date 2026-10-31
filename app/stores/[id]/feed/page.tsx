@@ -85,15 +85,15 @@ export default async function FeedPage({ params }: { params: Promise<{ id: strin
         {buildError ? <p><BasisBadge basis="unavailable" /> {t("buildError", { reason: buildError })}</p> : feed && (
           <>
             <p className="small">{t("counts", { products: feed.counts.products, variants: feed.counts.variants, excluded: feed.counts.excluded, csv: feed.counts.csvRows, csvExcluded: feed.counts.csvExcluded })}</p>
-            <table>
+            <table className="rtable">
               <thead><tr><th>{t("product")}</th><th>JSON</th><th>CSV</th><th>{t("missing")}</th></tr></thead>
               <tbody>
                 {feed.rows.map((r) => (
                   <tr key={r.id}>
-                    <td>{r.name} <span className="muted small">#{r.id}</span></td>
-                    <td><BasisBadge basis="observed" /> {r.json === "included" ? t("included", { n: r.variants }) : t("excluded", { reason: r.jsonReason ?? "" })}</td>
-                    <td>{r.csv === "included" ? t("csvIncluded") : t("csvExcluded", { fields: r.csvMissing.join(", ") })}</td>
-                    <td className="small">{r.missing.length ? <>{r.missing.join(", ")} · <Link href={`/stores/${store.id}/fix`}>{t("toFix")}</Link></> : "—"}</td>
+                    <td data-label={t("product")}>{r.name} <span className="muted small">#{r.id}</span></td>
+                    <td data-label="JSON"><BasisBadge basis="observed" /> {r.json === "included" ? t("included", { n: r.variants }) : t("excluded", { reason: r.jsonReason ?? "" })}</td>
+                    <td data-label="CSV">{r.csv === "included" ? t("csvIncluded") : t("csvExcluded", { fields: r.csvMissing.join(", ") })}</td>
+                    <td data-label={t("missing")} className="small">{r.missing.length ? <>{r.missing.join(", ")} · <Link href={`/stores/${store.id}/fix`}>{t("toFix")}</Link></> : "—"}</td>
                   </tr>
                 ))}
               </tbody>
