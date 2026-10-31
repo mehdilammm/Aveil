@@ -73,3 +73,23 @@ market show "Unavailable"; the /check report shown is the latest public check (t
 **/check** and report (check-*, check-report-*)
 - Major: not translated (stays English in Arabic).
 - Minor: report on phone 5,183 px; each finding 3 badges.
+
+## After (2026-10-31, same 64 views, `audit/after/`, side by side in `audit/crops/compare-*.png`)
+
+| Page (phone, EN) | Height before → after | Badges | Tap targets < 44 px |
+|---|---|---|---|
+| Overview | 3,402 → 4,215 (now starts with the next best action, 4 numbers, funnel and issues chart) | 37 → 27 | 29 → 10 |
+| Fix Center | 16,245 → 6,832 | 132 → 109 | 94 → 43 |
+| Store Readiness | 1,354 → 939 | 0 → 5 | 39 → 22 |
+| AI Visibility | 8,002 → 4,111 | 36 → 38 | 31 → 4 |
+| AI Revenue | 3,413 → 2,826 | 27 → 19 | 19 → 1 |
+| Reports | 3,107 → 1,538 | 0 → 4 | 19 → 1 |
+| AI Traffic | 2,241 → 2,798 (adds the bots-per-day chart) | 4 → 15 | 17 → 1 |
+
+No page scrolls sideways at 390 px any more (Fix Center was 413). Arabic: page titles, menus, numbers, empty states,
+Fix Center, Readiness, Revenue, Traffic, Visibility, Reports, Settings, /check, login and the add-store form are
+translated; dates stay left-to-right inside Arabic text.
+
+Left: text that comes from the scan data itself (finding titles, evidence and guidance, funnel values) is still
+English; the public /check report page and pricing / landing copy beyond the waitlist were not reworked; desktop
+links stay under 44 px (the 44 px rule is for phones).
