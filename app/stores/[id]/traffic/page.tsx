@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getStore } from "@/lib/data";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { httpGroup, labelOf } from "@/lib/traffic-labels";
 import { getUser } from "@/lib/supabase/server";
 import { splitCheckerRows } from "@/lib/traffic";
 import { BotIdentity } from "@/components/bot-identity";
@@ -22,6 +23,10 @@ function sumBy(rows: Row[], key: (r: Row) => string) {
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 }
 
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("traffic") };
+}
+
 export default async function AiTrafficPage({ params }: { params: Promise<{ id: string }> }) {
   const locale = await getLocale();
   const { id } = await params;
@@ -30,6 +35,8 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
   if (!store) notFound();
   const t = await getTranslations("traffic");
   const tc = await getTranslations("charts");
+  const tl = await getTranslations("trafficLabels");
+  const tx = await getTranslations("common");
 
   let connector: { last_ingest_at: string | null } | null = null;
   try {
@@ -100,7 +107,7 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
           <p className="small"><BasisBadge basis="heuristic" /> {tc("botsUnverified")} · {everVerified ? <><BasisBadge basis="observed" /> {tc("botsVerified")}</> : <><BasisBadge basis="unavailable" /> {tc("botsVerifiedOff")}</>}</p>
         </div>
       ) : (
-        <EmptyState icon="bot" title={tc("botsEmptyTitle")} text={tc("botsEmpty")} />
+        <EmptyState icon="bot" title={tc("botsEmptyTitle")} text={tc("botsEmpty")} action={<a className="button" href="/settings">{tx("connectPlugin")}</a>} />
       )}
       <details className="card fold">
         <summary>{t("howCounted")}</summary>
@@ -120,7 +127,7 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
               <tbody>
                 {sumBy(checker, (r) => `${r.source}|${r.category}`).map(([k, hits]) => {
                   const [source, category] = k.split("|");
-                  return <tr key={k}><td data-label={t("source")}>{source}</td><td data-label={t("category")}>{category}</td><td className="num" data-label={t("requests")}>{hits}</td></tr>;
+                  return <tr key={k}><td data-label={t("source")}>{source}</td><td data-label={t("category")} title={category}>{labelOf(tl, "cat", category)}</td><td className="num" data-label={t("requests")}>{hits}</td></tr>;
                 })}
               </tbody>
             </table>
@@ -129,7 +136,7 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
       )}
 
       {rows.length === 0 ? (
-        <EmptyState icon="plug" title={t("waitingTitle")} text={t("waiting")} />
+        <EmptyState icon="plug" title={t("waitingTitle")} text={t("waiting")} action={<a className="button secondary" href="/settings">{tx("openSettings")}</a>} />
       ) : (
         <>
           <h2>{t("bySource")}</h2>
@@ -139,7 +146,7 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
               <tbody>
                 {bySource.map(([k, hits]) => {
                   const [source, category, confidence] = k.split("|");
-                  return <tr key={k}><td data-label={t("source")}>{source}</td><td data-label={t("category")}>{category}</td><td data-label={t("confidence")}><BasisBadge basis={confidence === "unverified-user-agent" ? "heuristic" : "observed"} /></td><td className="num" data-label={t("requests")}>{hits}</td></tr>;
+                  return <tr key={k}><td data-label={t("source")}>{source}</td><td data-label={t("category")} title={category}>{labelOf(tl, "cat", category)}</td><td data-label={t("confidence")}><BasisBadge basis={confidence === "unverified-user-agent" ? "heuristic" : "observed"} /></td><td className="num" data-label={t("requests")}>{hits}</td></tr>;
                 })}
               </tbody>
             </table>
@@ -152,7 +159,7 @@ export default async function AiTrafficPage({ params }: { params: Promise<{ id: 
               <tbody>
                 {byRoute.map(([k, hits]) => {
                   const [route, status] = k.split("|");
-                  return <tr key={k}><td data-label={t("pageType")}>{route}</td><td data-label={t("httpStatus")} className={Number(status) >= 400 ? "error" : undefined}>{status === "0" ? "—" : status}</td><td className="num" data-label={t("requests")}>{hits}</td></tr>;
+                  return <tr key={k}><td data-label={t("pageType")}>{labelOf(tl, "route", route)}</td><td data-label={t("httpStatus")} className={Number(status) >= 400 ? "error" : undefined}>{status === "0" ? "—" : <>{tl(`http.${httpGroup(Number(status))}`)} <span className="meta">{status}</span></>}</td><td className="num" data-label={t("requests")}>{hits}</td></tr>;
                 })}
               </tbody>
             </table>

@@ -28,10 +28,13 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
   const access = user ? await storeAccess(supabase, user.id, id) : null;
   const t = await getTranslations("revenue");
   const tf = await getTranslations("funnelUi");
+  const tp = await getTranslations("plain");
   const tc = await getTranslations("charts");
   const tu = await getTranslations("ui");
 
   const { stages, diagnosis, lastComplete, plan, sync, aiOrders } = await loadFunnel(supabase, id);
+  // Identical reasons as one line ("15 products have no brand"), as in Fix Center.
+  const reasonGroups = [...Map.groupBy(diagnosis.reasons, (r) => r.type).entries()];
   const bySource = new Map<string, { orders: number; revenue: { currency: string; total: number }[] }>();
   for (const s of new Set(aiOrders.map((o) => o.source))) {
     const of = aiOrders.filter((o) => o.source === s);
@@ -59,9 +62,9 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
 
       <h2 className="section-title"><Icon name="revenue" /> {t("funnelTitle")}</h2>
       <div className="card">
-        <FunnelChart steps={stages.map((s) => ({ key: s.key, question: tf(`q.${s.key}`), status: s.status, value: s.value, basis: s.basis, statusLabel: tf(`status.${s.status}`), laterLabel: tf("status.later") }))} />
+        <FunnelChart steps={stages.map((s) => ({ key: s.key, question: tf(`q.${s.key}`), status: s.status, value: tf(`v.${s.msg.value.key}`, s.msg.value.values), basis: s.basis, statusLabel: tf(`status.${s.status}`), laterLabel: tf("status.later") }))} />
         <Tech label={tu("technical")}>
-          <ul className="small">{stages.map((s) => <li key={s.key}><strong>{tf(`q.${s.key}`)}</strong> {s.detail}</li>)}</ul>
+          <ul className="small">{stages.map((s) => <li key={s.key}><strong>{tf(`q.${s.key}`)}</strong> {tf(`d.${s.msg.detail.key}`, s.msg.detail.values)}</li>)}</ul>
           <p className="muted small">{t("note", { date: lastComplete ? formatDate(lastComplete.finished_at, locale) : "—" })}</p>
         </Tech>
       </div>
@@ -71,17 +74,21 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
         <EmptyState icon="check" title={t("noBreakTitle")} text={stages.some((s) => s.status === "unknown") ? t("someUnknown") : t("noBreak")} />
       ) : (
         <div className="card">
-          <p>{t("breaksAt", { step: tf(`q.${diagnosis.stage.key}`), value: diagnosis.stage.value })}</p>
+          <p>{t("breaksAt", { step: tf(`q.${diagnosis.stage.key}`), value: tf(`v.${diagnosis.stage.msg.value.key}`, diagnosis.stage.msg.value.values) })}</p>
           {diagnosis.reasons.length === 0 ? (
             <p className="muted small">{t("noReason")}</p>
           ) : (
             <ol className="reasons">
-              {diagnosis.reasons.slice(0, 5).map((r) => (
-                <li key={r.finding_key}>
-                  <div className="row"><SeverityBadge severity={r.severity} /> <BasisBadge basis={r.basis} /></div>
-                  <strong>{r.title}</strong>
-                  <p className="small">{tu("howToFix")}: {r.guidance}</p>
-                  <Tech label={tu("technical")}><p className="small muted">{r.evidence}</p></Tech>
+              {reasonGroups.slice(0, 5).map(([type, rs]) => (
+                <li key={type}>
+                  <div className="row"><SeverityBadge severity={rs[0].severity} /></div>
+                  <strong>{tp.has(type) ? tp(type, { n: rs.length }) : rs[0].title}</strong>
+                  {!tp.has(type) && <p className="small">{tu("howToFix")}: {rs[0].guidance}</p>}
+                  <Tech label={tu("technical")}>
+                    <p className="small"><BasisBadge basis={rs[0].basis} /> {rs[0].title}</p>
+                    {tp.has(type) && <p className="small">{tu("howToFix")}: {rs[0].guidance}</p>}
+                    <ul className="small muted">{rs.map((r) => <li key={r.finding_key}>{r.evidence}</li>)}</ul>
+                  </Tech>
                 </li>
               ))}
             </ol>

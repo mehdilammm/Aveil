@@ -21,6 +21,10 @@ import { fixQueue, weightsFrom } from "@/lib/fix-queue";
 import { groupByType, groupSeverity } from "@/lib/finding-groups";
 import { canEdit, storeAccess } from "@/lib/workspace";
 
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("fix") };
+}
+
 export default async function FixCenterPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const locale = await getLocale();
   const [{ id }, query] = await Promise.all([params, searchParams]);

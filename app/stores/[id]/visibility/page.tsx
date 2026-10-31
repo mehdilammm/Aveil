@@ -61,6 +61,10 @@ function Verdict({ r, engine }: { r: Result | undefined; engine: EngineId }) {
   );
 }
 
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("visibility") };
+}
+
 export default async function AiVisibilityPage({ params }: { params: Promise<{ id: string }> }) {
   const locale = await getLocale();
   const { id } = await params;

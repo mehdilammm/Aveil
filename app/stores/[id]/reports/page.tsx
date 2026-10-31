@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations, getLocale } from "next-intl/server";
 import { formatDate } from "@/components/badges";
@@ -11,6 +12,10 @@ import { PlanLock } from "@/components/plan-lock";
 import { workspacePlan } from "@/lib/plan-gate";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("reports") };
+}
+
 export default async function ReportsPage({ params }: { params: Promise<{ id: string }> }) {
   const locale = await getLocale();
   const { id } = await params;
@@ -19,6 +24,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
   if (!store) notFound();
   const t = await getTranslations("reports");
   const tp = await getTranslations("plain");
+  const tx = await getTranslations("common");
 
   const scans = await listScans(supabase, id, 50);
   const deltas = await deltasForScans(supabase, scans);
@@ -72,12 +78,12 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
           <details className="fold"><summary className="error">{t("back", { n: weekly.summary.recurred.length })}</summary>{titleList(weekly.summary.recurred)}</details>
         </div>
       ) : (
-        <EmptyState icon="report" title={t("weeklyEmptyTitle")} text={t("weeklyEmpty")} />
+        <EmptyState icon="report" title={t("weeklyEmptyTitle")} text={t("weeklyEmpty")} action={<Link className="button secondary" href={`/stores/${store.id}`}>{tx("goScan")}</Link>} />
       )}
 
       <h2>{t("history")}</h2>
       {scans.length === 0 ? (
-        <EmptyState icon="search" title={t("noScans")} />
+        <EmptyState icon="search" title={t("noScans")} action={<Link className="button" href={`/stores/${store.id}`}>{tx("goScan")}</Link>} />
       ) : (
         <details className="card fold">
           <summary>{t("historyTable", { n: scans.length })}</summary>

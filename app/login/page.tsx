@@ -7,6 +7,10 @@ import { getUser } from "@/lib/supabase/server";
 import { getTranslations } from "next-intl/server";
 import { AuthForm } from "./auth-form";
 
+export async function generateMetadata() {
+  return { title: (await getTranslations("login"))("title") };
+}
+
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; mode?: string }> }) {
   const { user } = await getUser();
   if (user) redirect(await afterAuthPath());

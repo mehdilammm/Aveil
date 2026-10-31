@@ -6,10 +6,13 @@ import { aiOrdersLabel } from "./ai-orders";
 
 export type StageStatus = "ok" | "problem" | "unknown";
 export type Basis = "observed" | "heuristic" | "unavailable";
-export type Reason = { finding_key: string; title: string; severity: Severity; basis: Basis; evidence: string; guidance: string };
-export type Stage = { key: string; question: string; status: StageStatus; basis: Basis; value: string; detail: string; reasons: Reason[] };
+export type Reason = { finding_key: string; type: string; title: string; severity: Severity; basis: Basis; evidence: string; guidance: string };
+// msg: the same value and detail as catalog keys (funnelUi.v / funnelUi.d) with their numbers, for the reader's language.
+export type Msg = { key: string; values?: Record<string, string | number> };
+export type Stage = { key: string; question: string; status: StageStatus; basis: Basis; value: string; detail: string; msg: { value: Msg; detail: Msg }; reasons: Reason[] };
 
-export type FunnelFinding = Reason & { type: string };
+export type FunnelFinding = Reason;
+const msg = (value: string, detail: string, values?: Record<string, string | number>) => ({ value: { key: value, values }, detail: { key: detail, values } });
 
 export type FunnelInput = {
   scanned: boolean;
@@ -25,7 +28,6 @@ export type FunnelInput = {
 
 const RANK: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
 const sortReasons = (r: Reason[]) => [...r].sort((a, b) => RANK[a.severity] - RANK[b.severity] || (a.basis === "observed" ? 0 : 1) - (b.basis === "observed" ? 0 : 1));
-const strip = ({ type: _t, ...r }: FunnelFinding): Reason => r;
 const blocking = (f: FunnelFinding) => f.basis !== "unavailable" && (f.severity === "high" || (f.severity === "medium" && f.basis === "observed"));
 
 export function stageOfFinding(f: { type: string; finding_key: string }): "access" | "understand" | "buy" {
@@ -42,7 +44,7 @@ export function buildFunnel(input: FunnelInput): Stage[] {
   for (const f of input.findings) by[stageOfFinding(f)].push(f);
 
   const findingStage = (key: "access" | "understand", question: string, okText: string): Stage => {
-    if (!input.scanned) return { key, question, status: "unknown", basis: "unavailable", value: "No scan yet", detail: "Run a scan to answer this.", reasons: [] };
+    if (!input.scanned) return { key, question, status: "unknown", basis: "unavailable", value: "No scan yet", detail: "Run a scan to answer this.", msg: msg("noScan", "noScan"), reasons: [] };
     const block = by[key].filter(blocking);
     return {
       key,
@@ -51,7 +53,8 @@ export function buildFunnel(input: FunnelInput): Stage[] {
       basis: "observed",
       value: block.length ? `${block.length} blocking issue${block.length === 1 ? "" : "s"}` : okText,
       detail: `${by[key].length} finding${by[key].length === 1 ? "" : "s"} in the last scan.`,
-      reasons: sortReasons(block.map(strip)),
+      msg: msg(block.length ? "blocking" : "noBlocking", "findings", { n: block.length, total: by[key].length }),
+      reasons: sortReasons(block),
     };
   };
 
@@ -63,7 +66,7 @@ export function buildFunnel(input: FunnelInput): Stage[] {
   const v = input.visibility;
   stages.push(
     !v || v.asked === 0
-      ? { key: "recommend", question: "Do AI assistants recommend the store?", status: "unknown", basis: "unavailable", value: "Not asked yet", detail: "Run the AI Visibility questions.", reasons: [] }
+      ? { key: "recommend", question: "Do AI assistants recommend the store?", status: "unknown", basis: "unavailable", value: "Not asked yet", detail: "Run the AI Visibility questions.", msg: msg("notAsked", "notAsked"), reasons: [] }
       : {
           key: "recommend",
           question: "Do AI assistants recommend the store?",
@@ -71,14 +74,15 @@ export function buildFunnel(input: FunnelInput): Stage[] {
           basis: "observed",
           value: `Mentioned in ${v.mentioned} of ${v.asked} answers`,
           detail: "Latest AI Visibility run (Gemini).",
-          reasons: v.mentioned === 0 ? [{ finding_key: "visibility:not_mentioned", title: "Your store was not named in any AI answer", severity: "medium", basis: "observed", evidence: `0 of ${v.asked} answers named the store.`, guidance: "See Brand profile and Share of voice for the stores named instead, and fix the product data and access issues they reveal." }] : [],
+          msg: msg("mentioned", "latestRun", { n: v.mentioned, of: v.asked }),
+          reasons: v.mentioned === 0 ? [{ finding_key: "visibility:not_mentioned", type: "visibility_not_mentioned", title: "Your store was not named in any AI answer", severity: "medium", basis: "observed", evidence: `0 of ${v.asked} answers named the store.`, guidance: "See Brand profile and Share of voice for the stores named instead, and fix the product data and access issues they reveal." }] : [],
         },
   );
 
   const p = input.plugin;
   stages.push(
     !p.connected
-      ? { key: "visit", question: "Do AI agents visit?", status: "unknown", basis: "unavailable", value: "Plugin not connected", detail: "Install and connect the WordPress plugin to count AI bot visits.", reasons: [] }
+      ? { key: "visit", question: "Do AI agents visit?", status: "unknown", basis: "unavailable", value: "Plugin not connected", detail: "Install and connect the WordPress plugin to count AI bot visits.", msg: msg("pluginOff", "pluginOff"), reasons: [] }
       : {
           key: "visit",
           question: "Do AI agents visit?",
@@ -86,6 +90,7 @@ export function buildFunnel(input: FunnelInput): Stage[] {
           basis: "observed",
           value: `${p.botVisits} AI bot visits in ${p.days} days`,
           detail: "Self-declared AI user agents, unverified; checker tools and AgentScope's own checks are not counted.",
+          msg: msg("botVisits", "botVisits", { n: p.botVisits, days: p.days }),
           reasons: [],
         },
   );
@@ -94,7 +99,7 @@ export function buildFunnel(input: FunnelInput): Stage[] {
   const orderReferrals = o.kind === "ok" ? o.aiOrders : 0;
   stages.push(
     !p.connected && o.kind !== "ok"
-      ? { key: "referral", question: "Do people come from AI?", status: "unknown", basis: "unavailable", value: "Not measured", detail: "Needs the plugin (AI referrals) or Order Attribution (Pro).", reasons: [] }
+      ? { key: "referral", question: "Do people come from AI?", status: "unknown", basis: "unavailable", value: "Not measured", detail: "Needs the plugin (AI referrals) or Order Attribution (Pro).", msg: msg("notMeasured", "notMeasured"), reasons: [] }
       : {
           key: "referral",
           question: "Do people come from AI?",
@@ -102,17 +107,18 @@ export function buildFunnel(input: FunnelInput): Stage[] {
           basis: "observed",
           value: `${p.connected ? `${p.aiReferrals} visits from AI links in ${p.days} days` : "Plugin not connected"}${o.kind === "ok" ? ` · ${aiOrdersLabel(o.aiOrders)}` : ""}`,
           detail: "Visits whose referrer is an AI assistant (plugin), and orders whose Order Attribution source is one.",
+          msg: msg(`${p.connected ? "referrals" : "pluginOff"}${o.kind === "ok" ? "Orders" : ""}`, "referral", { n: p.aiReferrals, days: p.days, orders: orderReferrals }),
           reasons: [],
         },
   );
 
-  const checkoutReasons = sortReasons(by.buy.map(strip));
+  const checkoutReasons = sortReasons(by.buy);
   if (o.kind === "locked") {
-    stages.push({ key: "buy", question: "Do they buy?", status: "unknown", basis: "unavailable", value: "Available on Pro and Agency", detail: "AI-referred orders and revenue come from WooCommerce Order Attribution.", reasons: checkoutReasons });
+    stages.push({ key: "buy", question: "Do they buy?", status: "unknown", basis: "unavailable", value: "Available on Pro and Agency", detail: "AI-referred orders and revenue come from WooCommerce Order Attribution.", msg: msg("locked", "locked"), reasons: checkoutReasons });
   } else if (o.kind === "not_synced") {
-    stages.push({ key: "buy", question: "Do they buy?", status: "unknown", basis: "unavailable", value: "Orders not read yet", detail: "Run a scan (or Refresh orders) to read the last 90 days of orders.", reasons: checkoutReasons });
+    stages.push({ key: "buy", question: "Do they buy?", status: "unknown", basis: "unavailable", value: "Orders not read yet", detail: "Run a scan (or Refresh orders) to read the last 90 days of orders.", msg: msg("notRead", "notRead"), reasons: checkoutReasons });
   } else if (o.kind === "unavailable") {
-    stages.push({ key: "buy", question: "Do they buy?", status: "unknown", basis: "unavailable", value: "Unavailable", detail: o.reason, reasons: checkoutReasons });
+    stages.push({ key: "buy", question: "Do they buy?", status: "unknown", basis: "unavailable", value: "Unavailable", detail: o.reason, msg: msg("unavailable", "unavailable", { reason: o.reason }), reasons: checkoutReasons });
   } else {
     stages.push({
       key: "buy",
@@ -121,6 +127,7 @@ export function buildFunnel(input: FunnelInput): Stage[] {
       basis: "observed",
       value: o.aiOrders === 0 ? "No AI-referred orders yet" : `${aiOrdersLabel(o.aiOrders)} · ${money(o.revenue)}`,
       detail: `Last ${o.days} days, ${o.scanned} order${o.scanned === 1 ? "" : "s"} read. Agent checkout: ${o.agentCheckouts ? `${o.agentCheckouts} order${o.agentCheckouts === 1 ? " shows" : "s show"} agent-checkout evidence` : "not measurable yet"}.`,
+      msg: msg(o.aiOrders === 0 ? "noOrders" : "orders", o.agentCheckouts ? "ordersAgent" : "ordersNoAgent", { orders: o.aiOrders, money: money(o.revenue), days: o.days, n: o.scanned, agent: o.agentCheckouts }),
       reasons: checkoutReasons,
     });
   }
