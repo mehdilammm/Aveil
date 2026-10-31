@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatDate } from "@/components/badges";
-import { FindingCard } from "@/components/finding-card";
+import { FindingGroupCard } from "@/components/finding-group";
+import { groupByType } from "@/lib/finding-groups";
 import { findingsForScan, getStore, sortForFixing } from "@/lib/data";
 import { resolvedKeys } from "@/lib/history";
 import { getUser } from "@/lib/supabase/server";
@@ -85,12 +86,12 @@ export default async function ScanPage({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {sortForFixing(current).map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} />)}
+      {groupByType(sortForFixing(current)).map((g) => <FindingGroupCard key={g.type} group={g} storeUrl={store.url} />)}
 
       {resolved.length > 0 && (
         <>
           <h2>{t("resolvedSince")}</h2>
-          {resolved.map((f) => <FindingCard key={f.finding_key} finding={{ ...f, state: "resolved" }} storeUrl={store.url} />)}
+          {groupByType(resolved.map((f) => ({ ...f, state: "resolved" }))).map((g) => <FindingGroupCard key={g.type} group={g} storeUrl={store.url} />)}
         </>
       )}
     </>

@@ -14,7 +14,8 @@ type Item = { finding_key: string; title: string; type: string; ready: boolean; 
 type Applied = { finding_key?: string; line?: number; status: string; error: string | null; describe?: string };
 
 // Bulk apply (G8): pick several auto / one-click fixes, see each change, approve once, undo all at once.
-export function BulkApply({ storeId }: { storeId: string }) {
+// cta: shown as the page's one button ("Fix all safe issues") instead of a folded card title.
+export function BulkApply({ storeId, cta }: { storeId: string; cta?: string }) {
   const t = useTranslations("bulk");
   const router = useRouter();
   const [items, setItems] = useState<Item[] | null>(null);
@@ -44,8 +45,8 @@ export function BulkApply({ storeId }: { storeId: string }) {
   }
 
   return (
-    <details className="card">
-      <summary><strong>{t("bulkTitle")}</strong></summary>
+    <details className={cta ? "bulk-cta" : "card"}>
+      {cta ? <summary className="button">{cta}</summary> : <summary><strong>{t("bulkTitle")}</strong></summary>}
       <p className="muted small">{t("bulkSub", { max })}</p>
       {!items && <button type="button" className="secondary" disabled={busy} onClick={load}>{busy ? t("loading") : t("load")}</button>}
       {items && items.length === 0 && <p className="muted">{t("none")}</p>}
