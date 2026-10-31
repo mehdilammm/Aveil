@@ -72,7 +72,7 @@ p { margin: var(--s-2) 0; }
 .account .email { word-break: break-all; }
 .account button.signout { justify-self: start; background: transparent; border: 1px solid #3c6b5b; color: var(--on-forest); min-height: 36px; padding: 4px 12px; font-size: var(--t-sm); }
 .store-switch select { width: 100%; font: inherit; min-height: var(--tap); padding: 6px 8px; border-radius: var(--r-md); border: 1px solid var(--forest-2); background: var(--forest-2); color: #fff; }
-.bottomnav { position: fixed; inset-inline: 0; bottom: 0; z-index: 20; height: var(--bottombar); display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -2px 12px rgba(13, 59, 46, .06); padding-bottom: env(safe-area-inset-bottom); }
+.bottomnav { position: fixed; inset-inline: 0; bottom: 0; z-index: 20; height: var(--bottombar); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -2px 12px rgba(13, 59, 46, .06); padding-bottom: env(safe-area-inset-bottom); }
 .bottomnav a, .bottomnav button { display: grid; justify-items: center; align-content: center; gap: 2px; min-height: var(--tap); font-size: 11px; color: var(--muted); text-decoration: none; background: none; border: 0; padding: 0; border-radius: 0; }
 .bottomnav a[aria-current="page"] { color: var(--emerald); font-weight: 600; }
 .content { flex: 1; width: 100%; max-width: 1120px; margin: 0 auto; padding: var(--s-5) var(--s-4) calc(var(--bottombar) + var(--s-8)); }
@@ -326,7 +326,8 @@ code.inline { background: var(--slate-soft); padding: 1px 6px; border-radius: 4p
 .finding input { width: 100%; max-width: 320px; flex: 1 1 160px; }
 .bottomnav { max-width: 100vw; }
 .page-head > div:first-child { flex: 1 1 260px; }
-.page-head > :not(:first-child) { flex: 0 0 auto; }
+.page-head > .page-actions { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.page-actions p { max-width: 36ch; }
 @media (min-width: 900px) {
   .shell { background: linear-gradient(to right, var(--forest) 248px, transparent 248px); }
   [dir="rtl"] .shell { background: linear-gradient(to left, var(--forest) 248px, transparent 248px); }
