@@ -332,3 +332,6 @@ code.inline { background: var(--slate-soft); padding: 1px 6px; border-radius: 4p
   .shell { background: linear-gradient(to right, var(--forest) 248px, transparent 248px); }
   [dir="rtl"] .shell { background: linear-gradient(to left, var(--forest) 248px, transparent 248px); }
 }
+/* Long URLs and codes in text wrap instead of widening the page */
+body { overflow-wrap: break-word; }
+.finding .guidance, .finding h3, .card p, .card li { overflow-wrap: anywhere; }
