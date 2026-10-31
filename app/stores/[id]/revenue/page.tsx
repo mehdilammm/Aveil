@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations, getLocale } from "next-intl/server";
 import { BasisBadge, formatDate, SeverityBadge } from "@/components/badges";
-import { BarChart, FunnelChart, Legend, weekOf } from "@/components/charts";
+import { BarChart, FunnelChart, weekOf } from "@/components/charts";
 import { FirstOrderBanner } from "@/components/first-order-banner";
 import { Icon } from "@/components/icons";
 import { EmptyState, PageHead, StatStrip, Tech } from "@/components/ui";
@@ -109,8 +109,7 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
       ) : (
         <div className="card">
           <div className="row" style={{ justifyContent: "space-between" }}><strong>{tc("ordersTitle")}</strong> <BasisBadge basis="observed" /></div>
-          <BarChart periods={weeks} series={[{ name: tc("ordersLegend"), className: "bar-a", values: perWeek }]} label={tc("ordersTitle")} />
-          <Legend items={[{ name: tc("ordersLegend"), color: "var(--emerald)" }]} />
+          <BarChart periods={weeks} series={[{ name: tc("ordersLegend"), tone: 1, values: perWeek }]} label={tc("ordersTitle")} empty={null} />
           <div className="table-wrap">
             <table className="rtable">
               <thead><tr><th>{t("source")}</th><th className="num">{t("orders")}</th><th className="num">{t("netRevenue")}</th></tr></thead>

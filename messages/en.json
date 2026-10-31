@@ -926,7 +926,8 @@
     "lastTest": "Last purchase test",
     "noData": "No data yet",
     "seeProducts": "See the products ({n})",
-    "seeList": "See the list ({n})"
+    "seeList": "See the list ({n})",
+    "sincePrev": "since the previous scan"
   },
   "areas": {
     "feed": {
@@ -969,7 +970,16 @@
     "ordersTitle": "AI-referred orders per week",
     "ordersEmptyTitle": "No AI-referred orders yet",
     "ordersEmpty": "Orders that came from an AI assistant show here, week by week, from WooCommerce order attribution.",
-    "ordersLegend": "Orders"
+    "ordersLegend": "Orders",
+    "showData": "Show the numbers",
+    "date": "Date",
+    "visTitle": "Answers naming your store, per run",
+    "visLegend": "Answers naming your store",
+    "visPoint": "{n} of {of} answers",
+    "visEmptyTitle": "No trend yet",
+    "visEmpty": "The trend needs at least two runs with answers. Ask the questions again next week.",
+    "visNone": "No answer named your store in these runs yet.",
+    "botsNone": "No AI bot visit in the last {days} days."
   },
   "overview": {
     "status": {

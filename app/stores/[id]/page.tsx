@@ -60,6 +60,8 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
     return { ...a, total: inArea.length, high: inArea.filter((f) => f.severity === "high").length, medium: inArea.filter((f) => f.severity === "medium").length, low: inArea.filter((f) => f.severity === "low").length, unavailable: inArea.filter((f) => f.basis === "unavailable").length };
   });
   const critical = findings.filter((f) => f.severity === "high").length;
+  // Open issues after each finished scan, oldest first (scans.findings_count), for the sparkline and the change.
+  const history = scans.filter((s) => s.status === "complete" && s.findings_count !== null).map((s) => Number(s.findings_count)).reverse();
   // Identical findings are one fix ("Brand missing on 15 products"); ones that could not be checked are not a next step.
   const groups = groupByType(findings.filter((f) => f.basis !== "unavailable"));
   const next = groups[0];
@@ -97,7 +99,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
           {lastComplete && (
             <StatStrip
               stats={[
-                { label: t("statOpen"), value: findings.length, basis: "observed", foot: t("statFrom", { date: formatDate(lastComplete.finished_at, locale) }) },
+                { label: t("statOpen"), value: findings.length, basis: "observed", foot: t("statFrom", { date: formatDate(lastComplete.finished_at, locale) }), spark: history.slice(-12), delta: history.length > 1 ? { n: history[history.length - 1] - history[history.length - 2], lowerIsBetter: true } : undefined },
                 { label: t("statCritical"), value: critical, tone: critical ? "bad" : "good", basis: "observed" },
                 { label: t("statFixed"), value: fixedWeek ?? 0, tone: fixedWeek ? "good" : undefined, basis: "observed" },
                 { label: t("statProducts"), value: lastComplete.scanned_products ?? 0, basis: "observed" },
