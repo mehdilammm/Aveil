@@ -23,7 +23,7 @@ const VISIBILITY_MIN_MS = 150_000; // a run needs a fresh tick; it stops asking 
 // breakage_check: mini-scan after a plugin / theme / core change (F2). product_check: one product just published
 // or updated (F3). agent_sim: the agent purchase test through the Store API, never placing an order (F7); one
 // attempt only, so a cart is never filled twice. agent_sim_browser: the same test in a real headless browser (F7
-// Mode B, Pro), run by /api/jobs/browser (the only function with Chromium); it waits (yields) when that is unavailable. feed_refresh: the product
+// Mode B, Pro), run by the browser runner, a separate project with no secrets; it waits (yields) when that is unavailable. feed_refresh: the product
 // feed built again and sent to the plugin (G1), after a product change and every day.
 export const JOB_HANDLERS: Record<string, JobHandler> = {
   orders_sync: async ({ admin, job, step }) => {
@@ -99,7 +99,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
     await step("browser", async () => {
       if (timeLeft() < 80_000) throw new JobYield(); // 60 s for the test, plus starting and saving
       try {
-        return await runBrowserRemote(job.id);
+        return await runBrowserRemote(admin, store, job.id);
       } catch (err) {
         if (err instanceof NotVerifiedError) throw new PermanentJobError(err.message);
         if (err instanceof BrowserUnavailableError) {

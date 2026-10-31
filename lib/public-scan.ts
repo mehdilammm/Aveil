@@ -23,6 +23,7 @@ export const LIMITS = {
   maxBytes: 2 * 1024 * 1024,
   redirects: 3,
   scansPerHourPerIp: 5,
+  scansPerDayTotal: 300, // all visitors together (UTC day): caps cost and how much the check can be used against other sites
   geminiPerDay: 50,
   cacheHours: 24,
   reportDays: 30,

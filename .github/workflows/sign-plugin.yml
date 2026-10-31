@@ -1,0 +1,29 @@
+# Signs a new agentscope-core release with the offline Ed25519 key (secret PLUGIN_SIGNING_KEY, only here).
+# Runs when lib/plugin-release.json or the zips change on main, and on demand. The signature is committed back;
+# the app serves it at /api/plugin/latest and the plugin (1.9.0+) installs only signed releases.
+name: Sign plugin release
+on:
+  push:
+    branches: [main]
+    paths: ["lib/plugin-release.json", "public/downloads/**"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/sign-plugin.mjs
+        env:
+          PLUGIN_SIGNING_KEY: ${{ secrets.PLUGIN_SIGNING_KEY }}
+      - name: Commit the signature
+        run: |
+          if git diff --quiet lib/plugin-release.json; then echo "nothing to sign"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Sign plugin release $(node -p "require('./lib/plugin-release.json').file")" lib/plugin-release.json
+          git push

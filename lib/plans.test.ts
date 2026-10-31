@@ -6,7 +6,9 @@ import { isPaidPlan, planFor, PLAN_ORDER, PLANS } from "./plans";
 
 vi.mock("server-only", () => ({}));
 const insert = vi.fn();
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: () => ({ insert }) }) }));
+let hits = 1;
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: () => ({ insert }), rpc: async () => ({ data: hits }) }) }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-real-ip": "203.0.113.9" }) }));
 
 describe("plans", () => {
   it("prices and limits come from one config", () => {
@@ -50,6 +52,10 @@ describe("waitlist", () => {
 
   it("refuses unknown plans and bad emails; the honeypot saves nothing", async () => {
     const { joinWaitlist } = await import("@/app/pricing/actions");
+    hits = 6; // over the hourly limit for this IP
+    expect((await joinWaitlist({}, form({ plan: "pro", email: "a@b.co" }))).error).toMatch(/Too many/);
+    expect(insert).not.toHaveBeenCalled();
+    hits = 1;
     expect((await joinWaitlist({}, form({ plan: "free", email: "a@b.co" }))).error).toBeTruthy();
     expect((await joinWaitlist({}, form({ plan: "pro", email: "nope" }))).error).toBeTruthy();
     expect(await joinWaitlist({}, form({ plan: "pro", email: "a@b.co", website: "spam" }))).toEqual({ done: true });

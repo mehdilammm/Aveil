@@ -26,7 +26,7 @@ async function safeFetch(url: URL, headers: Record<string, string>): Promise<Res
     if (current.protocol !== "https:") throw new WooError("Store redirected to a non-https address");
     const res = (await guarded(current, { headers, timeoutMs: TIMEOUT_MS })) as unknown as Response;
     const location = res.headers.get("location");
-    if (res.status < 300 || res.status >= 400 || !location) return res;
+    if (res.status < 300 || res.status >= 400 || !location) return capped(res);
     await res.body?.cancel().catch(() => {});
     const next = new URL(location, current);
     // Do not forward credentials to another host.
@@ -34,6 +34,28 @@ async function safeFetch(url: URL, headers: Record<string, string>): Promise<Res
     current = next;
   }
   throw new WooError("Too many redirects");
+}
+
+// The body read into memory up to MAX_RESPONSE_BYTES; a larger answer is refused, so a store cannot exhaust the
+// function's memory (the queue runs other stores' jobs in the same call). 100 products a page stay far below it.
+const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
+async function capped(res: Response): Promise<Response> {
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  if (res.body) {
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => {});
+        throw new WooError(`The store answered with more than ${MAX_RESPONSE_BYTES / 1024 / 1024} MB, so the answer was not read.`);
+      }
+      chunks.push(value);
+    }
+  }
+  return new Response(res.status === 204 || res.status === 304 ? null : Buffer.concat(chunks), { status: res.status, statusText: res.statusText, headers: res.headers });
 }
 
 // guardedFetch with WooError messages for refused targets.
@@ -490,7 +512,7 @@ export async function fetchPublishedProduct(baseUrl: string, creds: WooCredentia
 export async function wooWrite<T>(baseUrl: string, method: "PUT" | "POST", path: string, body: unknown, creds: WooCredentials): Promise<T> {
   const url = new URL(`${baseUrl}/wp-json/wc/v3${path}`);
   const basic = Buffer.from(`${creds.consumerKey}:${creds.consumerSecret}`).toString("base64");
-  const res = (await guarded(url, { method, headers: { Authorization: `Basic ${basic}`, Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify(body), timeoutMs: TIMEOUT_MS })) as unknown as Response;
+  const res = await capped((await guarded(url, { method, headers: { Authorization: `Basic ${basic}`, Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify(body), timeoutMs: TIMEOUT_MS })) as unknown as Response);
   if (res.status >= 300 && res.status < 400) throw new WooError(`The store redirected the write (HTTP ${res.status}).`, res.status);
   if (res.status === 401 || res.status === 403) throw new WooError("WooCommerce refused the write key. Check it has Read/Write permission.", res.status);
   const data = await res.json().catch(() => null);

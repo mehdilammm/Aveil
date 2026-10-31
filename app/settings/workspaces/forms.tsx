@@ -29,7 +29,7 @@ export function InviteForm({ workspaceId }: { workspaceId: string }) {
           <option value="viewer">{tc("viewer")}</option>
           <option value="admin">{tc("admin")}</option>
         </select>
-        <input name="email" type="email" placeholder={tc("emailMatch")} aria-label={tc("email")} />
+        <input name="email" type="email" required placeholder={tc("emailMatch")} aria-label={tc("email")} />
         <button className="secondary" disabled={pending}>{pending ? tc("creating") : tc("createInvite")}</button>
       </div>
       {state.error && <p className="error">{state.error}</p>}

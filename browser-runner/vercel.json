@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "node build.mjs",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ../lib",
+  "git": { "deploymentEnabled": { "claude/agentscope-v0-1-setup-6cez8h": false, "claude/*": false } }
+}

@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const { data: count } = await admin.rpc("public_scan_hit", {
-    p_ip_hash: hashIp(`waitlist:${clientIp(request.headers)}`, process.env.SUPABASE_SERVICE_ROLE_KEY ?? "", new Date()),
+    p_ip_hash: hashIp(`waitlist:${clientIp(request.headers)}`, process.env.IP_HASH_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "", new Date()),
     p_window_seconds: 3600,
   });
   if (!withinRateLimit(Number(count))) return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });

@@ -1,17 +1,14 @@
 import "server-only";
 import { readdirSync, readFileSync } from "node:fs";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { guardedSend, NotVerifiedError } from "./agent-sim-run";
 import { startGuardedProxy } from "./browser-proxy";
-import { BROWSER_LIMITS, browserPurchase, BrowserUnavailableError, type BrowserFlowResult, type Launched } from "./browser-sim";
-import { isOwnershipVerified } from "./ownership-store";
+import { BrowserUnavailableError, type BrowserFlowResult, type Launched } from "./browser-sim";
 
-export { BrowserUnavailableError };
+// Chromium for the agent purchase test (F7 Mode B). Imported only by the browser runner (browser-runner/), a
+// separate Vercel project whose only secret is the request-signing secret; the app never starts a browser.
 
 // Vercel Fluid compute list prices (iad1, Washington D.C.; other regions cost more): active CPU per hour and
 // provisioned memory per GB-hour. Source: Vercel changelog "Lower pricing with Active CPU pricing for Fluid compute".
 export const VERCEL_PRICES = { cpuHourUsd: 0.128, gbHourUsd: 0.0106, region: "iad1" } as const;
-const ASSUMED_MEMORY_MB = 2048; // Vercel's default function memory, when the runtime does not say
 
 export type BrowserCost = { wall_ms: number; node_cpu_ms: number; browser_cpu_ms: number | null; memory_mb: number; memory_source: "runtime" | "assumed"; usd_micros: number; prices: typeof VERCEL_PRICES };
 export type BrowserResult = BrowserFlowResult & { cost: BrowserCost };
@@ -70,8 +67,11 @@ export async function launchChromium(): Promise<Launched> {
   const puppeteer = (await import("puppeteer-core")).default;
   const proxy = await startGuardedProxy();
   try {
+    // @sparticuz/chromium's defaults include --disable-web-security; same-origin rules stay on here. --no-sandbox
+    // stays: Lambda has no user namespaces for Chrome's sandbox, which is why this runs in its own project with no
+    // secrets (only the request-signing secret).
     const args = [
-      ...chromium.args,
+      ...chromium.args.filter((a: string) => a !== "--disable-web-security"),
       `--proxy-server=http://127.0.0.1:${proxy.port}`,
       "--proxy-bypass-list=<-loopback>",
       "--disable-quic",
@@ -79,6 +79,12 @@ export async function launchChromium(): Promise<Launched> {
       "--webrtc-ip-handling-policy=disable_non_proxied_udp",
     ];
     const browser = await puppeteer.launch({ executablePath, headless: "shell", args: await puppeteer.defaultArgs({ args, headless: "shell" }), defaultViewport: { width: 1280, height: 900 }, protocolTimeout: 30_000 });
+    // No downloads, and any window a page opens (popup, window.open) is closed at once.
+    const cdp = await browser.target().createCDPSession();
+    await cdp.send("Browser.setDownloadBehavior", { behavior: "deny" }).catch(() => {});
+    browser.on("targetcreated", (t) => {
+      if (t.opener()) void t.page().then((p) => p?.close()).catch(() => {});
+    });
     const pid = browser.process()?.pid ?? null;
     return {
       browser,
@@ -97,34 +103,4 @@ export async function launchChromium(): Promise<Launched> {
     await proxy.close();
     throw err;
   }
-}
-
-// Browser tests a store started today (UTC), for the daily cap.
-// One browser test of a verified store; the cost is measured, kept with the result and written to the logs.
-export async function runBrowserTest(admin: SupabaseClient, store: { id: string; url: string }, jobId: string, launch: () => Promise<Launched> = launchChromium): Promise<BrowserResult> {
-  if (!(await isOwnershipVerified(admin, store.id))) throw new NotVerifiedError("Store ownership is not verified, so the agent purchase test does not run.");
-  const { data: connector } = await admin.rpc("get_traffic_connector_secret", { p_store_id: store.id }).maybeSingle<{ token: string }>();
-  const t0 = Date.now();
-  const c0 = process.cpuUsage();
-  // A missing browser is found before the run starts, so the job can wait for a function that has it.
-  let first: Launched | null = await launch();
-  const r = await browserPurchase({
-    storeUrl: store.url,
-    checkToken: connector?.token ?? null,
-    send: guardedSend,
-    launch: async () => {
-      const l = first ?? (await launch());
-      first = null;
-      return l;
-    },
-    budgetMs: BROWSER_LIMITS.budgetMs - (Date.now() - t0), // the 60 s include starting the browser
-  });
-  if (first) await (first as Launched).close();
-  const c = process.cpuUsage(c0);
-  const runtimeMb = Number(process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE);
-  const memoryMb = Number.isFinite(runtimeMb) && runtimeMb > 0 ? runtimeMb : ASSUMED_MEMORY_MB;
-  const m = { wallMs: Date.now() - t0, nodeCpuMs: Math.round((c.user + c.system) / 1000), browserCpuMs: r.browserCpuMs, memoryMb };
-  const cost: BrowserCost = { wall_ms: m.wallMs, node_cpu_ms: m.nodeCpuMs, browser_cpu_ms: m.browserCpuMs, memory_mb: memoryMb, memory_source: Number.isFinite(runtimeMb) && runtimeMb > 0 ? "runtime" : "assumed", usd_micros: costOf(m), prices: VERCEL_PRICES };
-  console.log(JSON.stringify({ event: "browser_test_cost", store_id: store.id, job_id: jobId, ...cost }));
-  return { ...r, cost };
 }

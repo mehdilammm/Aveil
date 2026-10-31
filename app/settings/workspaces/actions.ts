@@ -46,13 +46,14 @@ export async function createWorkspace(_: WsState, form: FormData): Promise<WsSta
   return { done: `Workspace "${name}" created.` };
 }
 
-// An invite link (valid INVITE_DAYS days, single use). Only its hash is stored; the link is shown once.
+// An invite link (valid INVITE_DAYS days, single use) for one email: only that account can accept it, so a link
+// that leaks is useless to anyone else. Only its hash is stored; the link is shown once.
 export async function createInvite(_: WsState, form: FormData): Promise<WsState> {
   const workspaceId = String(form.get("workspace_id") ?? "");
   const role = String(form.get("role") ?? "viewer");
-  const email = String(form.get("email") ?? "").trim().toLowerCase() || null;
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
   if (role !== "admin" && role !== "viewer") return { error: "Pick Admin or Viewer." };
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "That email does not look valid." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return { error: "Enter the email of the person you invite." };
   const { user, isOwner } = await ownerOf(workspaceId);
   if (!isOwner) return { error: "Only the workspace owner can invite members." };
   if (!(await workspacePlan(createAdminClient(), workspaceId)).workspaceMembers) return { error: lockedReason("workspaceMembers") };

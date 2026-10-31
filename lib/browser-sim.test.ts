@@ -8,7 +8,7 @@ import type { Send } from "./agent-sim";
 
 vi.mock("server-only", () => ({}));
 const { browserPurchase, versionAtLeast, wooVersion, writesOrder } = await import("./browser-sim");
-const { costOf, treeCpuMs } = await import("./browser-sim-run");
+const { costOf, treeCpuMs } = await import("./browser-launch");
 
 // The container's Chromium (headless shell). The browser test is skipped where it is not installed.
 const CHROME = "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell";

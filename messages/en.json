@@ -1458,7 +1458,7 @@
     "createWs": "Create workspace",
     "viewer": "Viewer (read only)",
     "admin": "Admin (can change stores, run checks)",
-    "emailMatch": "Email (optional, must match)",
+    "emailMatch": "Their email (must match their account)",
     "email": "Email",
     "createInvite": "Create invite link",
     "sendLink": "Send this link to the person (shown once, valid 7 days, single use):",
