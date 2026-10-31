@@ -98,9 +98,11 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
       {(["store", "high_value", "product"] as const).map((g) => {
         const items = queue.filter((q) => q.group === g);
         if (!items.length) return null;
+        // The first group with items is open; later groups are folded so the page stays short on phones.
+        const first = (["store", "high_value", "product"] as const).find((x) => queue.some((q) => q.group === x)) === g;
         return (
-          <section key={g}>
-            <h2 className="section-title">{t(`g_${g}`)} <span className="meta">{items.length}</span></h2>
+          <details key={g} className="fold" open={first}>
+            <summary><h2 className="section-title" style={{ margin: 0 }}>{t(`g_${g}`)} <span className="meta">{items.length}</span></h2></summary>
             {items.map((item) => {
               const f = item.finding;
               const v = verifications.get(f.finding_key);
@@ -123,7 +125,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
                 </FindingCard>
               );
             })}
-          </section>
+          </details>
         );
       })}
       {unavailable.length > 0 && (
