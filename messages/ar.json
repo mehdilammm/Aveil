@@ -1186,7 +1186,6 @@
     "dNoKey": "غير مُعد على الخادم بعد (لا يوجد مفتاح محرك).",
     "dNoQuestion": "أضف سؤالًا واحدًا على الأقل أولًا.",
     "dRunning": "يوجد تشغيل قيد التنفيذ.",
-    "dLimit": "مرة كل {per} في خطة {plan}. التشغيل القادم: {date}.",
     "tabQa": "الأسئلة والإجابات",
     "tabProfile": "ملف العلامة",
     "tabShare": "حصة الظهور",
@@ -1245,7 +1244,10 @@
     "cLatest": "آخر تشغيل: {date}. {n} من {total} إجابات فيها مصادر.",
     "cUnavailableFor": "المصادر غير متاحة لـ {n, plural, zero {# إجابة} one {إجابة واحدة} two {إجابتين} few {# إجابات} many {# إجابة} other {# إجابة}}:",
     "whatSaid": "ماذا قال {engine} ({model})",
-    "namesReadBy": " · الأسماء قرأها {who}"
+    "namesReadBy": " · الأسماء قرأها {who}",
+    "dLimit_week": "مرة كل أسبوع في خطة {plan}. التشغيل القادم: {date}.",
+    "dLimit_month": "مرة كل شهر في خطة {plan}. التشغيل القادم: {date}.",
+    "mistralOff": "غير متصل: يتطلب خطة Mistral مدفوعة"
   },
   "common": {
     "noKeyHelp": "أضف مفتاح القراءة من WooCommerce للمتجر في الإعدادات لعرض هذه الصفحة.",

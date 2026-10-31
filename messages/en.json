@@ -1186,7 +1186,6 @@
     "dNoKey": "Not set up on the server yet (no AI engine key).",
     "dNoQuestion": "Add at least one question first.",
     "dRunning": "A run is in progress.",
-    "dLimit": "Once a {per} on the {plan} plan. Next run: {date}.",
     "tabQa": "Questions & answers",
     "tabProfile": "Brand profile",
     "tabShare": "Share of voice",
@@ -1245,7 +1244,10 @@
     "cLatest": "Latest run: {date}. {n} of {total} answers have sources.",
     "cUnavailableFor": "Sources not available for {n, plural, one {# answer} other {# answers}}:",
     "whatSaid": "What {engine} said ({model})",
-    "namesReadBy": " · names read by {who}"
+    "namesReadBy": " · names read by {who}",
+    "dLimit_week": "Once a week on the {plan} plan. Next run: {date}.",
+    "dLimit_month": "Once a month on the {plan} plan. Next run: {date}.",
+    "mistralOff": "Not connected: requires a paid Mistral plan"
   },
   "common": {
     "noKeyHelp": "Add the store's WooCommerce read key in Settings to see this page.",
