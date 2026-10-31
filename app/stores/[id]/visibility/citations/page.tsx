@@ -27,7 +27,6 @@ export default async function CitationsPage({ params }: { params: Promise<{ id: 
   const host = new URL(store.url).hostname;
   const summary = citedDomains(host, list);
 
-
   return (
     <>
       <div className="page-head">
@@ -44,10 +43,10 @@ export default async function CitationsPage({ params }: { params: Promise<{ id: 
         <div className="card empty"><strong>{tv("cNone")}</strong><p>{groundingEnabled() ? tv("cRun") : tv("cTurnOn")}</p></div>
       ) : (
         <>
-          <p className="muted small">Latest run: {formatDate(run.created_at, locale)}. {summary.grounded} of {list.length} answers have sources.</p>
+          <p className="muted small">{tv("cLatest", { date: formatDate(run.created_at, locale), n: summary.grounded, total: list.length })}</p>
           {list.filter((r) => r.citations && !isGrounding(r.citations)).length > 0 && (
             <div className="card">
-              <p className="small"><BasisBadge basis="unavailable" /> Citations unavailable for {list.filter((r) => r.citations && !isGrounding(r.citations)).length} answers:</p>
+              <p className="small"><BasisBadge basis="unavailable" /> {tv("cUnavailableFor", { n: list.filter((r) => r.citations && !isGrounding(r.citations)).length })}</p>
               <ul className="small">
                 {[...new Set(list.map((r) => (r.citations && !isGrounding(r.citations) ? r.citations.unavailable : null)).filter((x): x is string => !!x))].map((reason) => <li key={reason}>{reason}</li>)}
               </ul>
