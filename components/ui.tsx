@@ -10,7 +10,7 @@ export function PageHead({ title, sub, icon, action }: { title: React.ReactNode;
         <h1>{icon && <Icon name={icon} />}{title}</h1>
         {sub && <p className="sub">{sub}</p>}
       </div>
-      {action}
+      {action && <div className="page-actions">{action}</div>}
     </div>
   );
 }
@@ -48,7 +48,7 @@ export function EmptyState({ icon, title, text, action }: { icon: IconName; titl
       <span className="empty-icon"><Icon name={icon} /></span>
       <strong>{title}</strong>
       {text && <p>{text}</p>}
-      {action}
+      {action && <div className="page-actions">{action}</div>}
     </div>
   );
 }
