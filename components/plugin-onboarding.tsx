@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { PLUGIN_RELEASE, pluginDownloadPath } from "@/lib/plugin-release";
+import { BasisBadge, formatDate } from "./badges";
 
 type Props = {
   connected: { lastIngestAt: string | null } | null;
@@ -10,24 +12,22 @@ type Props = {
 
 // Download, install and connect the agentscope-core WordPress plugin, with the connection status.
 export function PluginOnboarding({ connected, codeHere = false, children }: Props) {
+  const t = useTranslations("pluginSteps");
   return (
     <div className="onboarding">
       <p className="small">
         {connected ? (
-          <><span className="badge basis-observed">Connected</span> Last data received: {connected.lastIngestAt ? new Date(connected.lastIngestAt).toUTCString() : "none yet"}</>
+          <><BasisBadge basis="observed" /> {t("connected")} · {t("last", { date: connected.lastIngestAt ? formatDate(connected.lastIngestAt) : t("none") })}</>
         ) : (
-          <><span className="badge basis-unavailable">Not connected</span> The plugin counts real visits from AI bots and assistants on your WordPress site.</>
+          <><BasisBadge basis="unavailable" /> {t("notConnected")}</>
         )}
       </p>
-      <a className="button" href={pluginDownloadPath()} download>Download plugin (v{PLUGIN_RELEASE.version})</a>
+      <a className="button" href={pluginDownloadPath()} download>{t("download", { version: PLUGIN_RELEASE.version })}</a>
       <ol className="steps">
-        <li>In WordPress: <strong>Plugins → Add New → Upload Plugin</strong>, choose the zip, <strong>Install Now</strong>.</li>
-        <li><strong>Activate</strong> AgentScope Core.</li>
-        <li>
-          Paste the <strong>connection code</strong> in <strong>AgentScope → Settings → Connection token</strong>
-          {codeHere ? " (create it below)." : <> (create it in <Link href="/settings">Settings → AI traffic plugin</Link>).</>}
-        </li>
-        <li>Click <strong>Connect</strong>. Later updates show up in WordPress like any plugin update.</li>
+        <li>{t("s1")}</li>
+        <li>{t("s2")}</li>
+        <li>{t("s3")} {codeHere ? t("s3here") : <Link href="/settings">{t("s3link")}</Link>}</li>
+        <li>{t("s4")}</li>
       </ol>
       {children}
     </div>

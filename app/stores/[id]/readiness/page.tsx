@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { formatDate } from "@/components/badges";
+import { IssuesChart } from "@/components/issues-chart";
+import { EmptyState, PageHead, StatStrip } from "@/components/ui";
 import { deltasForScans, getStore, listScans, openJobId } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "../run-scan-button";
@@ -10,53 +13,66 @@ export default async function ReadinessPage({ params }: { params: Promise<{ id: 
   const { supabase } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
+  const t = await getTranslations("readiness");
   const scanJobId = await openJobId(supabase, store.id, "scan");
 
   const scans = await listScans(supabase, id, 30);
   const deltas = await deltasForScans(supabase, scans);
+  const complete = scans.filter((s) => s.status === "complete");
+  const last = complete[0];
+  const d = last ? deltas.get(last.id) : undefined;
 
   return (
     <>
-      <div className="page-head">
-        <h1>Store Readiness</h1>
-        <p className="sub">Every scan compared with the one before it.</p>
-      </div>
-      <RunScanButton storeId={store.id} openJobId={scanJobId} />
-      <h2>Scan history</h2>
+      <PageHead title={t("title")} icon="readiness" sub={t("sub")} action={<RunScanButton storeId={store.id} openJobId={scanJobId} />} />
+      {last && (
+        <StatStrip
+          stats={[
+            { label: t("statOpen"), value: last.findings_count ?? 0, basis: "observed", foot: formatDate(last.finished_at) },
+            { label: t("statResolved"), value: d?.resolved ?? 0, tone: d?.resolved ? "good" : undefined, basis: "observed" },
+            { label: t("statNew"), value: d?.new ?? 0, tone: d?.new ? "warn" : undefined, basis: "observed" },
+            { label: t("statScans"), value: complete.length, basis: "observed" },
+          ]}
+        />
+      )}
       {scans.length === 0 ? (
-        <p className="muted">No scans yet.</p>
+        <EmptyState icon="search" title={t("noScansTitle")} text={t("noScans")} action={<RunScanButton storeId={store.id} openJobId={scanJobId} />} />
       ) : (
-        <div className="card table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th><th>Status</th><th className="num">Products</th><th className="num">Findings</th>
-                <th className="num">New</th><th className="num">Ongoing</th><th className="num">Recurred</th><th className="num">Resolved</th><th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {scans.map((s) => {
-                const d = deltas.get(s.id);
-                return (
-                  <tr key={s.id}>
-                    <td>{formatDate(s.finished_at ?? s.started_at)}</td>
-                    <td className={s.status === "failed" ? "error" : undefined} title={s.error ?? undefined}>{s.status}</td>
-                    <td className="num">{s.scanned_products ?? "—"}</td>
-                    <td className="num">{s.findings_count ?? "—"}</td>
-                    <td className="num">{d?.new ?? "—"}</td>
-                    <td className="num">{d?.ongoing ?? "—"}</td>
-                    <td className="num">{d?.recurred ?? "—"}</td>
-                    <td className="num status-connected">{d?.resolved ?? "—"}</td>
-                    <td>{s.status === "complete" && <Link href={`/stores/${store.id}/scans/${s.id}`}>Details</Link>}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <IssuesChart supabase={supabase} storeId={store.id} />
+          <h2>{t("history")}</h2>
+          <div className="card table-wrap">
+            <table className="rtable">
+              <thead>
+                <tr>
+                  <th>{t("date")}</th><th>{t("status")}</th><th className="num">{t("products")}</th><th className="num">{t("findings")}</th>
+                  <th className="num">{t("new")}</th><th className="num">{t("ongoing")}</th><th className="num">{t("recurred")}</th><th className="num">{t("resolved")}</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {scans.map((s) => {
+                  const x = deltas.get(s.id);
+                  return (
+                    <tr key={s.id}>
+                      <td data-label={t("date")}>{formatDate(s.finished_at ?? s.started_at)}</td>
+                      <td data-label={t("status")} className={s.status === "failed" ? "error" : undefined} title={s.error ?? undefined}>{t(`s_${["complete", "failed", "running", "queued"].includes(s.status) ? s.status : "queued"}`)}</td>
+                      <td className="num" data-label={t("products")}>{s.scanned_products ?? "—"}</td>
+                      <td className="num" data-label={t("findings")}>{s.findings_count ?? "—"}</td>
+                      <td className="num" data-label={t("new")}>{x?.new ?? "—"}</td>
+                      <td className="num" data-label={t("ongoing")}>{x?.ongoing ?? "—"}</td>
+                      <td className="num" data-label={t("recurred")}>{x?.recurred ?? "—"}</td>
+                      <td className="num status-connected" data-label={t("resolved")}>{x?.resolved ?? "—"}</td>
+                      <td data-label="">{s.status === "complete" && <Link href={`/stores/${store.id}/scans/${s.id}`}>{t("details")}</Link>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
       {scans.some((s) => s.status === "failed" && s.error) && (
-        <p className="muted">Failed scans: {[...new Set(scans.filter((s) => s.status === "failed" && s.error).map((s) => s.error))].join(" · ")}</p>
+        <p className="muted">{t("failed")}: {[...new Set(scans.filter((s) => s.status === "failed" && s.error).map((s) => s.error))].join(" · ")}</p>
       )}
     </>
   );

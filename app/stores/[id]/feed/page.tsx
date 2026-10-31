@@ -1,3 +1,4 @@
+import { EmptyState, PageHead } from "@/components/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -25,11 +26,9 @@ export default async function FeedPage({ params }: { params: Promise<{ id: strin
   const access = user ? await storeAccess(supabase, user.id, store.id) : null;
   if (!access) notFound();
   const t = await getTranslations("feed");
+  const tx = await getTranslations("common");
   const head = (
-    <div className="page-head">
-      <h1>{t("title")}</h1>
-      <p className="sub">{t("sub", { spec: `${FEED_SPEC.name} ${FEED_SPEC.version}` })}</p>
-    </div>
+    <PageHead title={t("title")} icon="feed" sub={t("sub", { spec: `${FEED_SPEC.name} ${FEED_SPEC.version}` })} />
   );
   const admin = createAdminClient();
   if (!(await storePlan(admin, store.id)).productFeed) return <>{head}<PlanLock feature="productFeed" /></>;
@@ -38,7 +37,7 @@ export default async function FeedPage({ params }: { params: Promise<{ id: strin
     admin.rpc("get_traffic_connector_secret", { p_store_id: store.id }).maybeSingle<{ token: string }>(),
     activeFeedFix(admin, store.id),
   ]);
-  if (!c) return <>{head}<div className="card"><p><BasisBadge basis="unavailable" /> {t("noKey")}</p></div></>;
+  if (!c) return <>{head}<EmptyState icon="lock" title={<><BasisBadge basis="unavailable" /> {t("noKey")}</>} text={tx("noKeyHelp")} action={<a className="button" href="/settings">{tx("openSettings")}</a>} /></>;
 
   let status: PluginAnswer | null = null;
   let statusError: string | null = null;

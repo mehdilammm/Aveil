@@ -1,3 +1,4 @@
+import { EmptyState, PageHead } from "@/components/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -42,14 +43,11 @@ export default async function AlertsPage({ params }: { params: Promise<{ id: str
 
   return (
     <>
-      <div className="page-head">
-        <h1>{t("title")}</h1>
-        <p className="sub">{t("sub")}</p>
-      </div>
+      <PageHead title={t("title")} icon="alert" sub={t("sub")} />
       <p className="muted small">{t("note")}</p>
       {!plan.breakageAlerts && <PlanLock feature="breakageAlerts" />}
       {last && <LastCheckCard last={last} t={t} />}
-      {alerts.length === 0 && <div className="card empty"><p>{t("none")}</p></div>}
+      {alerts.length === 0 && <EmptyState icon="check" title={t("none")} />}
       {alerts.map((a) => (
         <div key={a.id} className={`card${a.status === "open" ? "" : " finding-resolved"}`}>
           {a.kind === "breakage" ? <Breakage d={a.detail as unknown as BreakageDetail} t={t} /> : a.kind === "product_check" ? <ProductCheck d={a.detail as unknown as ProductDetail} t={t} /> : a.kind === "first_ai_order" ? <><h3>{t("firstOrderTitle")}</h3><p><BasisBadge basis="observed" /> {a.title}</p></> : <Healing kind={a.kind} title={a.title} d={a.detail as unknown as HealDetail} t={t} />}

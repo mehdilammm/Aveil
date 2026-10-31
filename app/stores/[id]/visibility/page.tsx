@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
-import { formatDate } from "@/components/badges";
+import { useTranslations } from "next-intl";
+import { BasisBadge, formatDate } from "@/components/badges";
+import { EmptyState, PageHead, StatStrip } from "@/components/ui";
 import { getStore, openJobId } from "@/lib/data";
 import { getTranslations } from "next-intl/server";
 import type { MarketId } from "@/lib/markets";
@@ -44,13 +46,14 @@ type Result = {
 };
 
 function Verdict({ r, engine }: { r: Result | undefined; engine: EngineId }) {
-  if (!r) return <span className="muted">{engine === "mistral" && !engineConfigured("mistral") ? MISTRAL_OFF_REASON : "not asked"}</span>;
-  if (r.error) return <span className="muted" title={r.error}>unavailable</span>;
+  const tv = useTranslations("visibilityPage");
+  if (!r) return <span className="muted">{engine === "mistral" && !engineConfigured("mistral") ? MISTRAL_OFF_REASON : tv("notAsked")}</span>;
+  if (r.error) return <span className="muted" title={r.error}>{tv("unavailable")}</span>;
   return (
     <>
-      {r.mentioned ? <span className="badge state-resolved">Mentioned{r.mention_rank ? ` #${r.mention_rank}` : ""}</span> : <span className="badge sev-medium">Not mentioned</span>}
+      {r.mentioned ? <span className="badge state-resolved">{tv("mentioned")}{r.mention_rank ? ` #${r.mention_rank}` : ""}</span> : <span className="badge sev-medium">{tv("notMentioned")}</span>}
       {r.extraction === "failed" ? (
-        <div className="muted small">could not extract names</div>
+        <div className="muted small">{tv("noNames")}</div>
       ) : (
         r.competitors.length > 0 && <div className="small">{r.competitors.slice(0, 6).join(", ")}{r.competitors.length > 6 ? "…" : ""}</div>
       )}
@@ -64,7 +67,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
   const store = await getStore(supabase, id);
   if (!store) notFound();
   const visibilityJobId = await openJobId(supabase, store.id, "visibility");
-  const [tp, ta] = await Promise.all([getTranslations("prompts"), getTranslations("answer")]);
+  const [tp, ta, tv] = await Promise.all([getTranslations("prompts"), getTranslations("answer"), getTranslations("visibilityPage")]);
   const access = user ? await storeAccess(supabase, user.id, id) : null;
   const { data: wsPlan } = access ? await supabase.from("workspaces").select("plan").eq("id", access.workspace_id).maybeSingle() : { data: null };
   const planId = ((wsPlan?.plan as PlanId | undefined) ?? "free") in PLANS ? ((wsPlan?.plan as PlanId | undefined) ?? "free") : "free";
@@ -92,13 +95,13 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
   const lastCounted = runs.find((r) => r.status !== "failed");
   const running = runs.some((r) => r.status === "running");
   const disabledReason = !configured.length
-    ? "Not set up on the server yet (no AI engine key)."
+    ? tv("dNoKey")
     : prompts.length === 0
-      ? "Add at least one question first."
+      ? tv("dNoQuestion")
       : running
-        ? "A run is in progress."
+        ? tv("dRunning")
         : lastCounted && lastCounted.status === "complete" && !canRun(lastCounted.created_at, new Date(), RUN_DAYS[PLANS[planId].visibilityPer])
-          ? `Once a ${PLANS[planId].visibilityPer} on the ${PLANS[planId].name} plan. Next run: ${formatDate(nextRunAt(lastCounted.created_at, RUN_DAYS[PLANS[planId].visibilityPer])!.toISOString())}.`
+          ? tv("dLimit", { per: PLANS[planId].visibilityPer, plan: PLANS[planId].name, date: formatDate(nextRunAt(lastCounted.created_at, RUN_DAYS[PLANS[planId].visibilityPer])!.toISOString()) })
           : null;
 
   // Usage this month per engine, from the result rows (extraction requests are counted on the answer's row).
@@ -114,75 +117,38 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
   const resultFor = (promptId: string, runId: string, engine: EngineId) => results.find((r) => r.prompt_id === promptId && r.run_id === runId && r.engine === engine);
   const latestRun = completedRuns.find((r) => results.some((x) => x.run_id === r.id));
 
+  const latestRows = latestRun ? results.filter((r) => r.run_id === latestRun.id && !r.error && r.answer) : [];
+  const mentioned = latestRows.filter((r) => r.mentioned).length;
+  const named = new Set(latestRows.flatMap((r) => r.competitors)).size;
+
   return (
     <>
-      <div className="page-head">
-        <h1>AI Visibility</h1>
-        <p className="sub">Whether your store appears when people ask an AI assistant about what you sell.</p>
-      </div>
+      <PageHead title={tv("title")} icon="visibility" sub={tv("sub")} action={<RunVisibilityButton storeId={store.id} disabledReason={disabledReason} openJobId={visibilityJobId} />} />
       <VisibilityTabs storeId={store.id} active="" />
       {access && <UsageAlert supabase={supabase} workspaceId={access.workspace_id} plan={planId} always />}
-
-      <div className="card">
-        {ENGINES.map((e) => (
-          <span key={e} className="badge basis-observed" style={{ marginInlineEnd: 6 }}>{ENGINE_LABEL[e]}</span>
-        ))}
-        <p className="muted small">
-          Each question is sent once to each engine ({ENGINES.map((e) => `${ENGINE_NAME[e]}: ${ENGINE_MODEL[e]}${engineConfigured(e) ? "" : e === "mistral" ? ` – ${MISTRAL_OFF_REASON}` : " – not set up"}`).join("; ")}), without web search,
-          as a plain question. The apps and other runs can answer differently. A mention here is what this answer said, not proof that AI recommends your store.
-          Other store names are read from each answer by a small internal helper model (structured output) and filtered; they can still be wrong. No score is computed.
-        </p>
-      </div>
-
-      <h2>Questions ({prompts.length}/{PLANS[planId].visibilityQuestions})</h2>
-      {prompts.length > 0 && (
-        <div className="card">
-          {prompts.map((p) => (
-            <form key={p.id} action={deletePrompt} className="row" style={{ justifyContent: "space-between", borderBottom: "1px solid var(--border)", padding: "6px 0" }}>
-              <input type="hidden" name="store_id" value={store.id} />
-              <input type="hidden" name="prompt_id" value={p.id} />
-              <span dir="auto">{p.prompt} <span className="badge basis-unavailable small">{p.market ? tp(`m_${p.market}`) : ta("notRecorded")}</span></span>
-              <button className="secondary" style={{ padding: "4px 10px" }}>Remove</button>
-            </form>
-          ))}
-        </div>
-      )}
-      <PromptsForm storeId={store.id} remaining={Math.max(0, PLANS[planId].visibilityQuestions - prompts.length)} limit={PLANS[planId].visibilityQuestions} existing={prompts.map((p) => p.prompt)} defaultMarket={defaultPromptMarket} />
-
-      <h2>Run</h2>
-      <div className="card">
-        <RunVisibilityButton storeId={store.id} disabledReason={disabledReason} openJobId={visibilityJobId} />
-        {access?.role === "owner" && groundingEnabled() && engineConfigured("gemini") && prompts.length > 0 && !running && <TestRunButton storeId={store.id} />}
-        {engineConfigured("gemini") && results.filter((r) => r.engine === "gemini" && r.answer && !r.extraction).length > 0 && (
-          <RereadButton storeId={store.id} count={results.filter((r) => r.engine === "gemini" && r.answer && !r.extraction).length} />
-        )}
-        <p className="muted small">
-          This month: {ENGINES.map((e) => `${ENGINE_NAME[e]} ${usage[e].requests} requests, ${usage[e].input} input and ${usage[e].output} output tokens`).join(" · ")}.
-        </p>
-      </div>
-
-      <OutcomeSection storeId={store.id} />
-
-      <h2>Results</h2>
+      <StatStrip
+        stats={[
+          { label: tv("statMentioned"), value: latestRun ? `${mentioned}/${latestRows.length}` : "—", tone: latestRun ? (mentioned ? "good" : "bad") : undefined, basis: latestRun ? "observed" : "unavailable", foot: latestRun ? formatDate(latestRun.created_at) : tv("notRun") },
+          { label: tv("statQuestions"), value: `${prompts.length}/${PLANS[planId].visibilityQuestions}` },
+          { label: tv("statOthers"), value: latestRun ? named : "—", basis: latestRun ? "heuristic" : "unavailable" },
+        ]}
+      />
+      <h2 className="section-title">{tv("results")}</h2>
       {!latestRun ? (
-        <div className="card empty">
-          <strong>No answers yet</strong>
-          <p>Add questions and run them. Nothing is estimated.</p>
-        </div>
+        <EmptyState icon="visibility" title={tv("noAnswersTitle")} text={tv("noAnswers")} />
       ) : (
         <>
-          <p className="muted small">Latest run: {formatDate(latestRun.created_at)}.</p>
           <div className="card table-wrap">
-            <table>
+            <table className="rtable">
               <thead>
-                <tr><th>Question</th>{ENGINES.map((e) => <th key={e}>{ENGINE_NAME[e]}</th>)}</tr>
+                <tr><th>{tv("question")}</th>{ENGINES.map((e) => <th key={e}>{ENGINE_NAME[e]}</th>)}</tr>
               </thead>
               <tbody>
                 {prompts.map((p) => (
                   <tr key={p.id}>
-                    <td style={{ whiteSpace: "normal", minWidth: 160 }}>{p.prompt}</td>
+                    <td data-label="" style={{ fontWeight: 600 }} dir="auto">{p.prompt}</td>
                     {ENGINES.map((e) => (
-                      <td key={e} style={{ whiteSpace: "normal", minWidth: 140 }}><Verdict r={resultFor(p.id, latestRun.id, e)} engine={e} /></td>
+                      <td key={e} data-label={ENGINE_NAME[e]}><Verdict r={resultFor(p.id, latestRun.id, e)} engine={e} /></td>
                     ))}
                   </tr>
                 ))}
@@ -190,24 +156,25 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
             </table>
           </div>
 
+          <h2>{tv("answers")}</h2>
           {prompts.map((p) => {
             const rows = ENGINES.map((e) => resultFor(p.id, latestRun.id, e)).filter((r): r is Result => !!r);
             if (!rows.length) return null;
             return (
-              <div key={p.id} className="card finding">
-                <h3>{p.prompt}</h3>
+              <details key={p.id} className="card fold">
+                <summary dir="auto">{p.prompt}</summary>
                 {rows.map((r) => (
                   <div key={r.engine} style={{ borderTop: "1px solid var(--border)", paddingTop: 6, marginTop: 6 }}>
                     <span className="badge basis-observed">{ENGINE_LABEL[r.engine]}</span>{" "}
                     <span className={`badge ${r.grounded ? "basis-observed" : "basis-heuristic"}`}>{r.grounded ? ta("grounded") : ta("ungrounded")}</span>
                     <p className="muted small">{ta("provenance", { engine: ENGINE_NAME[r.engine], model: r.model ?? ENGINE_MODEL[r.engine], method: r.access_method ?? ta("notRecorded"), market: r.country ?? ta("notRecorded"), language: r.language ?? ta("notRecorded"), date: formatDate(r.created_at) })}</p>
                     {r.error ? (
-                      <p className="muted small">Unavailable: {r.error}</p>
+                      <p className="muted small"><BasisBadge basis="unavailable" /> {r.error}</p>
                     ) : (
                       <>
                         {r.urls.length > 0 && (
                           <p className="small" style={{ wordBreak: "break-all" }}>
-                            <strong>Links in the answer:</strong> {r.urls.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer nofollow" style={{ marginInlineEnd: 8 }}>{u}</a>)}
+                            <strong>{tv("links")}</strong> {r.urls.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer nofollow" style={{ marginInlineEnd: 8 }}>{u}</a>)}
                           </p>
                         )}
                         <details>
@@ -221,14 +188,14 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                 {completedRuns.length > 1 && (
                   <div className="table-wrap" style={{ marginTop: 8 }}>
                     <table>
-                      <thead><tr><th>Week of</th>{ENGINES.map((e) => <th key={e}>{ENGINE_NAME[e]}</th>)}</tr></thead>
+                      <thead><tr><th>{tv("weekOf")}</th>{ENGINES.map((e) => <th key={e}>{ENGINE_NAME[e]}</th>)}</tr></thead>
                       <tbody>
                         {completedRuns.map((run) => (
                           <tr key={run.id}>
                             <td>{run.created_at.slice(0, 10)}</td>
                             {ENGINES.map((e) => {
                               const res = resultFor(p.id, run.id, e);
-                              return <td key={e}>{!res ? "—" : res.error ? "unavailable" : res.mentioned ? `mentioned${res.mention_rank ? ` (#${res.mention_rank})` : ""}` : "not mentioned"}</td>;
+                              return <td key={e}>{!res ? "—" : res.error ? tv("unavailable") : res.mentioned ? `${tv("mentioned")}${res.mention_rank ? ` (#${res.mention_rank})` : ""}` : tv("notMentioned")}</td>;
                             })}
                           </tr>
                         ))}
@@ -237,12 +204,41 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                   </div>
                 )}
                 <p className="muted small">{ta("apiNote", { date: formatDate(rows[0].created_at) })} {GEMINI_DISCLAIMER}</p>
-              </div>
+              </details>
             );
           })}
         </>
       )}
-      {runs.some((r) => r.status === "failed") && <p className="muted small">Failed runs do not count toward the weekly limit.</p>}
+      <details className="card fold">
+        <summary>{tv("questions", { n: prompts.length, max: PLANS[planId].visibilityQuestions })}</summary>
+      {prompts.length > 0 && (
+        <div>
+          {prompts.map((p) => (
+            <form key={p.id} action={deletePrompt} className="row" style={{ justifyContent: "space-between", borderBottom: "1px solid var(--border)", padding: "6px 0" }}>
+              <input type="hidden" name="store_id" value={store.id} />
+              <input type="hidden" name="prompt_id" value={p.id} />
+              <span dir="auto">{p.prompt} <span className="badge basis-unavailable small">{p.market ? tp(`m_${p.market}`) : ta("notRecorded")}</span></span>
+              <button className="secondary">{tv("remove")}</button>
+            </form>
+          ))}
+        </div>
+      )}
+      <PromptsForm storeId={store.id} remaining={Math.max(0, PLANS[planId].visibilityQuestions - prompts.length)} limit={PLANS[planId].visibilityQuestions} existing={prompts.map((p) => p.prompt)} defaultMarket={defaultPromptMarket} />
+      </details>
+
+      <details className="card fold">
+        <summary>{tv("howItWorks")}</summary>
+        <p className="row">{ENGINES.map((e) => <span key={e} className="badge basis-observed">{ENGINE_LABEL[e]}</span>)}</p>
+        <p className="muted small">{tv("method", { engines: ENGINES.map((e) => `${ENGINE_NAME[e]}: ${ENGINE_MODEL[e]}${engineConfigured(e) ? "" : e === "mistral" ? ` – ${MISTRAL_OFF_REASON}` : ` – ${tv("notSetUp")}`}`).join("; ") })}</p>
+        {access?.role === "owner" && groundingEnabled() && engineConfigured("gemini") && prompts.length > 0 && !running && <TestRunButton storeId={store.id} />}
+        {engineConfigured("gemini") && results.filter((r) => r.engine === "gemini" && r.answer && !r.extraction).length > 0 && (
+          <RereadButton storeId={store.id} count={results.filter((r) => r.engine === "gemini" && r.answer && !r.extraction).length} />
+        )}
+        <p className="muted small">{tv("usage", { usage: ENGINES.map((e) => `${ENGINE_NAME[e]} ${usage[e].requests} / ${usage[e].input} / ${usage[e].output}`).join(" · ") })}</p>
+      </details>
+
+      <OutcomeSection storeId={store.id} />
+      {runs.some((r) => r.status === "failed") && <p className="muted small">{tv("failedRuns")}</p>}
     </>
   );
 }

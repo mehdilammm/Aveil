@@ -5,7 +5,7 @@ import { SITE } from "@/lib/site";
 export function PublicHeader() {
   const t = useTranslations("landing.nav");
   return (
-    <header className="sidebar public-header">
+    <header className="public-header">
       <div className="brand-row">
         <Link href="/" className="brand">{SITE.name}</Link>
         <nav aria-label="Public" className="public-nav">

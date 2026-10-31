@@ -1,3 +1,4 @@
+import { EmptyState, PageHead } from "@/components/ui";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { BasisBadge, formatDate } from "@/components/badges";
@@ -30,18 +31,16 @@ export default async function MarketsPage({ params }: { params: Promise<{ id: st
   const access = user ? await storeAccess(supabase, user.id, store.id) : null;
   if (!access) notFound();
   const t = await getTranslations("markets");
+  const tx = await getTranslations("common");
   const head = (
-    <div className="page-head">
-      <h1>{t("title")}</h1>
-      <p className="sub">{t("sub")}</p>
-    </div>
+    <PageHead title={t("title")} icon="market" sub={t("sub")} />
   );
   const admin = createAdminClient();
   const { data: prompts } = await supabase.from("visibility_prompts").select("market").eq("store_id", store.id);
   const used = [...new Set((prompts ?? []).map((p) => p.market).filter((m): m is MarketId => Boolean(marketOf(m))))];
   const sim = <AgentSim storeId={store.id} markets={used} canRun={canEdit(access.role)} verified={await isOwnershipVerified(admin, store.id)} />;
   const { data: c } = await admin.rpc("get_store_credentials", { p_store_id: store.id, p_owner_id: access.owner_id }).maybeSingle<{ consumer_key: string; consumer_secret: string }>();
-  if (!c) return <>{head}<div className="card"><p><BasisBadge basis="unavailable" /> {t("noKey")}</p></div>{sim}</>;
+  if (!c) return <>{head}<EmptyState icon="lock" title={<><BasisBadge basis="unavailable" /> {t("noKey")}</>} text={tx("noKeyHelp")} action={<a className="button" href="/settings">{tx("openSettings")}</a>} />{sim}</>;
   const creds = { consumerKey: c.consumer_key, consumerSecret: c.consumer_secret };
   const adapter = wooCommerceAdapter(store.url, creds);
 
@@ -63,7 +62,7 @@ export default async function MarketsPage({ params }: { params: Promise<{ id: st
       <p className="muted small">{t("note")}</p>
       {!used.length && <p className="muted small">{t("defaultMarket", { market: markets[0] })}</p>}
       <div className="card table-wrap">
-        <table>
+        <table className="rtable">
           <thead><tr><th>{t("market")}</th><th>{t("can")}</th><th>{t("why")}</th><th>{t("fix")}</th></tr></thead>
           <tbody>
             {rows.map((r) => <Row key={r.market} r={r} t={t} storeUrl={store.url} />)}
@@ -81,14 +80,14 @@ function Row({ r, t, storeUrl }: { r: MarketRow; t: T; storeUrl: string }) {
   const basis = r.verdict === "unknown" ? "unavailable" : r.verdict === "probably" ? "heuristic" : "observed";
   return (
     <tr id={`market-${r.market}`}>
-      <td>{marketOf(r.market)?.country ?? r.market}</td>
-      <td><BasisBadge basis={basis} /> {t(`verdict.${r.verdict}`)}</td>
-      <td className="small">
+      <td data-label=""><strong>{marketOf(r.market)?.country ?? r.market}</strong></td>
+      <td data-label={t("can")}><BasisBadge basis={basis} /> {t(`verdict.${r.verdict}`)}</td>
+      <td className="small" data-label={t("why")}>
         {r.reasons.length === 0 ? <span className="muted">{t("noBarrier")}</span> : (
           <ul>{r.reasons.map((x) => <li key={x.code}><BasisBadge basis={x.basis} /> {t(`reason.${x.code}` as "reason.notSold", x.values)}</li>)}</ul>
         )}
       </td>
-      <td className="small">
+      <td className="small" data-label={t("fix")}>
         {r.fixes.length === 0 ? "—" : r.fixes.map((f) => (
           <div key={f}><a href={`${storeUrl}/wp-admin/admin.php?page=wc-settings&tab=${FIX_TAB[f]}`} target="_blank" rel="noopener noreferrer">{t(`fixes.${f}`)}</a></div>
         ))}

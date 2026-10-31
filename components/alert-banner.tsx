@@ -9,7 +9,7 @@ export async function AlertBanner({ storeId }: { storeId: string }) {
   if (!count) return null;
   const t = await getTranslations("alerts");
   return (
-    <p className="notice row" style={{ justifyContent: "space-between" }}>
+    <p className="alert-line bad">
       <strong>{t("banner", { n: count })}</strong>
       <Link href={`/stores/${storeId}/alerts`}>{t("see")}</Link>
     </p>

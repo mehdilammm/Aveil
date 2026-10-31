@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { formatDate } from "@/components/badges";
+import { Icon } from "@/components/icons";
+import { EmptyState, PageHead, StatStrip } from "@/components/ui";
 import { FindingCard } from "@/components/finding-card";
 import { findingsForScan, getStore, listScans, sortForFixing, openJobId } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
@@ -60,62 +62,50 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
   const resolvedNow = findings.filter((f) => isResolved(f.finding_key));
   const unavailable = findings.filter((f) => f.basis === "unavailable" && !isResolved(f.finding_key));
 
+  const fixedWeek = auditRows.filter((r) => (r.status === "applied" || r.status === "reapplied") && Date.now() - Date.parse(r.applied_at) < 7 * 86_400_000).length;
+  const critical = findings.filter((f) => f.severity === "high" && !isResolved(f.finding_key)).length;
+  const open = findings.length - resolvedNow.length;
+
   return (
     <>
-      <div className="page-head">
-        <h1>Fix Center</h1>
-        <p className="sub">
-          {lastComplete ? `Open findings from the scan of ${formatDate(lastComplete.finished_at)}, most serious first.` : "No complete scan yet."}
-        </p>
-      </div>
-      <div className="card row" style={{ justifyContent: "space-between" }}>
-        <span className="muted">Fixed something? Scan again to confirm it is resolved.</span>
-        <RunScanButton storeId={store.id} openJobId={scanJobId} label="Rescan to verify" />
-      </div>
-      <p className="card row" style={{ justifyContent: "space-between" }}>
-        <span className="muted">{t("generatorsNote")}</span>
-        <span className="row">
-          <Link className="button secondary" href={`/stores/${store.id}/fix/generators`}>{t("generatorsLink")}</Link>
-          <Link className="button secondary" href={`/stores/${store.id}/fix/descriptions`}>{t("descriptionsLink")}</Link>
-        </span>
-      </p>
-      {lastComplete && findings.length === 0 && <p className="notice">No open findings.</p>}
+      <PageHead
+        title={t("title")}
+        icon="fix"
+        sub={lastComplete ? t("sub", { date: formatDate(lastComplete.finished_at) }) : t("noScan")}
+        action={<RunScanButton storeId={store.id} openJobId={scanJobId} label={t("rescan")} />}
+      />
+      {lastComplete && (
+        <StatStrip
+          stats={[
+            { label: t("statOpen"), value: open, basis: "observed" },
+            { label: t("statCritical"), value: critical, tone: critical ? "bad" : "good", basis: "observed" },
+            { label: t("statFixed"), value: fixedWeek, tone: fixedWeek ? "good" : undefined, basis: "observed" },
+            { label: t("statVerified"), value: resolvedNow.length, basis: "observed" },
+          ]}
+        />
+      )}
       {lastAuto && (
-        <p className="notice row" style={{ justifyContent: "space-between" }}>
+        <p className="alert-line">
           <span>{ta("banner", { n: bannerCount })}</span>
           {editor && <UndoButton storeId={store.id} batchId={lastAuto.batch_id} />}
         </p>
       )}
-      <HostingGuide findings={findings} />
-      {editor && (plan.autoFix ? <AutoFixPanel storeId={store.id} enabled={Boolean(setting?.auto_fix_enabled)} approvedAt={setting?.auto_fix_approved_at ?? null} /> : <PlanLock feature="autoFix" />)}
-      {editor && plan.autoFix && <div className="card"><AltTextToggle storeId={store.id} enabled={Boolean(setting?.alt_text_enabled)} canWrite={Boolean(writeKey)} /></div>}
-      {editor && <WriteKeyForm storeId={store.id} hint={writeKey?.key_hint ?? null} />}
-      {editor && lastComplete && <BulkApply storeId={store.id} />}
-      {editor && <CsvImport storeId={store.id} canWrite={Boolean(writeKey)} />}
-      {findings.length > 0 && (
-        <details className="card">
-          <summary className="small">{t("formula")}</summary>
-          <form className="row small" style={{ flexWrap: "wrap", gap: 8 }}>
-            {(["w_high", "w_medium", "w_low", "w_store", "w_heuristic"] as const).map((k) => (
-              <label key={k} className="small">{t(k)} <input name={k} type="number" step="0.5" min="0" max="10" defaultValue={String(k === "w_high" ? weights.severity.high : k === "w_medium" ? weights.severity.medium : k === "w_low" ? weights.severity.low : k === "w_store" ? weights.storeWide : weights.confidence.heuristic)} style={{ width: 70 }} /></label>
-            ))}
-            <button className="secondary">{t("apply")}</button>
-          </form>
-          <p className="muted small">{t("formulaNote")}</p>
-        </details>
-      )}
+      {!lastComplete ? (
+        <EmptyState icon="search" title={t("noScanTitle")} text={t("noScan")} />
+      ) : findings.length === 0 ? (
+        <EmptyState icon="check" title={t("allClearTitle")} text={t("allClear")} />
+      ) : null}
       {(["store", "high_value", "product"] as const).map((g) => {
         const items = queue.filter((q) => q.group === g);
         if (!items.length) return null;
         return (
           <section key={g}>
-            <h2>{t(`g_${g}`)} ({items.length})</h2>
+            <h2 className="section-title">{t(`g_${g}`)} <span className="meta">{items.length}</span></h2>
             {items.map((item) => {
               const f = item.finding;
               const v = verifications.get(f.finding_key);
               return (
-                <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} storeId={store.id}>
-                  {item && <p className="small muted">{t("score", { score: item.score, impact: item.impact, confidence: item.confidence, effort: item.effort })}</p>}
+                <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} storeId={store.id} tech={<p className="small muted">{t("score", { score: item.score, impact: item.impact, confidence: item.confidence, effort: item.effort })}</p>}>
                   {v && v.status !== "running" && (
                     <p className="small">
                       <span className={`badge ${v.status === "resolved" ? "state-resolved" : v.status === "still_open" ? "sev-medium" : "basis-unavailable"}`}>{t(`v_${v.status}`)}</span>{" "}
@@ -138,7 +128,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
       })}
       {unavailable.length > 0 && (
         <section>
-          <h2>{t("g_check")} ({unavailable.length})</h2>
+          <h2 className="section-title">{t("g_check")} <span className="meta">{unavailable.length}</span></h2>
           <p className="muted small">{t("checkNote")}</p>
           {unavailable.map((f) => <FindingCard key={f.finding_key} finding={f} storeUrl={store.url} storeId={store.id} />)}
         </section>
@@ -146,7 +136,7 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
 
       {resolvedNow.length > 0 && (
         <section>
-          <h2>{t("g_resolved")} ({resolvedNow.length})</h2>
+          <h2 className="section-title">{t("g_resolved")} <span className="meta">{resolvedNow.length}</span></h2>
           {resolvedNow.map((f) => {
             const v = verifications.get(f.finding_key)!;
             return (
@@ -158,30 +148,58 @@ export default async function FixCenterPage({ params, searchParams }: { params: 
         </section>
       )}
 
+      <h2 className="section-title"><Icon name="settings" /> {t("toolsTitle")}</h2>
+      {editor && (plan.autoFix ? <AutoFixPanel storeId={store.id} enabled={Boolean(setting?.auto_fix_enabled)} approvedAt={setting?.auto_fix_approved_at ?? null} /> : <PlanLock feature="autoFix" />)}
+      {editor && plan.autoFix && <details className="card fold"><summary>{ta("altTitle")} · {setting?.alt_text_enabled ? ta("on") : ta("off")}</summary><AltTextToggle storeId={store.id} enabled={Boolean(setting?.alt_text_enabled)} canWrite={Boolean(writeKey)} /></details>}
+      <HostingGuide findings={findings} />
+      <details className="card fold">
+        <summary>{t("generatorsTitle")}</summary>
+        <p className="muted">{t("generatorsNote")}</p>
+        <div className="row">
+          <Link className="button secondary" href={`/stores/${store.id}/fix/generators`}>{t("generatorsLink")}</Link>
+          <Link className="button secondary" href={`/stores/${store.id}/fix/descriptions`}>{t("descriptionsLink")}</Link>
+        </div>
+      </details>
+      {editor && <WriteKeyForm storeId={store.id} hint={writeKey?.key_hint ?? null} />}
+      {editor && lastComplete && <BulkApply storeId={store.id} />}
+      {editor && <CsvImport storeId={store.id} canWrite={Boolean(writeKey)} />}
+      {findings.length > 0 && (
+        <details className="card fold">
+          <summary>{t("formula")}</summary>
+          <form className="row small" style={{ flexWrap: "wrap", gap: 8 }}>
+            {(["w_high", "w_medium", "w_low", "w_store", "w_heuristic"] as const).map((k) => (
+              <label key={k} className="small">{t(k)} <input name={k} type="number" step="0.5" min="0" max="10" defaultValue={String(k === "w_high" ? weights.severity.high : k === "w_medium" ? weights.severity.medium : k === "w_low" ? weights.severity.low : k === "w_store" ? weights.storeWide : weights.confidence.heuristic)} style={{ width: 80 }} /></label>
+            ))}
+            <button className="secondary">{t("apply")}</button>
+          </form>
+          <p className="muted small">{t("formulaNote")}</p>
+        </details>
+      )}
+
       {auditRows.length > 0 && (
-        <>
-          <h2>{ta("auditTitle")}</h2>
-          <div className="card table-wrap">
-            <table>
-              <thead><tr><th colSpan={4} className="muted small">{ta("auditCols")}</th></tr></thead>
+        <details className="card fold">
+          <summary>{ta("auditTitle")} <span className="meta">{auditRows.length}</span></summary>
+          <div className="table-wrap">
+            <table className="rtable">
+              <thead><tr><th>{t("colWhen")}</th><th>{t("colWhat")}</th><th>{t("colBy")}</th><th>{t("colCheck")}</th></tr></thead>
               <tbody>
                 {auditRows.map((r) => (
                   <tr key={r.id}>
-                    <td>{formatDate(r.applied_at)}</td>
-                    <td style={{ whiteSpace: "normal" }}>{r.after?.describe ?? r.kind}{r.error ? ` · ${r.error}` : ""}</td>
-                    <td>{r.automatic ? ta("byAuto") : ta("byYou")}</td>
-                    <td>{r.status === "reverted" ? ta("reverted") : r.status === "failed" ? ta("failedRow") : r.verify_status ? ta(`v_${r.verify_status}`) : ""} {editor && r.status === "applied" && <UndoButton storeId={store.id} auditId={r.id} />}</td>
+                    <td data-label={t("colWhen")}>{formatDate(r.applied_at)}</td>
+                    <td data-label={t("colWhat")}>{r.after?.describe ?? r.kind}{r.error ? ` · ${r.error}` : ""}</td>
+                    <td data-label={t("colBy")}>{r.automatic ? ta("byAuto") : ta("byYou")}</td>
+                    <td data-label={t("colCheck")}>{r.status === "reverted" ? ta("reverted") : r.status === "failed" ? ta("failedRow") : r.verify_status ? ta(`v_${r.verify_status}`) : ""} {editor && r.status === "applied" && <UndoButton storeId={store.id} auditId={r.id} />}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </>
+        </details>
       )}
 
       {rechecks.length > 0 && (
         <>
-          <h2>{t("rechecksTitle")}</h2>
+          <h2 className="section-title">{t("rechecksTitle")}</h2>
           <div className="card">
             <p className="muted small">{t("rechecksNote")}</p>
             <ul className="small">
