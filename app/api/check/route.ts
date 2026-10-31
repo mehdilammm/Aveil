@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { clientIp, hashIp, isFresh, withinRateLimit } from "@/lib/public-scan";
+import { clientIp, hashIp, isFresh, LIMITS, withinRateLimit } from "@/lib/public-scan";
 import { PublicFetcher } from "@/lib/public-fetch";
 import { runPublicScan } from "@/lib/public-scan-run";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -36,7 +36,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ id: last.id, cached: true });
   }
 
-  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  // A global daily cap first (fresh scans only; cached reports above do not count), then the per-IP limit.
+  const { count: today } = await admin.from("public_reports").select("id", { count: "exact", head: true }).gte("created_at", `${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  if ((today ?? 0) >= LIMITS.scansPerDayTotal) return NextResponse.json({ error: "The free check has reached today's limit. Please try again tomorrow." }, { status: 429 });
+
+  // IP hashes use their own secret (IP_HASH_SECRET); the service role key is only the fallback until it is set.
+  const secret = process.env.IP_HASH_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
   const { data: count, error: rateErr } = await admin.rpc("public_scan_hit", { p_ip_hash: hashIp(clientIp(request.headers), secret, new Date()), p_window_seconds: 3600 });
   if (rateErr) return NextResponse.json({ error: "Server error. Please try again." }, { status: 500 });
   if (!withinRateLimit(count as number)) return NextResponse.json({ error: "You can run 5 free checks per hour. Please try again later." }, { status: 429 });

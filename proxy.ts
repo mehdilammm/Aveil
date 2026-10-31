@@ -1,13 +1,24 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { contentSecurityPolicy, cspHeaderName, SESSION_COOKIE } from "./lib/security-headers";
 
 const PUBLIC_PATHS = ["/login", "/auth", "/check", "/bot", "/invite", "/r", "/downloads", "/pricing", "/terms", "/privacy", "/robots.txt", "/sitemap.xml", "/opengraph-image"];
 
-// Refreshes the Supabase session cookie and sends signed-out users to /login.
+// Refreshes the Supabase session cookie, sends signed-out users to /login, and sets the Content-Security-Policy with
+// a fresh nonce (on the request too, so Next.js puts it on its scripts).
 export async function proxy(request: NextRequest) {
+  const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64");
+  const csp = contentSecurityPolicy(nonce);
+  request.headers.set("x-nonce", nonce);
+  request.headers.set(cspHeaderName(), csp);
+  const withCsp = <T extends NextResponse>(r: T) => {
+    r.headers.set(cspHeaderName(), csp);
+    return r;
+  };
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
+    cookieOptions: SESSION_COOKIE,
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -30,9 +41,9 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
-    return NextResponse.redirect(url);
+    return withCsp(NextResponse.redirect(url));
   }
-  return response;
+  return withCsp(response);
 }
 
 export const config = {

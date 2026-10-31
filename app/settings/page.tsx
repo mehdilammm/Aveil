@@ -70,10 +70,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                   <ChangeUrlForm storeId={s.id} />
                 </details>
               )}
-              <details className="fold">
-                <summary>{t("delete")}</summary>
-                <DeleteStoreForm storeId={s.id} storeName={s.name} />
-              </details>
+              {roleOf.get(s.workspace_id)?.role === "owner" && (
+                <details className="fold">
+                  <summary>{t("delete")}</summary>
+                  <DeleteStoreForm storeId={s.id} storeName={s.name} />
+                </details>
+              )}
             </>
           ) : (
             <p className="muted small">{t("viewer")}</p>

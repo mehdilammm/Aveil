@@ -26,6 +26,7 @@ function wp_remote_retrieve_response_code($r) { return $r['code']; }
 function wp_remote_retrieve_body($r) { return $r['body']; }
 function download_url($url, $timeout) { $tmp = tempnam(sys_get_temp_dir(), 'agsc'); copy($GLOBALS['zip'], $tmp); return $tmp; }
 define('DAY_IN_SECONDS', 86400);
+if (getenv('AGSC_TEST_RELEASE_KEY')) { define('AGSC_TEST_RELEASE_KEY', getenv('AGSC_TEST_RELEASE_KEY')); }
 require $argv[1] . '/class-agsc-updater.php';
 
 $mode = $argv[2];

@@ -1,14 +1,14 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { STATIC_SECURITY_HEADERS } from "./lib/security-headers";
 
-// F7 Mode B: Chromium (@sparticuz/chromium) stays outside the bundle; its compressed binary files (~70 MB) are shipped
-// with one function only, /api/jobs/browser, which the queue's tick calls for each browser test.
+// F7 Mode B: the app never starts Chromium; the browser test runs in browser-runner/, a separate Vercel project.
 // Excluded everywhere: sharp's native image libraries (~47 MB; Vercel optimizes images itself, nothing here uses
 // sharp) and files that are never read at run time (screenshots, the WordPress plugin source, test fixtures).
-const BROWSER_FILES = ["./node_modules/@sparticuz/chromium/bin/**"];
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
-  outputFileTracingIncludes: { "/api/jobs/browser": BROWSER_FILES },
+  poweredByHeader: false,
+  headers: async () => [{ source: "/:path*", headers: STATIC_SECURITY_HEADERS }],
   outputFileTracingExcludes: {
     "*": ["node_modules/@img/**", "node_modules/sharp/**", "audit/**", "wordpress/**", "lib/fixtures/**", "**/*.test.ts", "*.tsbuildinfo", ".git/**"],
   },

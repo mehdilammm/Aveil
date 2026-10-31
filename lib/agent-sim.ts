@@ -50,7 +50,8 @@ export class Session {
   private nonce: string | null = null;
   private cookies = new Map<string, string>();
   private last = 0;
-  constructor(public origin: string, private send: Send, private checkToken: string | null, private gapMs: number) {}
+  // checkValue: a header value signed elsewhere (the browser runner never holds the store's token).
+  constructor(public origin: string, private send: Send, private checkToken: string | null, private gapMs: number, private checkValue?: string) {}
 
   get hasToken() {
     return Boolean(this.token);
@@ -65,7 +66,7 @@ export class Session {
       if (this.last && wait > 0) await sleep(wait);
       this.requests++;
       this.last = Date.now();
-      const headers: Record<string, string> = { "User-Agent": PUBLIC_UA, Accept: path === "/robots.txt" ? "text/plain,*/*;q=0.8" : "application/json", [CHECK_HEADER]: checkHeaderValue(this.checkToken) };
+      const headers: Record<string, string> = { "User-Agent": PUBLIC_UA, Accept: path === "/robots.txt" ? "text/plain,*/*;q=0.8" : "application/json", [CHECK_HEADER]: this.checkValue ?? checkHeaderValue(this.checkToken) };
       if (body !== undefined) headers["Content-Type"] = "application/json";
       if (this.token) headers["Cart-Token"] = this.token;
       if (this.nonce) headers.Nonce = this.nonce;

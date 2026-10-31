@@ -54,7 +54,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class Budget extends Error {}
 
-export async function browserPurchase(input: { storeUrl: string; checkToken: string | null; send: Send; launch: () => Promise<Launched>; budgetMs?: number }): Promise<BrowserFlowResult> {
+// checkValue: the X-AgentScope-Check value signed by the app (valid 10 minutes), used instead of the token when given.
+export async function browserPurchase(input: { storeUrl: string; checkToken: string | null; checkValue?: string; send: Send; launch: () => Promise<Launched>; budgetMs?: number }): Promise<BrowserFlowResult> {
   const started = Date.now();
   const budget = input.budgetMs ?? BROWSER_LIMITS.budgetMs;
   const softEnd = started + budget - BROWSER_LIMITS.reserveMs;
@@ -65,7 +66,7 @@ export async function browserPurchase(input: { storeUrl: string; checkToken: str
     return Math.min(ms, l);
   };
   const store = new URL(input.storeUrl);
-  const s = new Session(store.origin, input.send, input.checkToken, 500);
+  const s = new Session(store.origin, input.send, input.checkToken, 500, input.checkValue);
   const steps: SimStep[] = [];
   const add = (step: SimStepKey, outcome: SimOutcome, basis: Basis, code: string, values: Record<string, string | number> = {}, http?: string) => {
     steps.push({ step, outcome, basis, code, values, ...(http ? { http } : {}) });
@@ -135,7 +136,7 @@ export async function browserPurchase(input: { storeUrl: string; checkToken: str
       } catch {
         // data: and blob: URLs
       }
-      const headers = host && sameSite(host, store.hostname) ? { ...req.headers(), [CHECK_HEADER.toLowerCase()]: checkHeaderValue(input.checkToken) } : req.headers();
+      const headers = host && sameSite(host, store.hostname) ? { ...req.headers(), [CHECK_HEADER.toLowerCase()]: input.checkValue ?? checkHeaderValue(input.checkToken) } : req.headers();
       req.continue({ headers }).catch(() => {});
     });
     const settle = () => page!.waitForNetworkIdle({ idleTime: 500, timeout: within(4000) }).catch(() => {});

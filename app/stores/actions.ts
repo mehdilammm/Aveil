@@ -100,10 +100,18 @@ export async function deleteStore(_: DeleteStoreState, form: FormData): Promise<
 
   const store = await storeAccess(supabase, user.id, storeId);
   if (!store) return { error: "Store not found." };
-  if (!canEdit(store.role)) return { error: "Viewers cannot delete stores." };
+  if (store.role !== "owner") return { error: "Only the workspace owner can delete a store." };
   if (confirmName !== store.name) return { error: "Type the store name exactly to confirm." };
 
-  const { data: deleted, error } = await supabase.from("stores").delete().eq("id", store.id).select("id");
+  // Server side only (the browser has no DELETE on stores): the deletion is recorded first, and nothing is deleted
+  // when the record cannot be written. Keys, plugin tokens and their Vault secrets go with the store (cascade + triggers).
+  const admin = createAdminClient();
+  const { error: auditErr } = await admin.from("store_deletions").insert({ store_id: store.id, workspace_id: store.workspace_id, store_name: store.name, store_url: store.url, deleted_by: user.id });
+  if (auditErr) {
+    console.error("delete store: audit row failed", auditErr.code);
+    return { error: "Could not delete the store. Please try again." };
+  }
+  const { data: deleted, error } = await admin.from("stores").delete().eq("id", store.id).eq("workspace_id", store.workspace_id).select("id");
   if (error || !deleted?.length) {
     console.error("delete store failed", error?.code);
     return { error: "Could not delete the store. Please try again." };

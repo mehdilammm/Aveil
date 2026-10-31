@@ -2,7 +2,10 @@
 /**
  * Update checker without a library: a daily WP-Cron event asks the AgentScope app for the latest version; the
  * update filters only read that cached answer, so no admin page or visitor page ever waits for a network call.
- * The update shows in WordPress like any plugin update, and the zip's SHA-256 is checked before it is installed.
+ * The update shows in WordPress like any plugin update. Since 1.9.0 every release is signed offline (Ed25519, the
+ * private key never on the app's server): the plugin accepts an answer only when the signature of
+ * "agentscope-core|<version>|<sha256>" verifies with the public key below, then checks the zip's SHA-256 before
+ * installing it. A compromised app server alone cannot ship code to stores.
  *
  * The request is a plain GET of /api/plugin/latest. It sends no store data: no site URL (the user agent is
  * "AgentScope-Core/<version>"), no token, no traffic. The app is the one the plugin is connected to, else the default.
@@ -17,6 +20,29 @@ final class AGSC_Updater {
     const CACHE       = 'agsc_update_info';
     const SLUG        = 'agentscope-core';
     const CRON        = 'agsc_check_update';
+    /** Base64 Ed25519 public key of AgentScope releases (32 bytes). Empty: no update is ever accepted. */
+    const PUBLIC_KEY  = '';
+
+    /** The key releases are checked with (tests may define AGSC_TEST_RELEASE_KEY before loading this file). */
+    public static function public_key() {
+        return defined('AGSC_TEST_RELEASE_KEY') ? (string) AGSC_TEST_RELEASE_KEY : self::PUBLIC_KEY;
+    }
+
+    /** Pure: whether $signature (base64) signs "agentscope-core|<version>|<sha256>" for the given public key. */
+    public static function signature_ok($version, $sha256, $signature, $public_key) {
+        $sig = base64_decode((string) $signature, true);
+        $key = base64_decode((string) $public_key, true);
+        if ($sig === false || $key === false || strlen($sig) !== 64 || strlen($key) !== 32 || !function_exists('sodium_crypto_sign_verify_detached')) {
+            return false;
+        }
+        try {
+            return sodium_crypto_sign_verify_detached($sig, 'agentscope-core|' . $version . '|' . $sha256, $key);
+        } catch (Exception $e) {
+            return false;
+        } catch (Error $e) {
+            return false;
+        }
+    }
 
     public static function init() {
         add_action(self::CRON, array(__CLASS__, 'refresh'));
@@ -37,11 +63,11 @@ final class AGSC_Updater {
 
     /**
      * Pure check of the app's answer (tested from the command line): a version, an https zip on the same host as
-     * the endpoint, a 64-character SHA-256. Returns the cleaned info, or null.
+     * the endpoint, a 64-character SHA-256, and a release signature that verifies. Returns the cleaned info, or null.
      */
     public static function parse_latest($body, $endpoint_host) {
         $data = json_decode((string) $body, true);
-        if (!is_array($data) || !isset($data['version'], $data['download_url'], $data['sha256'])) {
+        if (!is_array($data) || !isset($data['version'], $data['download_url'], $data['sha256'], $data['signature'])) {
             return null;
         }
         $version = (string) $data['version'];
@@ -57,10 +83,14 @@ final class AGSC_Updater {
         if (!preg_match('~^/downloads/agentscope-core-[0-9.]+\.zip$~', $parts['path'] ?? '')) {
             return null;
         }
+        if (!self::signature_ok($version, $sha, $data['signature'], self::public_key())) {
+            return null;
+        }
         return array(
             'version'      => $version,
             'download_url' => $url,
             'sha256'       => $sha,
+            'signature'    => (string) $data['signature'],
             'changelog'    => isset($data['changelog']) && is_array($data['changelog']) ? array_slice(array_map('strval', $data['changelog']), 0, 20) : array(),
             'requires'     => isset($data['requires']) ? (string) $data['requires'] : '',
             'requires_php' => isset($data['requires_php']) ? (string) $data['requires_php'] : '',
@@ -72,10 +102,14 @@ final class AGSC_Updater {
         wp_clear_scheduled_hook(self::CRON);
     }
 
-    /** Cached latest info only: never a network call (the cache is filled by the daily WP-Cron event). */
+    /** Cached latest info only: never a network call (the cache is filled by the daily WP-Cron event). An answer
+     * cached by an older version (no signature) or not signed by the release key is ignored. */
     public static function latest() {
         $cached = get_option(self::CACHE);
-        return is_array($cached) && isset($cached['version']) ? $cached : null;
+        if (!is_array($cached) || !isset($cached['version'], $cached['sha256'], $cached['signature'])) {
+            return null;
+        }
+        return self::signature_ok($cached['version'], $cached['sha256'], $cached['signature'], self::public_key()) ? $cached : null;
     }
 
     /** WP-Cron: asks the app once a day and caches the answer (a failed check keeps the previous answer). */
@@ -151,7 +185,7 @@ final class AGSC_Updater {
         );
     }
 
-    /** Downloads our package itself and refuses it unless its SHA-256 matches the one the app published. */
+    /** Downloads our package itself and refuses it unless its SHA-256 matches the signed one (checked in parse_latest). */
     public static function verified_download($reply, $package, $upgrader) {
         $info = self::latest();
         if ($reply !== false || !$info || $package !== $info['download_url']) {

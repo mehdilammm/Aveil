@@ -1,0 +1,19 @@
+# Chromium gets security fixes every few weeks: the browser runner (browser-runner/) loads untrusted pages, so its
+# Chromium and puppeteer-core are proposed for update every week; the app's own dependencies once a month.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /browser-runner
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-name: "@sparticuz/chromium"
+      - dependency-name: puppeteer-core
+      - dependency-name: undici
+    target-branch: main
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    target-branch: main
