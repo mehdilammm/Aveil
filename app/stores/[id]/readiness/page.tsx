@@ -8,6 +8,10 @@ import { deltasForScans, getStore, listScans, openJobId } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
 import { RunScanButton } from "../run-scan-button";
 
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("readiness") };
+}
+
 export default async function ReadinessPage({ params }: { params: Promise<{ id: string }> }) {
   const locale = await getLocale();
   const { id } = await params;

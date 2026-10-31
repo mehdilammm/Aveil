@@ -18,6 +18,11 @@ const DAYS = 30;
 const MAX_HITS = 20_000;
 
 // F1: which products AI bots actually visited, and what they found wrong there.
+
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("bots") };
+}
+
 export default async function BotProductMapPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user } = await getUser();
@@ -39,7 +44,7 @@ export default async function BotProductMapPage({ params }: { params: Promise<{ 
   try {
     products = await fetchPublishedProducts(store.url, { consumerKey: creds.consumer_key, consumerSecret: creds.consumer_secret });
   } catch (err) {
-    return <>{head}<div className="card"><p><BasisBadge basis="unavailable" /> {t("noProducts", { reason: err instanceof Error ? err.message : "request failed" })}</p></div></>;
+    return <>{head}<EmptyState icon="plug" title={<><BasisBadge basis="unavailable" /> {t("noProducts", { reason: err instanceof Error ? err.message : tx("requestFailed") })}</>} text={tx("readFailedHelp")} action={<a className="button" href="/settings">{tx("openSettings")}</a>} /></>;
   }
   const since = new Date(Date.now() - DAYS * 86_400_000).toISOString();
   const hits: MapHit[] = [];

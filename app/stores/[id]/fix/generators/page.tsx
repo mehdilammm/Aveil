@@ -12,22 +12,29 @@ import { isAllowed, parseRobots } from "@/lib/robots";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { canEdit, storeAccess } from "@/lib/workspace";
+import { EmptyState } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 // Copyable fixes built from the store's real data: robots.txt patch, firewall guidance, llms.txt.
+
+export async function generateMetadata() {
+  return { title: (await getTranslations("generators"))("title") };
+}
+
 export default async function GeneratorsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ training?: string }> }) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const { supabase, user } = await getUser();
   const store = await getStore(supabase, id);
   if (!store) notFound();
   const t = await getTranslations("generators");
+  const tx = await getTranslations("common");
   const access = user ? await storeAccess(supabase, user.id, store.id) : null;
   if (!access || !canEdit(access.role)) return <div className="card"><p>{t("editorsOnly")}</p></div>;
 
   const admin = createAdminClient();
   const { data: creds } = await admin.rpc("get_store_credentials", { p_store_id: store.id, p_owner_id: access.owner_id }).maybeSingle<{ consumer_key: string; consumer_secret: string }>();
-  if (!creds) return <div className="card"><p><BasisBadge basis="unavailable" /> {t("noKey")}</p></div>;
+  if (!creds) return <EmptyState icon="lock" title={<><BasisBadge basis="unavailable" /> {t("noKey")}</>} text={tx("noKeyHelp")} action={<a className="button" href="/settings">{tx("openSettings")}</a>} />;
   const inputs = await generatorInputs(admin, access, { consumerKey: creds.consumer_key, consumerSecret: creds.consumer_secret });
 
   // The training choice: what the merchant picks here; by default, what the current file already does for GPTBot.

@@ -18,6 +18,11 @@ export const dynamic = "force-dynamic";
 
 // G1: the product feed's health: what the plugin serves now, and, from the store's products read now, which
 // products are in it and which are left out (with the reason and the missing fields).
+
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("feed") };
+}
+
 export default async function FeedPage({ params }: { params: Promise<{ id: string }> }) {
   const locale = await getLocale();
   const { id } = await params;
@@ -58,7 +63,7 @@ export default async function FeedPage({ params }: { params: Promise<{ id: strin
       {head}
       <div className="card">
         <h2>{t("servedTitle")}</h2>
-        {!connector?.token ? <p><BasisBadge basis="unavailable" /> {t("noPlugin")}</p>
+        {!connector?.token ? <><p><BasisBadge basis="unavailable" /> {t("noPlugin")}</p><p><a className="button" href="/settings">{tx("connectPlugin")}</a></p></>
           : statusError ? <p><BasisBadge basis="unavailable" /> {t("statusError", { reason: statusError })}</p>
           : status && status.feed === undefined ? <p><BasisBadge basis="unavailable" /> {t("oldPlugin", { version: status.plugin_version })}</p>
           : served ? (

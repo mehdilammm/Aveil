@@ -9,6 +9,10 @@ import { getUser } from "@/lib/supabase/server";
 import { getTranslations, getLocale } from "next-intl/server";
 import { BasisBadge } from "@/components/badges";
 
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("readiness") };
+}
+
 export default async function ScanPage({ params }: { params: Promise<{ id: string; scanId: string }> }) {
   const locale = await getLocale();
   const { id, scanId } = await params;

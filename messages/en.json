@@ -1015,6 +1015,39 @@
       "problem": "Breaks here",
       "unknown": "Not measured",
       "later": "Problem too"
+    },
+    "v": {
+      "noScan": "No scan yet",
+      "blocking": "{n, plural, one {# blocking issue} other {# blocking issues}}",
+      "noBlocking": "No blocking issue found",
+      "notAsked": "Not asked yet",
+      "mentioned": "Mentioned in {n} of {of} answers",
+      "pluginOff": "Plugin not connected",
+      "botVisits": "{n} AI bot visits in {days} days",
+      "notMeasured": "Not measured",
+      "referrals": "{n} visits from AI links in {days} days",
+      "referralsOrders": "{n} visits from AI links in {days} days · {orders, plural, one {# AI-referred order} other {# AI-referred orders}}",
+      "pluginOffOrders": "Plugin not connected · {orders, plural, one {# AI-referred order} other {# AI-referred orders}}",
+      "locked": "Available on Pro and Agency",
+      "notRead": "Orders not read yet",
+      "unavailable": "Unavailable",
+      "noOrders": "No AI-referred orders yet",
+      "orders": "{orders, plural, one {# AI-referred order} other {# AI-referred orders}} · {money}"
+    },
+    "d": {
+      "noScan": "Run a scan to answer this.",
+      "findings": "{total, plural, one {# finding} other {# findings}} in the last scan.",
+      "notAsked": "Run the AI Visibility questions.",
+      "latestRun": "Latest AI Visibility run (Gemini).",
+      "pluginOff": "Install and connect the WordPress plugin to count AI bot visits.",
+      "botVisits": "Self-declared AI user agents, unverified; checker tools and AgentScope's own checks are not counted.",
+      "notMeasured": "Needs the plugin (AI referrals) or Order Attribution (Pro).",
+      "referral": "Visits whose referrer is an AI assistant (plugin), and orders whose Order Attribution source is one.",
+      "locked": "AI-referred orders and revenue come from WooCommerce Order Attribution.",
+      "notRead": "Run a scan (or Refresh orders) to read the last 90 days of orders.",
+      "unavailable": "{reason}",
+      "ordersAgent": "Last {days} days, {n, plural, one {# order} other {# orders}} read. Agent checkout: {agent, plural, one {# order shows} other {# orders show}} agent-checkout evidence.",
+      "ordersNoAgent": "Last {days} days, {n, plural, one {# order} other {# orders}} read. Agent checkout: not measurable yet."
     }
   },
   "revenue": {
@@ -1216,7 +1249,11 @@
   },
   "common": {
     "noKeyHelp": "Add the store's WooCommerce read key in Settings to see this page.",
-    "openSettings": "Open Settings"
+    "openSettings": "Open Settings",
+    "readFailedHelp": "Check that the store is online and that the key in Settings still works, then reload this page.",
+    "requestFailed": "request failed",
+    "connectPlugin": "Connect the plugin",
+    "goScan": "Go to Overview and run a scan"
   },
   "checkPage": {
     "title": "Can AI shopping agents read your store?",
@@ -1540,6 +1577,39 @@
     "jsonld_shipping_missing": "Agents cannot read your shipping costs. Auto-fix can add them.",
     "jsonld_returns_missing": "Agents cannot read your return policy. Confirm it in one click.",
     "hosting_detected": "Your host and protection were detected (information).",
-    "agentic_checkout_support": "No agent checkout protocol found (information only)."
+    "agentic_checkout_support": "No agent checkout protocol found (information only).",
+    "visibility_not_mentioned": "Your store was not named in any AI answer. See Brand profile and Share of voice for the stores named instead."
+  },
+  "trafficLabels": {
+    "cat": {
+      "agent-retrieval": "AI assistant opening a page for someone",
+      "search-crawler": "AI search index",
+      "crawler": "AI training crawler",
+      "human-ai-referral": "Person coming from an AI link",
+      "checker": "Checker tool"
+    },
+    "route": {
+      "home": "Home page",
+      "product": "Product page",
+      "catalog": "Shop or category page",
+      "cart": "Cart",
+      "checkout": "Checkout",
+      "search": "Search",
+      "content": "Article or page",
+      "feed": "Product feed",
+      "sitemap": "Sitemap",
+      "robots": "robots.txt",
+      "not-found": "Page not found",
+      "other": "Other"
+    },
+    "http": {
+      "ok": "Opened",
+      "redirect": "Redirected",
+      "notFound": "Not found",
+      "blocked": "Blocked",
+      "limited": "Too many requests",
+      "error": "Server error",
+      "other": "Other answer"
+    }
   }
 }

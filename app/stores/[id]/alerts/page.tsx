@@ -19,6 +19,11 @@ type Alert = { id: string; kind: "breakage" | "product_check" | "fix_reapplied" 
 type ProductDetail = { product: { id: number; name: string; url: string | null }; issues: { title: string; severity: string; basis: string }[]; fixed: { describe: string; verify: string | null }[]; auto_fix: "on" | "off" | "plan" };
 
 // F2 / F3: what broke after a store change, and the checks of products just published or updated.
+
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("alerts") };
+}
+
 export default async function AlertsPage({ params }: { params: Promise<{ id: string }> }) {
   const locale = await getLocale();
   const { id } = await params;

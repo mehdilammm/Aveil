@@ -16,6 +16,11 @@ export const dynamic = "force-dynamic";
 const DAYS = 30;
 
 // One line per product of the last scan's sample: readiness, AI answers about its category, AI bot visits.
+
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("impact") };
+}
+
 export default async function ProductImpactPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user } = await getUser();

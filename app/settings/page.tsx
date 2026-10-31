@@ -13,6 +13,10 @@ import { TrafficConnect } from "./traffic-connect";
 import { PluginOnboarding } from "@/components/plugin-onboarding";
 import { EmptyState, PageHead } from "@/components/ui";
 
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("settings") };
+}
+
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ from_check?: string }> }) {
   const { supabase, user } = await getUser();
   const tu = await getTranslations("urlChange");

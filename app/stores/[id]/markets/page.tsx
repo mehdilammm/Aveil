@@ -1,4 +1,4 @@
-import { EmptyState, PageHead } from "@/components/ui";
+import { EmptyState, PageHead, Tech } from "@/components/ui";
 import { notFound } from "next/navigation";
 import { getTranslations, getLocale } from "next-intl/server";
 import { BasisBadge, formatDate } from "@/components/badges";
@@ -23,6 +23,11 @@ export const dynamic = "force-dynamic";
 const FIX_TAB = { selling: "general", shipping: "shipping", payments: "checkout", accounts: "account" } as const;
 
 // F6: can an agent complete a checkout in each market the store's AI Visibility questions target?
+
+export async function generateMetadata() {
+  return { title: (await getTranslations("nav"))("markets") };
+}
+
 export default async function MarketsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user } = await getUser();
@@ -49,7 +54,7 @@ export default async function MarketsPage({ params }: { params: Promise<{ id: st
     adapter.fetchCheckoutSetup(),
     adapter.fetchProductsPage(1).catch(() => null),
   ]);
-  if (!settings.ok) return <>{head}<div className="card"><p><BasisBadge basis="unavailable" /> {t("noSettings", { reason: settings.reason })}</p></div>{sim}</>;
+  if (!settings.ok) return <>{head}<EmptyState icon="plug" title={<><BasisBadge basis="unavailable" /> {t("noSettings", { reason: settings.reason })}</>} text={tx("readFailedHelp")} action={<a className="button" href="/settings">{tx("openSettings")}</a>} />{sim}</>;
   const markets: MarketId[] = used.length ? used : [defaultMarket(settings.data.woocommerce_default_country)];
   const states: Record<string, number | null> = {};
   for (const m of markets) states[COUNTRY[m]] = await fetchCountryStates(store.url, creds, COUNTRY[m]);
@@ -101,6 +106,7 @@ function Row({ r, t, storeUrl }: { r: MarketRow; t: T; storeUrl: string }) {
 async function AgentSim({ storeId, markets, canRun, verified }: { storeId: string; markets: MarketId[]; canRun: boolean; verified: boolean }) {
   const locale = await getLocale();
   const t = await getTranslations("agentSim");
+  const tu = await getTranslations("ui");
   const admin = createAdminClient();
   const last = async (kind: string, stepKey: string) => {
     const { data: job } = await admin.from("jobs").select("id, status, error, progress, created_at").eq("store_id", storeId).eq("kind", kind).order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -120,7 +126,7 @@ async function AgentSim({ storeId, markets, canRun, verified }: { storeId: strin
       <p className="muted small">{t("limits")}</p>
       {!verified ? <p><BasisBadge basis="unavailable" /> {t("notVerified")} <a href={`/stores/${storeId}`}>{t("verifyLink")}</a></p> : canRun ? <SimButton storeId={storeId} markets={options} openJobId={openOf(api.job)} /> : null}
       {api.job?.status === "failed" && <p className="error">{t("lastFailed", { error: String(api.job.error ?? "") })}</p>}
-      {apiResult ? <Timeline t={t} steps={apiResult.steps} stoppedAt={apiResult.stoppedAt} meta={t("last", { market: marketOf(apiResult.market)?.country ?? apiResult.market, date: formatDate(api.job!.created_at, locale), n: apiResult.requests })} /> : !api.job ? <p className="muted small">{t("none")}</p> : null}
+      {apiResult ? <Timeline t={t} tu={tu} steps={apiResult.steps} stoppedAt={apiResult.stoppedAt} meta={t("last", { market: marketOf(apiResult.market)?.country ?? apiResult.market, date: formatDate(api.job!.created_at, locale), n: apiResult.requests })} /> : !api.job ? <p className="muted small">{t("none")}</p> : null}
 
       <h3>{t("browserTitle")}</h3>
       <p className="muted small">{t("browserSub", { max: BROWSER_LIMITS.perStoreDay, seconds: BROWSER_LIMITS.budgetMs / 1000 })}</p>
@@ -133,7 +139,7 @@ async function AgentSim({ storeId, markets, canRun, verified }: { storeId: strin
       {web.job?.status === "failed" && <p className="error">{t("lastFailed", { error: String(web.job.error ?? "") })}</p>}
       {webResult && (
         <>
-          <Timeline t={t} steps={webResult.steps} stoppedAt={webResult.stoppedAt} meta={t("lastBrowser", { date: formatDate(web.job!.created_at, locale), n: webResult.requests, version: webResult.woocommerce ?? "?" })} />
+          <Timeline t={t} tu={tu} steps={webResult.steps} stoppedAt={webResult.stoppedAt} meta={t("lastBrowser", { date: formatDate(web.job!.created_at, locale), n: webResult.requests, version: webResult.woocommerce ?? "?" })} />
           <p className="muted small">{t("cost", { usd: (webResult.cost.usd_micros / 1_000_000).toFixed(4), seconds: (webResult.cost.wall_ms / 1000).toFixed(1), memory: (webResult.cost.memory_mb / 1024).toFixed(1) })}</p>
         </>
       )}
@@ -143,7 +149,7 @@ async function AgentSim({ storeId, markets, canRun, verified }: { storeId: strin
 
 type AgentT = Awaited<ReturnType<typeof getTranslations<"agentSim">>>;
 
-function Timeline({ t, steps, stoppedAt, meta }: { t: AgentT; steps: SimStep[]; stoppedAt: SimStepKey | null; meta: string }) {
+function Timeline({ t, tu, steps, stoppedAt, meta }: { t: AgentT; tu: (key: "technical") => string; steps: SimStep[]; stoppedAt: SimStepKey | null; meta: string }) {
   const mark = { ok: "✓", warn: "!", stop: "✗", skip: "–" } as const;
   return (
     <>
@@ -154,10 +160,14 @@ function Timeline({ t, steps, stoppedAt, meta }: { t: AgentT; steps: SimStep[]; 
         {steps.map((x, i) => (
           <li key={i}>
             <span aria-hidden="true">{mark[x.outcome]}</span> <strong>{t(`step.${x.step}`)}</strong> <BasisBadge basis={x.basis} /> {t(`code.${x.code}` as "code.robotsOk", x.values)}
-            {x.http && <span className="muted"> · {x.http}</span>}
           </li>
         ))}
       </ol>
+      {steps.some((x) => x.http) && (
+        <Tech label={tu("technical")}>
+          <ul className="small muted">{steps.filter((x) => x.http).map((x, i) => <li key={i}>{t(`step.${x.step}`)}: <bdi>{x.http}</bdi></li>)}</ul>
+        </Tech>
+      )}
     </>
   );
 }
