@@ -47,7 +47,7 @@ type Result = {
 
 function Verdict({ r, engine }: { r: Result | undefined; engine: EngineId }) {
   const tv = useTranslations("visibilityPage");
-  if (!r) return <span className="muted">{engine === "mistral" && !engineConfigured("mistral") ? MISTRAL_OFF_REASON : tv("notAsked")}</span>;
+  if (!r) return <span className="muted">{engine === "mistral" && !engineConfigured("mistral") ? tv("mistralOff") : tv("notAsked")}</span>;
   if (r.error) return <span className="muted" title={r.error}>{tv("unavailable")}</span>;
   return (
     <>
@@ -106,7 +106,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
       : running
         ? tv("dRunning")
         : lastCounted && lastCounted.status === "complete" && !canRun(lastCounted.created_at, new Date(), RUN_DAYS[PLANS[planId].visibilityPer])
-          ? tv("dLimit", { per: PLANS[planId].visibilityPer, plan: PLANS[planId].name, date: formatDate(nextRunAt(lastCounted.created_at, RUN_DAYS[PLANS[planId].visibilityPer])!.toISOString(), locale) })
+          ? tv(`dLimit_${PLANS[planId].visibilityPer}`, { plan: PLANS[planId].name, date: formatDate(nextRunAt(lastCounted.created_at, RUN_DAYS[PLANS[planId].visibilityPer])!.toISOString(), locale) })
           : null;
 
   // Usage this month per engine, from the result rows (extraction requests are counted on the answer's row).
@@ -174,7 +174,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
                     <span className={`badge ${r.grounded ? "basis-observed" : "basis-heuristic"}`}>{r.grounded ? ta("grounded") : ta("ungrounded")}</span>
                     <p className="muted small">{ta("provenance", { engine: ENGINE_NAME[r.engine], model: r.model ?? ENGINE_MODEL[r.engine], method: r.access_method ?? ta("notRecorded"), market: r.country ?? ta("notRecorded"), language: r.language ?? ta("notRecorded"), date: formatDate(r.created_at, locale) })}</p>
                     {r.error ? (
-                      <p className="muted small"><BasisBadge basis="unavailable" /> {r.error}</p>
+                      <p className="muted small"><BasisBadge basis="unavailable" /> {r.error === MISTRAL_OFF_REASON ? tv("mistralOff") : r.error}</p>
                     ) : (
                       <>
                         {r.urls.length > 0 && (
@@ -234,7 +234,7 @@ export default async function AiVisibilityPage({ params }: { params: Promise<{ i
       <details className="card fold">
         <summary>{tv("howItWorks")}</summary>
         <p className="row">{ENGINES.map((e) => <span key={e} className="badge basis-observed">{ENGINE_LABEL[e]}</span>)}</p>
-        <p className="muted small">{tv("method", { engines: ENGINES.map((e) => `${ENGINE_NAME[e]}: ${ENGINE_MODEL[e]}${engineConfigured(e) ? "" : e === "mistral" ? ` – ${MISTRAL_OFF_REASON}` : ` – ${tv("notSetUp")}`}`).join("; ") })}</p>
+        <p className="muted small">{tv("method", { engines: ENGINES.map((e) => `${ENGINE_NAME[e]}: ${ENGINE_MODEL[e]}${engineConfigured(e) ? "" : e === "mistral" ? ` – ${tv("mistralOff")}` : ` – ${tv("notSetUp")}`}`).join("; ") })}</p>
         {access?.role === "owner" && groundingEnabled() && engineConfigured("gemini") && prompts.length > 0 && !running && <TestRunButton storeId={store.id} />}
         {engineConfigured("gemini") && results.filter((r) => r.engine === "gemini" && r.answer && !r.extraction).length > 0 && (
           <RereadButton storeId={store.id} count={results.filter((r) => r.engine === "gemini" && r.answer && !r.extraction).length} />
