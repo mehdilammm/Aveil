@@ -994,7 +994,8 @@
     "status": {
       "ok": "OK",
       "problem": "Breaks here",
-      "unknown": "Not measured"
+      "unknown": "Not measured",
+      "later": "Problem too"
     }
   },
   "revenue": {
@@ -1192,5 +1193,19 @@
     "s3here": "(create it below).",
     "s3link": "(create it in Settings → AI traffic plugin).",
     "s4": "Click Connect. Later updates show up in WordPress like any plugin update."
+  },
+  "addStore": {
+    "workspace": "Workspace",
+    "name": "Store name",
+    "url": "Store URL",
+    "key": "Consumer key",
+    "keyHint": "WooCommerce → Settings → Advanced → REST API, permission: Read",
+    "secret": "Consumer secret",
+    "stored": "The key and secret are stored encrypted and never shown again.",
+    "saving": "Saving…",
+    "add": "Add store",
+    "waitlistDone": "You are on the waitlist. We will email you when payments open.",
+    "email": "Email",
+    "waitlist": "Join the waitlist"
   }
 }

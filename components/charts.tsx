@@ -89,7 +89,7 @@ export function Legend({ items }: { items: { name: string; color: string }[] }) 
 }
 
 // The funnel as horizontal steps: the first stage with a problem is highlighted, later ones are dimmed.
-export type FunnelStep = { key: string; question: string; status: "ok" | "problem" | "unknown"; value: string; basis: "observed" | "heuristic" | "unavailable"; statusLabel: string };
+export type FunnelStep = { key: string; question: string; status: "ok" | "problem" | "unknown"; value: string; basis: "observed" | "heuristic" | "unavailable"; statusLabel: string; laterLabel?: string };
 export function FunnelChart({ steps }: { steps: FunnelStep[] }) {
   const breakAt = steps.findIndex((s) => s.status === "problem");
   return (
@@ -99,7 +99,7 @@ export function FunnelChart({ steps }: { steps: FunnelStep[] }) {
           <span className="step-n" aria-hidden="true">{i + 1}</span>
           <div className="step-bar">
             <strong>{s.question}</strong>
-            <span className="step-value">{s.value} <BasisBadge basis={s.basis} /> · {s.statusLabel}</span>
+            <span className="step-value">{s.value} <BasisBadge basis={s.basis} /> · {s.status === "problem" && i !== breakAt && s.laterLabel ? s.laterLabel : s.statusLabel}</span>
           </div>
         </li>
       ))}

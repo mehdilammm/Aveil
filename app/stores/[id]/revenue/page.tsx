@@ -58,7 +58,7 @@ export default async function AiRevenuePage({ params }: { params: Promise<{ id: 
 
       <h2 className="section-title"><Icon name="revenue" /> {t("funnelTitle")}</h2>
       <div className="card">
-        <FunnelChart steps={stages.map((s) => ({ key: s.key, question: tf(`q.${s.key}`), status: s.status, value: s.value, basis: s.basis, statusLabel: tf(`status.${s.status}`) }))} />
+        <FunnelChart steps={stages.map((s) => ({ key: s.key, question: tf(`q.${s.key}`), status: s.status, value: s.value, basis: s.basis, statusLabel: tf(`status.${s.status}`), laterLabel: tf("status.later") }))} />
         <Tech label={tu("technical")}>
           <ul className="small">{stages.map((s) => <li key={s.key}><strong>{tf(`q.${s.key}`)}</strong> {s.detail}</li>)}</ul>
           <p className="muted small">{t("note", { date: lastComplete ? formatDate(lastComplete.finished_at) : "—" })}</p>
