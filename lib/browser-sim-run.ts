@@ -3,8 +3,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { guardedSend, NotVerifiedError } from "./agent-sim-run";
 import { startGuardedProxy } from "./browser-proxy";
-import { BROWSER_LIMITS, browserPurchase, type BrowserFlowResult, type Launched } from "./browser-sim";
+import { BROWSER_LIMITS, browserPurchase, BrowserUnavailableError, type BrowserFlowResult, type Launched } from "./browser-sim";
 import { isOwnershipVerified } from "./ownership-store";
+
+export { BrowserUnavailableError };
 
 // Vercel Fluid compute list prices (iad1, Washington D.C.; other regions cost more): active CPU per hour and
 // provisioned memory per GB-hour. Source: Vercel changelog "Lower pricing with Active CPU pricing for Fluid compute".
@@ -13,7 +15,6 @@ const ASSUMED_MEMORY_MB = 2048; // Vercel's default function memory, when the ru
 
 export type BrowserCost = { wall_ms: number; node_cpu_ms: number; browser_cpu_ms: number | null; memory_mb: number; memory_source: "runtime" | "assumed"; usd_micros: number; prices: typeof VERCEL_PRICES };
 export type BrowserResult = BrowserFlowResult & { cost: BrowserCost };
-export class BrowserUnavailableError extends Error {}
 
 // Estimated cost of one run: CPU (this process and the browser's processes) at the CPU price, plus the memory
 // the function holds for the whole run at the GB-hour price.
@@ -26,7 +27,7 @@ export function costOf(m: { wallMs: number; nodeCpuMs: number; browserCpuMs: num
 // CPU time of a process and all its descendants, from /proc (Linux; clock ticks of 10 ms). Null elsewhere.
 export function treeCpuMs(rootPid: number, proc = "/proc"): number | null {
   try {
-    const rows = readdirSync(proc)
+    const rows = readdirSync(/*turbopackIgnore: true*/ proc)
       .filter((d) => /^\d+$/.test(d))
       .map((pid) => {
         try {
@@ -99,12 +100,6 @@ export async function launchChromium(): Promise<Launched> {
 }
 
 // Browser tests a store started today (UTC), for the daily cap.
-export async function browserTestsToday(admin: SupabaseClient, storeId: string): Promise<number> {
-  const day = new Date().toISOString().slice(0, 10);
-  const { data } = await admin.from("jobs").select("id").eq("store_id", storeId).eq("kind", "agent_sim_browser").gte("created_at", `${day}T00:00:00Z`);
-  return data?.length ?? 0;
-}
-
 // One browser test of a verified store; the cost is measured, kept with the result and written to the logs.
 export async function runBrowserTest(admin: SupabaseClient, store: { id: string; url: string }, jobId: string, launch: () => Promise<Launched> = launchChromium): Promise<BrowserResult> {
   if (!(await isOwnershipVerified(admin, store.id))) throw new NotVerifiedError("Store ownership is not verified, so the agent purchase test does not run.");

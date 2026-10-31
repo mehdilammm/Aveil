@@ -1,4 +1,5 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Browser, HTTPRequest, Page } from "puppeteer-core";
 import { Session, type Send, type SimOutcome, type SimStep, type SimStepKey } from "./agent-sim";
 import { CHECK_HEADER, checkHeaderValue } from "./check-header";
@@ -269,4 +270,15 @@ export async function browserPurchase(input: { storeUrl: string; checkToken: str
     if (l) browserCpuMs = (await l.close().catch(() => ({ browserCpuMs: null }))).browserCpuMs;
   }
   return { mode: "browser", steps, stoppedAt: steps.find((x) => x.outcome === "stop")?.step ?? null, requests: s.requests + pageRequests, woocommerce, blockedWrites, browserCpuMs };
+}
+
+// No browser in this function or deployment (the job waits and tries again).
+export class BrowserUnavailableError extends Error {}
+
+// Browser tests started today (UTC) for a store, for the daily limit. Kept here, away from the browser code, so the
+// pages and routes that check the limit do not carry Chromium.
+export async function browserTestsToday(admin: SupabaseClient, storeId: string): Promise<number> {
+  const day = new Date().toISOString().slice(0, 10);
+  const { data } = await admin.from("jobs").select("id").eq("store_id", storeId).eq("kind", "agent_sim_browser").gte("created_at", `${day}T00:00:00Z`);
+  return data?.length ?? 0;
 }

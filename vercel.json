@@ -1,3 +1,4 @@
 {
-  "crons": [{ "path": "/api/cron/weekly-scans", "schedule": "17 5 * * *" }]
+  "crons": [{ "path": "/api/cron/weekly-scans", "schedule": "17 5 * * *" }],
+  "git": { "deploymentEnabled": { "claude/agentscope-v0-1-setup-6cez8h": false, "claude/*": false } }
 }
