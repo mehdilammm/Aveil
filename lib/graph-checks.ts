@@ -3,6 +3,7 @@
 // source prints is left alone (never a duplicate). Observed: read from the page as a browser gets it.
 import type { Finding } from "./rules";
 import { ancestors } from "./schema-vocab";
+import { elements } from "./html-scan";
 
 type Node = Record<string, unknown>;
 
@@ -16,9 +17,10 @@ export function jsonLdNodes(html: string): Node[] {
     if (n["@type"]) out.push(n);
     for (const [k, x] of Object.entries(n)) if (k !== "@context" && typeof x === "object") walk(x);
   };
-  for (const m of html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+  for (const { tag, text } of elements(html, "script")) {
+    if (!/\btype\s*=\s*["']?application\/ld\+json/i.test(tag)) continue;
     try {
-      walk(JSON.parse(m[1].trim()));
+      walk(JSON.parse(text.trim()));
     } catch {
       // a broken block is reported by the structured-data check
     }

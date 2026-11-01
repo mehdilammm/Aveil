@@ -2,6 +2,7 @@
 import type { PageResult } from "./access";
 import { describePage, pageGate } from "./gate";
 import type { Finding, WooProduct } from "./rules";
+import { elements } from "./html-scan";
 
 type Json = unknown;
 type Node = Record<string, Json>;
@@ -16,7 +17,8 @@ export type SchemaProduct = {
   readable: boolean; // false when a Product node exists but none of its fields could be read
 };
 
-const LD_RE = /<script[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi;
+// JSON-LD blocks, found with a linear scan (lib/html-scan.ts) instead of a regex that backtracks on hostile pages.
+const ldBlocks = (html: string) => elements(html, "script").filter((e) => /\btype\s*=\s*["']?application\/ld\+json/i.test(e.tag)).map((e) => e.text);
 
 function types(node: Node): string[] {
   const t = node["@type"];
@@ -93,9 +95,9 @@ function summarize(node: Node): SchemaProduct {
 export function extractSchemaProducts(html: string): { products: SchemaProduct[]; invalidBlocks: number } {
   const nodes: Node[] = [];
   let invalidBlocks = 0;
-  for (const m of html.matchAll(LD_RE)) {
+  for (const block of ldBlocks(html)) {
     try {
-      walk(JSON.parse(m[1].trim()), nodes);
+      walk(JSON.parse(block.trim()), nodes);
     } catch {
       invalidBlocks++;
     }

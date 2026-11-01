@@ -34,10 +34,21 @@ describe("/api/ingest/events (plugin 1.7.0)", () => {
     );
   });
 
-  it("refuses a bad signature", async () => {
-    const { POST } = await import("@/app/api/ingest/events/route");
-    const res = await POST(new Request("https://x", { method: "POST", body: "{}", headers: { "x-agentscope-store": STORE, "x-agentscope-timestamp": String(Math.floor(Date.now() / 1000)), "x-agentscope-signature": "sha256=00" } }));
-    expect(res.status).toBe(401);
+  it("refuses a bad signature, and unsigned requests do not use up the store's hourly quota (N1)", async () => {
+    let counted = 0;
+    db.current = fakeSupabase({ stores: [{ id: STORE, workspace_id: "w1" }], store_events: [], jobs: [] }, {
+      traffic_rate_check: () => (counted++, counted <= 30),
+      get_traffic_connector_secret: () => ({ owner_id: "u1", token: "agsc_tok" }),
+    }, { store_events: ["store_id", "event_id"] });
+    for (const route of ["events", "traffic", "bot-hits"]) {
+      const { POST } = await import(`@/app/api/ingest/${route}/route`);
+      for (let i = 0; i < 40; i++) {
+        const res = await POST(new Request("https://x", { method: "POST", body: "{}", headers: { "x-agentscope-store": STORE, "x-agentscope-timestamp": String(Math.floor(Date.now() / 1000)), "x-agentscope-signature": "sha256=00" } }));
+        expect(res.status).toBe(401);
+      }
+    }
+    expect(counted).toBe(0); // the quota was never touched, so the plugin's real sends still go through
+    expect((await send([ev(1, "plugin_updated")])).status).toBe(200);
   });
 
   it("a plugin update queues one delayed breakage check (Pro); a product update queues a product check", async () => {

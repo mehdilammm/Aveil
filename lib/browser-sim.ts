@@ -5,7 +5,7 @@ import { Session, type Send, type SimOutcome, type SimStep, type SimStepKey } fr
 import { CHECK_HEADER, checkHeaderValue } from "./check-header";
 import { decodeEntities } from "./consistency";
 import { detectProtection } from "./protection";
-import { agentScopeAllowed, PUBLIC_UA, robotsFrom } from "./public-scan";
+import { agentScopeAllowed, generators, PUBLIC_UA, robotsFrom } from "./public-scan";
 import type { Basis } from "./rules";
 import { minorToMajor } from "./woo-store-api";
 
@@ -47,7 +47,7 @@ export const versionAtLeast = (v: string | null, min: string) => {
   for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
   return true;
 };
-export const wooVersion = (html: string) => /<meta[^>]*generator[^>]*WooCommerce\s+(\d+(?:\.\d+){1,2})/i.exec(html)?.[1] ?? null;
+export const wooVersion = (html: string) => generators(html).map((g) => /WooCommerce\s+(\d+(?:\.\d+){1,2})/i.exec(g)?.[1]).find(Boolean) ?? null;
 const sameSite = (a: string, b: string) => a.replace(/^www\./, "") === b.replace(/^www\./, "");
 const plain = (s: unknown) => decodeEntities(String(s ?? "").replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim().slice(0, 200);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

@@ -56,7 +56,10 @@ export async function checkManual(storeUrl: string, method: ManualMethod, token:
       return { verified: false, evidence: `DNS lookup for ${host} failed${code ? ` (${code})` : ""}.` };
     }
   }
-  const url = method === "meta_tag" ? `${storeUrl}/` : `${storeUrl}${WELL_KNOWN_PATH}`;
+  // Proof on the origin itself (scheme + host), never a sub-path: tests and fixes act on the whole origin
+  // (Store API, checkout, wp-json), so control of a folder of someone else's site must not count.
+  const origin = new URL(storeUrl).origin;
+  const url = method === "meta_tag" ? `${origin}/` : `${origin}${WELL_KNOWN_PATH}`;
   const res = await deps.fetchPage(url);
   if (!res.ok) return { verified: false, evidence: `${url} could not be loaded: ${res.error}.` };
   if (res.redirectedTo) return { verified: false, evidence: `${url} redirects to ${res.redirectedTo}; the token must be on ${host} itself.` };

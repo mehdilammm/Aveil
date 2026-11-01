@@ -89,7 +89,7 @@ export async function acceptInvite(_: WsState, form: FormData): Promise<WsState>
   const token = String(form.get("token") ?? "");
   const admin = createAdminClient();
   const { data: invite } = await admin.from("workspace_invites").select("id, workspace_id, role, email, expires_at, accepted_at, revoked_at").eq("token_hash", hashInviteToken(token)).maybeSingle();
-  const problem = inviteProblem(invite as InviteRow | null, user.email);
+  const problem = inviteProblem(invite as InviteRow | null, user.email, new Date(), user.email_confirmed_at ?? null);
   if (problem) return { error: problem };
   const { data: existing } = await admin.from("workspace_members").select("role").eq("workspace_id", invite!.workspace_id).eq("user_id", user.id).maybeSingle();
   // Mark used first (only if still unused), so one link adds one member.

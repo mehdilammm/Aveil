@@ -11,6 +11,7 @@ import { isAllowed, parseRobots, type Robots } from "./robots";
 import type { Finding, Severity } from "./rules";
 import { extractSchemaProducts, type SchemaProduct } from "./structured-data";
 import type { PageFetch } from "./woo";
+import { attr, metaContent, openTags } from "./html-scan";
 
 export const PUBLIC_UA = "AgentScopeBot/1.0 (+https://agentscope-peach.vercel.app/bot)";
 export const PUBLIC_UA_TOKEN = "AgentScopeBot";
@@ -144,11 +145,24 @@ export function platformName(p: Platform | null): "WooCommerce" | "Shopify" | "W
   return p.wordpress ? "WordPress" : "unknown";
 }
 
+// <meta name="generator"> contents (WordPress and WooCommerce each print one), from a linear scan.
+export const generators = (html: string) => openTags(html, "meta").filter((t) => /^generator$/i.test(attr(t, "name") ?? "")).map((t) => attr(t, "content") ?? "");
+
+// The description meta (name or og:), 10 to 400 characters, as before.
+function description(html: string): string | undefined {
+  for (const key of [/^description$/i, /^og:description$/i]) {
+    const c = metaContent(html, key);
+    if (c && c.length >= 10 && c.length <= 400) return c;
+  }
+  return undefined;
+}
+
 export function detectPlatform(html: string, shopifyHeader = false): Platform {
+  const gen = generators(html).join(" ");
   return {
     shopify: detectShopify(html, shopifyHeader),
-    wordpress: /\/wp-content\/|\/wp-includes\/|<meta[^>]+name=["']generator["'][^>]+WordPress/i.test(html),
-    woocommerce: /\/wp-content\/plugins\/woocommerce\/|class=["'][^"']*\bwoocommerce\b|wc-block-|<meta[^>]+name=["']generator["'][^>]+WooCommerce/i.test(html),
+    wordpress: /\/wp-content\/|\/wp-includes\//i.test(html) || /WordPress/i.test(gen),
+    woocommerce: /\/wp-content\/plugins\/woocommerce\/|class=["'][^"']*\bwoocommerce\b|wc-block-/i.test(html) || /WooCommerce/i.test(gen),
   };
 }
 
@@ -229,12 +243,10 @@ const INSTALLMENT_AFTER_RE = /^\s*(?:[a-z]{3})?\s*(\/\s*mo|\/\s*month|per month|
 const INSTALLMENT_BEFORE_RE = /(payments? of|installments? of|as low as|from|starting at)\s*[^\d\s]{0,4}\s*$/i;
 
 function metaPrice(html: string): { amount: number | null; text: string | null } | null {
-  const m =
-    /<meta[^>]+property\s*=\s*["'](?:og|product):price:amount["'][^>]*content\s*=\s*["']([^"']+)["']/i.exec(html) ??
-    /<meta[^>]+content\s*=\s*["']([^"']+)["'][^>]*property\s*=\s*["'](?:og|product):price:amount["']/i.exec(html);
-  if (!m) return null;
-  const amount = parseAmount(m[1]);
-  return amount === null ? null : { amount, text: m[1].trim() };
+  const content = metaContent(html, /^(?:og|product):price:amount$/i);
+  if (!content) return null;
+  const amount = parseAmount(content);
+  return amount === null ? null : { amount, text: content.trim() };
 }
 
 // First real price number in a piece of text: not a monthly / installment amount.
@@ -358,9 +370,7 @@ export function topicFromHome(html: string, brandKeys: string[]): string | null 
   const slugs = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([slug]) => stripBrand(slug.replace(/-/g, " "), brandKeys)).filter(Boolean).slice(0, 3);
   if (slugs.length) return slugs.join(", ");
 
-  const meta =
-    /<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']{10,400})["']/i.exec(html)?.[1] ??
-    /<meta[^>]+content=["']([^"']{10,400})["'][^>]+(?:name|property)=["'](?:description|og:description)["']/i.exec(html)?.[1];
+  const meta = description(html);
   const title = /<title[^>]*>([^<]{3,200})<\/title>/i.exec(html)?.[1];
   for (const source of [meta, title]) {
     if (!source || ERROR_TITLE_RE.test(source)) continue;
@@ -394,9 +404,7 @@ export function homeTitle(html: string): string | null {
 }
 
 export function homeDescription(html: string): string | null {
-  const m =
-    /<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']{10,400})["']/i.exec(html)?.[1] ??
-    /<meta[^>]+content=["']([^"']{10,400})["'][^>]+(?:name|property)=["'](?:description|og:description)["']/i.exec(html)?.[1];
+  const m = description(html);
   return m ? decode(m).replace(/\s+/g, " ").trim() : null;
 }
 
