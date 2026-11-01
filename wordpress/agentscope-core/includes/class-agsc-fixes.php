@@ -87,13 +87,24 @@ final class AGSC_Fixes {
 
     /** Remembers nonces for 10 minutes; a nonce seen before is refused (replay). */
     public static function use_nonce($nonce, $now) {
-        $seen = get_option(self::NONCES, array());
-        $seen = is_array($seen) ? array_filter($seen, function ($t) use ($now) { return $t > $now - 2 * self::MAX_SKEW; }) : array();
-        if (isset($seen[$nonce])) {
+        global $wpdb;
+        // Atomic: option_name is unique, so of two requests with the same nonce at the same moment only one row is
+        // inserted (a read-modify-write of one option could let both through).
+        $inserted = $wpdb->query($wpdb->prepare(
+            "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')",
+            'agsc_fix_nonce_' . $nonce,
+            (string) (int) $now
+        ));
+        if ((int) $inserted !== 1) {
             return false;
         }
-        $seen[$nonce] = $now;
-        update_option(self::NONCES, $seen, false);
+        if (wp_rand(1, 20) === 1) {
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND CAST(option_value AS UNSIGNED) < %d",
+                $wpdb->esc_like('agsc_fix_nonce_') . '%',
+                (int) $now - 2 * self::MAX_SKEW
+            ));
+        }
         return true;
     }
 

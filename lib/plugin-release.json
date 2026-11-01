@@ -1,9 +1,12 @@
 {
-  "version": "1.9.0",
-  "file": "agentscope-core-1.9.0.zip",
-  "sha256": "46440efbb6453d3cc4a3e6b4d21b82e4c31de97e64cf1ec65eb2f423bc7f3849",
+  "version": "1.9.1",
+  "file": "agentscope-core-1.9.1.zip",
+  "sha256": "4774d2f3ab9c3d497c232ad6f018a1930475db1f5dff256d4ce2d6b238b55327",
   "changelog": [
-    "Updates from AgentScope are installed only when they carry a valid Ed25519 signature from AgentScope's offline release key (the public key is built into the plugin), then the zip's SHA-256 is checked. A compromised server alone cannot ship code to your store."
+    "AI bot identity uploads stay under the app's size limit, so spoofed bot visits with long user agents can no longer block the uploads; at most 120 bot requests a minute are kept.",
+    "Signed fixes: each one-time code is claimed atomically, so a replayed request cannot slip through at the same moment.",
+    "AI-referred order notes: a WooCommerce session is started only for visits that really come from an AI site; a link with an AI utm_source alone is noted only for a visitor who already has a session.",
+    "Settings now say plainly that AI bot identity keeps IPs and user agents of AI bot requests for at most 7 days."
   ],
   "requires": "6.0",
   "requires_php": "7.4",

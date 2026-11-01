@@ -6,6 +6,24 @@ define('AGSC_VERSION', '1.6.0');
 $GLOBALS['agsc_opts'] = array();
 function get_option($k, $d = false) { return array_key_exists($k, $GLOBALS['agsc_opts']) ? $GLOBALS['agsc_opts'][$k] : $d; }
 function update_option($k, $v, $a = null) { $GLOBALS['agsc_opts'][$k] = $v; $GLOBALS['agsc_autoload'][$k] = $a; return true; }
+// Fake $wpdb for the nonce store: INSERT IGNORE succeeds once per option_name (the real unique key).
+function wp_rand($a, $b) { return $b; }
+final class Agsc_Fake_Db {
+    public $options = 'wp_options';
+    public $names = array();
+    public function prepare($q, ...$args) { return array($q, $args); }
+    public function esc_like($s) { return addcslashes($s, '_%\\'); }
+    public function query($p) {
+        list($q, $args) = $p;
+        if (strpos($q, 'INSERT IGNORE') === 0) {
+            if (isset($this->names[$args[0]])) { return 0; }
+            $this->names[$args[0]] = $args[1];
+            return 1;
+        }
+        return 0;
+    }
+}
+$GLOBALS['wpdb'] = new Agsc_Fake_Db();
 function delete_option($k) { unset($GLOBALS['agsc_opts'][$k]); return true; }
 function home_url($p = '') { return 'https://matha.site' . $p; }
 function sanitize_text_field($s) { return trim(preg_replace('/[\r\n\t ]+/', ' ', strip_tags((string) $s))); }

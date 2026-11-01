@@ -40,6 +40,15 @@ describe.skipIf(!hasPhp)("plugin 1.5.0 bot hits (PHP)", () => {
     expect(r.signature_ok).toBe(true);
   });
 
+  it("spoofed bot floods cannot block uploads: at most 120 a minute, batches stay under the app's limit (audit R2-1)", () => {
+    const r = run("flood");
+    expect(r.kept).toBe(120);
+    expect(r.body_bytes).toBeLessThan(400_000);
+    expect(r.result).toMatch(/^Sent \d+ bot hits\.$/);
+    expect(r.left).toBeLessThan(r.queued); // progress every run instead of the same batch refused forever
+    expect(r.left_after_second).toBeLessThan(r.left);
+  });
+
   it("no network on page load: record() only inserts; sends happen in WP-Cron", () => {
     const record = src.slice(src.indexOf("public static function record"), src.indexOf("public static function payload"));
     expect(record).not.toMatch(/wp_remote_|curl_|file_get_contents|gethostbyaddr|dns_get_record/);

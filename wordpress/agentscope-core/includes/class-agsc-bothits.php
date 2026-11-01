@@ -17,6 +17,8 @@ final class AGSC_Bothits {
     const SCHEDULE     = 'agsc_every_15_minutes';
     const BATCH        = 500;
     const MAX_AGE_DAYS = 7;
+    const MAX_BODY_BYTES = 400000; // under the app's 512 KB limit for /api/ingest/bot-hits
+    const MAX_PER_MINUTE = 120;    // rows kept a minute at most (anyone can send a bot user agent)
 
     /** Bot name => user-agent token. Kept in line with the app's lib/bot-verify.ts (most specific first). */
     public static function bots() {
@@ -106,6 +108,14 @@ final class AGSC_Bothits {
         if (!filter_var($ip, FILTER_VALIDATE_IP)) {
             return;
         }
+        // Anyone can send a bot user agent: at most MAX_PER_MINUTE rows a minute are kept, so a flood cannot fill
+        // the table (and the IP check in the app shows which ones were really the bot).
+        $minute = 'agsc_bothits_' . gmdate('YmdHi');
+        $seen = (int) get_transient($minute);
+        if ($seen >= self::MAX_PER_MINUTE) {
+            return;
+        }
+        set_transient($minute, $seen + 1, 2 * MINUTE_IN_SECONDS);
         global $wpdb;
         $uri = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash($_SERVER['REQUEST_URI']) : '/';
         $wpdb->insert(self::table(), array(
@@ -118,6 +128,30 @@ final class AGSC_Bothits {
             'method'      => $method === 'HEAD' ? 'HEAD' : 'GET',
             'http_status' => (int) $status,
         ), array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d'));
+    }
+
+    /**
+     * Pure: the oldest rows whose JSON stays under $max_bytes (the app refuses bodies over 512 KB). Long spoofed user
+     * agents and paths used to make a 500-row batch too big, so the same batch was refused again and again and no
+     * bot hit was sent for 7 days. Rows that alone exceed the budget are skipped (and deleted by flush).
+     */
+    public static function within_budget($rows, $max_bytes = self::MAX_BODY_BYTES) {
+        $keep = array();
+        $skip = array();
+        $size = strlen('{"hits":[]}');
+        foreach ((array) $rows as $r) {
+            $one = strlen((string) self::payload(array($r))) - strlen('{"hits":[]}') + 1;
+            if ($one > $max_bytes / 4) {
+                $skip[] = $r;
+                continue;
+            }
+            if ($size + $one > $max_bytes) {
+                break;
+            }
+            $keep[] = $r;
+            $size += $one;
+        }
+        return array($keep, $skip);
     }
 
     /** Pure: the JSON body of one batch (the format /api/ingest/bot-hits expects). */
@@ -153,6 +187,14 @@ final class AGSC_Bothits {
             return 'Not connected.';
         }
         $rows = $wpdb->get_results($wpdb->prepare("SELECT id, hit_id, seen_at, ip, user_agent, url_path, method, http_status FROM {$table} ORDER BY id ASC LIMIT %d", self::BATCH), ARRAY_A);
+        if (!$rows) {
+            return 'Nothing to send.';
+        }
+        list($rows, $skipped) = self::within_budget($rows);
+        if ($skipped) {
+            $skip_ids = array_map('intval', wp_list_pluck($skipped, 'id'));
+            $wpdb->query("DELETE FROM {$table} WHERE id IN (" . implode(',', $skip_ids) . ')'); // phpcs:ignore -- integers only.
+        }
         if (!$rows) {
             return 'Nothing to send.';
         }
