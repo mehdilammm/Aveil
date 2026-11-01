@@ -73,6 +73,12 @@ export async function selfHeal(admin: SupabaseClient, store: Store, back: { keys
       out.push({ audit_id: d.row.id, kind: d.row.kind, action: "lost", why: d.why });
       continue;
     }
+    // The row is read again just before writing: a user who pressed Undo while this check ran is not overridden.
+    const { data: fresh } = await admin.from("fix_audit_log").select("status").eq("id", d.row.id).eq("store_id", store.id).maybeSingle();
+    if (fresh?.status !== "applied") {
+      out.push({ audit_id: d.row.id, kind: d.row.kind, action: "skipped", why: `status is now ${fresh?.status ?? "gone"}` });
+      continue;
+    }
     let after: unknown = null;
     let error: string | null = null;
     try {
