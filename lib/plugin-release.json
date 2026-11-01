@@ -1,9 +1,9 @@
 {
-  "version": "1.8.1",
-  "file": "agentscope-core-1.8.1.zip",
-  "sha256": "90013082c295a9167416135ace201afcd4e60771cada681c916cdfc290730e85",
+  "version": "1.9.0",
+  "file": "agentscope-core-1.9.0.zip",
+  "sha256": "46440efbb6453d3cc4a3e6b4d21b82e4c31de97e64cf1ec65eb2f423bc7f3849",
   "changelog": [
-    "A fix you remove in AgentScope Core → Fixes applied by AgentScope is remembered (its id, kind and time only), so the app never puts it back. Applying it again from the app forgets the removal."
+    "Updates from AgentScope are installed only when they carry a valid Ed25519 signature from AgentScope's offline release key (the public key is built into the plugin), then the zip's SHA-256 is checked. A compromised server alone cannot ship code to your store."
   ],
   "requires": "6.0",
   "requires_php": "7.4",

@@ -4,7 +4,7 @@ Tags: woocommerce, ai, chatgpt, structured data, analytics
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.1
+Stable tag: 1.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -106,6 +106,9 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 
 == Changelog ==
 
+= 1.9.0 =
+* Updates from AgentScope are installed only when they carry a valid Ed25519 signature from AgentScope's offline release key (the public key is built into the plugin), then the zip's SHA-256 is checked. A compromised server alone cannot ship code to your store.
+
 = 1.8.1 =
 * A fix you remove in AgentScope Core → Fixes applied by AgentScope is remembered (its id, kind and time only), so the app never puts it back. Applying it again from the app forgets the removal.
 
@@ -149,6 +152,9 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 * Clean rebuild: paginated scan, scan history, Emerald admin workspace.
 
 == Upgrade Notice ==
+
+= 1.9.0 =
+Updates are now verified with AgentScope's release signature before they install.
 
 = 1.6.0 =
 Adds signed technical fixes from the app (off until you approve auto-fix there).
