@@ -167,3 +167,24 @@ Severity: **Critical** = exploitable now with large impact; **High** = large imp
 
 Yes. Store deletion should be owner-only and go through a server route, with the Vault cleanup (already done by
 triggers) and an audit row, and the browser-side DELETE grant should be revoked (M2).
+
+## 6. Fix status (approved 2026-10-31: H1 → H2 → M1 → M2 → M4 → M5 → M3 → Low batch)
+
+| # | Status | What was done | Proof |
+|---|---|---|---|
+| H1 | Done, waiting for the shared secret | Browser test moved to the Vercel project `agentscope-browser` (`browser-runner/`, Build Output API, one function `/api/run`). It holds only `BROWSER_RUNNER_SECRET`: no service role, no AI keys, no store token. The app checks ownership, signs the X-AgentScope-Check value (valid 10 min), signs the request (HMAC + timestamp ±5 min, body with a nonce) and saves the result. `--disable-web-security` removed, downloads denied, any opened window closed. `--no-sandbox` stays (Lambda has no user namespaces). The old `/api/jobs/browser` is deleted and the app ships no Chromium. | Local: unsigned → 404, old timestamp → 404, http store → 400, signed → 200 (`lib/browser-remote.test.ts`). Production runner: `/api/run` without a signature → 404. Bundle contains no Supabase or AI key code |
+| H2 | Code done, waiting for the public key | The updater accepts a release only if the Ed25519 signature of `agentscope-core|<version>|<sha256>` verifies with the embedded public key, re-checks the cached answer, then checks the zip's SHA-256. `scripts/plugin-keygen.mjs` (run offline), `scripts/sign-plugin.mjs` + `.github/workflows/sign-plugin.yml` (key = GitHub secret `PLUGIN_SIGNING_KEY`), and the build refuses a release without the public key | `lib/plugin-release.test.ts` (PHP harness): unsigned, wrong key, swapped zip or version → refused; signed → installed |
+| M1 | Done | CSP with a per-request nonce (`script-src 'self' 'nonce-…' 'strict-dynamic'`, `frame-ancestors 'none'`, `object-src 'none'`, `form-action 'self'`), X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy, COOP, no `x-powered-by` | Report-only, then enforced: 0 violations on 21 pages (Playwright, production) |
+| M2 | Code done, migration to apply | Only the owner deletes a store, on the server, after a `store_deletions` row is written (no row → no deletion). Migration `20261101090000_store_deletion_owner_only.sql` revokes DELETE from the browser role | Until the migration is applied, deletion is refused (fails closed) |
+| M4 | Done | Session cookie `Secure`, `HttpOnly` (no browser-side Supabase client exists), `SameSite=Lax`, 7 days, renewed on each visit that refreshes the session | Production: `httpOnly: true, secure: true, Lax, 7 days` |
+| M5 | Done | WooCommerce answers (reads and writes) are read up to 16 MB, then refused | `lib/woo-size-cap.test.ts` |
+| M3 | Done (Turnstile later) | Global cap of 300 fresh `/check` scans per UTC day (cached reports do not count), on top of 5/h per IP | — |
+| L1 | Done | puppeteer-core 25.16.0: `npm audit --omit=dev` 0 vulnerabilities (app and runner) | `npm audit` |
+| L2 | Done | Dependabot: runner Chromium/puppeteer-core/undici weekly, app monthly | `.github/dependabot.yml` |
+| L3 | Done (H1) | — | — |
+| L4 | Done | An invite needs the invitee's email (only that account can accept it) | — |
+| L5 | Migration to apply | `20261101090100_account_delete_invites.sql` | — |
+| L6 | Done, env to set | IP hashes use `IP_HASH_SECRET` (falls back to the service key until it is set) | — |
+| L8 | Done | `/api/plugin/latest` uses the app's own address | test |
+| L12 | Done | Pricing waitlist: 5/h per IP | `lib/plans.test.ts` |
+| L7, L9, L10, L11, L13 | Open | Need a decision, a new service, a migration or a dashboard action (see §4) | — |
