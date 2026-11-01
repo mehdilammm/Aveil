@@ -188,3 +188,16 @@ triggers) and an audit row, and the browser-side DELETE grant should be revoked 
 | L8 | Done | `/api/plugin/latest` uses the app's own address | test |
 | L12 | Done | Pricing waitlist: 5/h per IP | `lib/plans.test.ts` |
 | L7, L9, L10, L11, L13 | Open | Need a decision, a new service, a migration or a dashboard action (see §4) | — |
+
+## 7. Cloudflare security-audit skill runs (local outputs in audit/security-run-1, -2; git-ignored)
+
+| # | Lead | Status |
+|---|---|---|
+| N1 | Unsigned ingest requests used up a store's hourly quota | Fixed: signature checked first (test + production: unsigned → 401) |
+| N2 | Invite accepted with an unconfirmed email | Closed by Supabase "Confirm email"; extra check in the app (test) |
+| N3 | Ownership proof on a sub-path counted for the whole origin | Fixed: proof on the origin only (test) |
+| N4 | Quadratic regexes on hostile HTML (/check and store scans) | Fixed: linear scans (lib/html-scan.ts); measured 37 s on 512 KB before, ms on 2 MB after (regression tests) |
+| N5 | Direct REST insert skipped the plan's store limit | Trigger migration `stores_plan_limit_trigger` (to apply from Claude chat) |
+| R2-1 | Spoofed bot visits could block the plugin's bot-hit uploads | Fixed in plugin 1.9.1: 400 KB batches, 120 bot rows a minute (PHP test) |
+| R2-2 | Release-signing key usable from any branch | Fixed: main only, Environment "release", pinned actions |
+| Hardening | Origin check on /api writes, self-heal re-check before put-back, atomic plugin nonces, no session from utm links alone, `npm ci`, Settings text on bot IPs, CDN and burst limits documented | Done (app deployed; plugin parts in 1.9.1) |
