@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contentSecurityPolicy, SESSION_COOKIE, STATIC_SECURITY_HEADERS } from "./security-headers";
+import { contentSecurityPolicy, SESSION_COOKIE, sessionCookie, STATIC_SECURITY_HEADERS } from "./security-headers";
 
 describe("security headers", () => {
   it("CSP: scripts only with the nonce, no framing, no plugins, forms to ourselves", () => {
@@ -13,5 +13,7 @@ describe("security headers", () => {
   it("static headers and the session cookie", () => {
     expect(Object.fromEntries(STATIC_SECURITY_HEADERS.map((h) => [h.key, h.value]))).toMatchObject({ "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY" });
     expect(SESSION_COOKIE).toMatchObject({ secure: true, httpOnly: true, sameSite: "lax", maxAge: 604800 });
+    expect(sessionCookie({ maxAge: 34560000, httpOnly: false })).toMatchObject({ maxAge: 604800, httpOnly: true, secure: true });
+    expect(sessionCookie({ maxAge: 0 })).toMatchObject({ maxAge: 0 }); // sign-out still deletes
   });
 });

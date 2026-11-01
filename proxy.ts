@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { contentSecurityPolicy, cspHeaderName, SESSION_COOKIE } from "./lib/security-headers";
+import { contentSecurityPolicy, cspHeaderName, SESSION_COOKIE, sessionCookie } from "./lib/security-headers";
 
 const PUBLIC_PATHS = ["/login", "/auth", "/check", "/bot", "/invite", "/r", "/downloads", "/pricing", "/terms", "/privacy", "/robots.txt", "/sitemap.xml", "/opengraph-image"];
 
@@ -26,7 +26,7 @@ export async function proxy(request: NextRequest) {
       setAll(cookiesToSet, headers) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, sessionCookie(options)));
         Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value));
       },
     },
