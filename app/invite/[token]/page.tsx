@@ -12,7 +12,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
   const admin = createAdminClient();
   const { data: invite } = await admin.from("workspace_invites").select("workspace_id, role, email, expires_at, accepted_at, revoked_at, workspaces(name)").eq("token_hash", hashInviteToken(token)).maybeSingle();
   const ws = invite ? ((Array.isArray(invite.workspaces) ? invite.workspaces[0] : invite.workspaces) as { name: string } | null) : null;
-  const problem = inviteProblem(invite as InviteRow | null, user ? user.email : invite?.email ?? null);
+  const problem = inviteProblem(invite as InviteRow | null, user ? user.email : invite?.email ?? null, new Date(), user ? (user.email_confirmed_at ?? null) : "signed out");
   return (
     <main className="auth">
       <p className="brand">AgentScope</p>

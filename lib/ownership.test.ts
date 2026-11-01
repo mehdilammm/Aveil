@@ -36,6 +36,15 @@ describe("ownership verification", () => {
     expect(fileHasToken(`<html>${token}</html>`, token)).toBe(false);
   });
 
+  it("a store address with a path is proved on its origin, not inside the folder (N3)", async () => {
+    const asked: string[] = [];
+    const files: Record<string, string> = { "https://shop.example/sub/.well-known/agentscope-verification.txt": token };
+    const fetchPage = async (url: string) => (asked.push(url), files[url] ? { ok: true as const, status: 200, body: files[url], redirectedTo: null } : { ok: true as const, status: 404, body: "", redirectedTo: null });
+    expect(await checkManual("https://shop.example/sub", "well_known_file", token, deps({ fetchPage }))).toMatchObject({ verified: false });
+    expect(await checkManual("https://shop.example/sub", "meta_tag", token, deps({ fetchPage }))).toMatchObject({ verified: false });
+    expect(asked).toEqual(["https://shop.example/.well-known/agentscope-verification.txt", "https://shop.example/"]);
+  });
+
   it("a redirect to another host or an error page does not verify", async () => {
     const r1 = await checkManual("https://matha.site", "well_known_file", token, deps({ fetchPage: async () => ({ ok: true, status: 301, body: "", redirectedTo: "https://evil.test/x" }) }));
     expect(r1.verified).toBe(false);

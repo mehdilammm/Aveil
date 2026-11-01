@@ -5,6 +5,7 @@
 import type { Finding } from "./rules";
 import type { SchemaProduct } from "./structured-data";
 import { minorToMajor } from "./woo-store-api";
+import { attr, elements } from "./html-scan";
 
 export type StoreApiItem = { id: number; name?: string; is_in_stock?: boolean; prices?: { price?: string; currency_code?: string; currency_minor_unit?: number } };
 export type ConsistencyProduct = { id: number; name: string; type: string; price: string | null; stock_status: string | null; url: string };
@@ -43,7 +44,8 @@ export function parseAmount(text: string, decimalSep: string, thousandSep: strin
 // Classic templates (<h1 class="product_title">, <p class="price">) and block themes (post-title, product-price).
 export function visibleProduct(html: string, f: Pick<StoreFormat, "decimalSep" | "thousandSep">): { name: string | null; price: number | null } {
   const body = html.slice(Math.max(0, html.search(/<body[\s>]/i)));
-  const h1 = /<h1[^>]*class=["'][^"']*(?:product_title|wp-block-post-title)[^"']*["'][^>]*>([\s\S]*?)<\/h1>/i.exec(body);
+  // Linear scan (lib/html-scan.ts): the old regex took over a second on 16 KB of '<h1 class="product_title '.
+  const h1 = elements(body, "h1").find((e) => /\b(?:product_title|wp-block-post-title)\b/.test(attr(e.tag, "class") ?? ""));
   const start = body.search(/class=["'](?:wp-block-woocommerce-product-price|price)["']/i);
   let price: number | null = null;
   if (start >= 0) {
@@ -57,7 +59,7 @@ export function visibleProduct(html: string, f: Pick<StoreFormat, "decimalSep" |
       price = parseAmount(textOf(rest.slice(0, rest.search(/<\/span>/i) >= 0 ? rest.search(/<\/span>/i) : rest.length)), f.decimalSep, f.thousandSep);
     }
   }
-  return { name: h1 ? textOf(h1[1]) || null : null, price };
+  return { name: h1 ? textOf(h1.text) || null : null, price };
 }
 
 // The price llms.txt lists for a product URL ("- [Name](url): 800 MAD, Category"), or null.

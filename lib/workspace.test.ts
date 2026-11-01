@@ -25,6 +25,9 @@ describe("workspace invites and roles", () => {
     const ok = { workspace_id: "w", role: "viewer" as const, email: null, expires_at: "2026-10-29T12:00:00Z", accepted_at: null, revoked_at: null };
     expect(inviteProblem(ok, "a@b.co", now)).toBeNull();
     expect(inviteProblem(null, "a@b.co", now)).toContain("not valid");
+    // Audit N2: an account whose email is not confirmed cannot accept, even with the right address.
+    expect(inviteProblem({ ...ok, email: "a@b.co" }, "a@b.co", now, null)).toContain("Confirm your email");
+    expect(inviteProblem({ ...ok, email: "a@b.co" }, "a@b.co", now, "2026-10-01T00:00:00Z")).toBeNull();
     expect(inviteProblem({ ...ok, revoked_at: "x" }, "a@b.co", now)).toContain("cancelled");
     expect(inviteProblem({ ...ok, accepted_at: "x" }, "a@b.co", now)).toContain("already used");
     expect(inviteProblem({ ...ok, expires_at: "2026-10-22T11:59:59Z" }, "a@b.co", now)).toContain("expired");

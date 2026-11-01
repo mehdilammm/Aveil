@@ -62,3 +62,13 @@ describe("waitlist", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 });
+
+describe("store limit in the database (audit N5)", () => {
+  it("the trigger uses the same per-plan store limits as lib/plans.ts", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const dir = `${import.meta.dirname}/../supabase/migrations`;
+    const file = readdirSync(dir).find((f) => f.endsWith("_stores_plan_limit_trigger.sql"))!;
+    const sql = readFileSync(`${dir}/${file}`, "utf8");
+    expect(sql).toContain(`when 'agency' then ${PLANS.agency.stores} when 'pro' then ${PLANS.pro.stores} else ${PLANS.free.stores} end`);
+  });
+});

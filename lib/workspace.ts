@@ -60,8 +60,11 @@ export function hashInviteToken(token: string): string {
 export type InviteRow = { workspace_id: string; role: "admin" | "viewer"; email: string | null; expires_at: string; accepted_at: string | null; revoked_at: string | null };
 
 // Why an invite cannot be accepted by this user, or null when it can.
-export function inviteProblem(invite: InviteRow | null, userEmail: string | null | undefined, now = new Date()): string | null {
+// emailConfirmed: the account's email_confirmed_at. Supabase already requires a confirmed email before a session
+// exists (Confirm email is on); this is a second check, so an unconfirmed address can never claim an invite.
+export function inviteProblem(invite: InviteRow | null, userEmail: string | null | undefined, now = new Date(), emailConfirmed: string | null | undefined = "assumed"): string | null {
   if (!invite) return "This invite link is not valid.";
+  if (!emailConfirmed) return "Confirm your email address first (check your inbox), then open the invite link again.";
   if (invite.revoked_at) return "This invite was cancelled.";
   if (invite.accepted_at) return "This invite was already used.";
   if (Date.parse(invite.expires_at) <= now.getTime()) return "This invite has expired. Ask for a new link.";

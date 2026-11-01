@@ -3,13 +3,15 @@
 import type { Source } from "./pages";
 import type { Finding } from "./rules";
 import type { PageFetch } from "./woo";
+import { attr, metaContent, openTags } from "./html-scan";
 
 export type Gate = { kind: "coming_soon" | "maintenance"; reason: string };
 
 // WooCommerce prints this meta tag on its Coming soon page (ComingSoonRequestHandler).
-const WOO_COMING_SOON_RE = /<meta[^>]+name\s*=\s*["']woo-coming-soon-page["'][^>]*content\s*=\s*["']yes["']/i;
+const wooComingSoonMeta = (html: string) => metaContent(html, /^woo-coming-soon-page$/i)?.trim().toLowerCase() === "yes";
 const TITLE_RE = /<title[^>]*>\s*(coming soon|under construction|maintenance mode|site is under maintenance|briefly unavailable for scheduled maintenance)/i;
-const BODY_CLASS_RE = /<body[^>]+class\s*=\s*["'][^"']*\b(woocommerce-coming-soon[\w-]*|coming-soon-page|maintenance-mode)\b/i;
+const BODY_CLASS_RE = /\b(woocommerce-coming-soon[\w-]*|coming-soon-page|maintenance-mode)\b/i;
+const bodyClassGate = (html: string) => openTags(html, "body").some((t) => BODY_CLASS_RE.test(attr(t, "class") ?? ""));
 // The Coming soon block. With classic (non-block) themes WooCommerce prints the page header before it adds
 // the meta tag, so the meta is missing and this block class is the only marker (e.g. matha.site product pages).
 const WOO_BLOCK_RE = /class\s*=\s*["'][^"']*\bwp-block-woocommerce-coming-soon\b/i;
@@ -23,7 +25,7 @@ export function describePage(f: PageFetch): string {
   return [
     `HTTP ${f.status}`,
     title ? `title "${title}"` : "no title",
-    `coming-soon meta: ${WOO_COMING_SOON_RE.test(f.body) ? "yes" : "no"}`,
+    `coming-soon meta: ${wooComingSoonMeta(f.body) ? "yes" : "no"}`,
     `coming-soon block: ${WOO_BLOCK_RE.test(f.body) ? "yes" : "no"}`,
     `${Math.round(f.bytes / 1024)} KB`,
   ].join(", ");
@@ -31,7 +33,7 @@ export function describePage(f: PageFetch): string {
 
 export function pageGate(f: PageFetch): Gate | null {
   if (!f.ok) return null;
-  if (WOO_COMING_SOON_RE.test(f.body) || WOO_BLOCK_RE.test(f.body)) {
+  if (wooComingSoonMeta(f.body) || WOO_BLOCK_RE.test(f.body)) {
     return { kind: "coming_soon", reason: `the page shows the WooCommerce Coming soon screen to visitors (${describePage(f)})` };
   }
   if (f.status === 503) return { kind: "maintenance", reason: "the page answers HTTP 503 (maintenance or unavailable)" };
@@ -40,7 +42,7 @@ export function pageGate(f: PageFetch): Gate | null {
     const maintenance = /maintenance/i.test(title[1]);
     return { kind: maintenance ? "maintenance" : "coming_soon", reason: `the page title is "${title[1].trim()}"` };
   }
-  if (BODY_CLASS_RE.test(f.body)) return { kind: "coming_soon", reason: "the page is a coming soon or maintenance template" };
+  if (bodyClassGate(f.body)) return { kind: "coming_soon", reason: "the page is a coming soon or maintenance template" };
   return null;
 }
 

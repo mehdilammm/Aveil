@@ -6,6 +6,7 @@
 //   G5 website  - the search address, only when the store answered it with its products.
 import type { ShippingZone } from "./checkout";
 import { decodeEntities } from "./consistency";
+import { attr, elements } from "./html-scan";
 
 const text = (html: string) => decodeEntities(html.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim();
 
@@ -20,9 +21,12 @@ export function orgPayload(pages: { url: string; html: string }[]): { payload: O
   const evidence: string[] = [];
   const same = new Set<string>();
   for (const page of pages) {
-    for (const m of page.html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
-      const href = decodeEntities(m[1]).trim();
-      const label = text(m[2]);
+    // Links from a linear scan (lib/html-scan.ts): the old regex took 5 s on 16 KB of "<a href=x " with no ">".
+    for (const a of elements(page.html, "a")) {
+      const raw = attr(a.tag, "href");
+      if (!raw) continue;
+      const href = decodeEntities(raw).trim();
+      const label = text(a.text);
       if (!payload.telephone && /^tel:/i.test(href)) {
         const tel = decodeURIComponent(href.slice(4)).trim();
         if (PHONE.test(tel)) {

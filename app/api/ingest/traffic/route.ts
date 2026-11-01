@@ -26,20 +26,20 @@ export async function POST(request: Request) {
   if (Buffer.byteLength(body) > MAX_BODY_BYTES) return fail(413, "Body too large");
 
   const admin = createAdminClient();
-  const { data: allowed, error: rateErr } = await admin.rpc("traffic_rate_check", { p_store_id: storeId, p_limit: RATE_LIMIT, p_window_seconds: 3600 });
-  if (rateErr) {
-    console.error("ingest: rate check failed", rateErr.code);
-    return fail(500, "Server error");
-  }
-  // Unknown stores and stores over the limit get the same answer, so store ids cannot be probed.
-  if (!allowed) return fail(429, "Too many requests or unknown store");
-
+  // The signature first: unknown stores and bad signatures get the same 401, and only signed requests count
+  // against the store's hourly limit, so nobody can use up a store's quota without its token.
   const { data: connector } = await admin
     .rpc("get_traffic_connector_secret", { p_store_id: storeId })
     .maybeSingle<{ owner_id: string; token: string }>();
   if (!connector || !verifySignature(connector.token, timestamp, body, signature, Math.floor(Date.now() / 1000))) {
     return fail(401, "Invalid signature");
   }
+  const { data: allowed, error: rateErr } = await admin.rpc("traffic_rate_check", { p_store_id: storeId, p_limit: RATE_LIMIT, p_window_seconds: 3600 });
+  if (rateErr) {
+    console.error("ingest: rate check failed", rateErr.code);
+    return fail(500, "Server error");
+  }
+  if (!allowed) return fail(429, "Too many requests");
   // Replay: the same signed request (same timestamp and body) a second time inside the clock window is answered
   // as already received and not stored again (the plugin re-signs every send, so it never sends one twice).
   if (await isReplay(admin, `${storeId}:${signature}`, 2 * MAX_CLOCK_SKEW_SECONDS)) return NextResponse.json({ ok: true, duplicate: true });

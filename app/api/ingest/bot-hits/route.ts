@@ -28,12 +28,12 @@ export async function POST(request: Request) {
   if (Buffer.byteLength(body) > MAX_BODY) return fail(413, "Body too large");
 
   const admin = createAdminClient();
-  const { data: allowed, error: rateErr } = await admin.rpc("traffic_rate_check", { p_store_id: storeId, p_limit: RATE_LIMIT, p_window_seconds: 3600 });
-  if (rateErr) return fail(500, "Server error");
-  if (!allowed) return fail(429, "Too many requests or unknown store");
-
+  // Signature first, so only signed requests count against the store's hourly limit.
   const { data: connector } = await admin.rpc("get_traffic_connector_secret", { p_store_id: storeId }).maybeSingle<{ owner_id: string; token: string }>();
   if (!connector || !verifySignature(connector.token, timestamp, body, signature, Math.floor(Date.now() / 1000))) return fail(401, "Invalid signature");
+  const { data: allowed, error: rateErr } = await admin.rpc("traffic_rate_check", { p_store_id: storeId, p_limit: RATE_LIMIT, p_window_seconds: 3600 });
+  if (rateErr) return fail(500, "Server error");
+  if (!allowed) return fail(429, "Too many requests");
   // Replay of the same signed request inside the clock window: answered as already received, not stored again.
   if (await isReplay(admin, `${storeId}:${signature}`, 2 * MAX_CLOCK_SKEW_SECONDS)) return NextResponse.json({ ok: true, duplicate: true });
 
