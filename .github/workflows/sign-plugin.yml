@@ -1,6 +1,8 @@
-# Signs a new agentscope-core release with the offline Ed25519 key (secret PLUGIN_SIGNING_KEY, only here).
-# Runs when lib/plugin-release.json or the zips change on main, and on demand. The signature is committed back;
-# the app serves it at /api/plugin/latest and the plugin (1.9.0+) installs only signed releases.
+# Signs a new agentscope-core release with the offline Ed25519 key. The key (PLUGIN_SIGNING_KEY) is a secret of the
+# GitHub Environment "release", which only main may use (Environment > Deployment branches: main), and this job
+# also refuses any other ref, so a branch cannot run its own copy of the signing script with the key.
+# Runs when lib/plugin-release.json or the zips change on main, and on demand (from main only). The signature is
+# committed back; the app serves it at /api/plugin/latest and the plugin (1.9.0+) installs only signed releases.
 name: Sign plugin release
 on:
   push:
@@ -9,12 +11,19 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: sign-plugin
+  cancel-in-progress: false
 jobs:
   sign:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: release
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       - run: node scripts/sign-plugin.mjs
@@ -26,4 +35,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Sign plugin release $(node -p "require('./lib/plugin-release.json').file")" lib/plugin-release.json
-          git push
+          git push origin HEAD:main

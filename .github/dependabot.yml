@@ -17,3 +17,9 @@ updates:
       interval: monthly
     open-pull-requests-limit: 5
     target-branch: main
+  # The signing workflow pins its actions to commit SHAs; Dependabot proposes new SHAs.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    target-branch: main

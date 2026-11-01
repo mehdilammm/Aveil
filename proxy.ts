@@ -15,6 +15,9 @@ export async function proxy(request: NextRequest) {
     r.headers.set(cspHeaderName(), csp);
     return r;
   };
+  // State-changing API calls from another site are refused (CSRF), on top of the SameSite=Lax session cookie.
+  // Server-to-server callers (the plugin, pg_cron, the browser runner) send no Origin header and are not affected.
+  if (crossSiteWrite(request)) return withCsp(NextResponse.json({ error: "Cross-site request refused." }, { status: 403 }));
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
@@ -44,6 +47,13 @@ export async function proxy(request: NextRequest) {
     return withCsp(NextResponse.redirect(url));
   }
   return withCsp(response);
+}
+
+export function crossSiteWrite(request: Pick<NextRequest, "method" | "headers" | "nextUrl">): boolean {
+  if (!request.nextUrl.pathname.startsWith("/api/") || ["GET", "HEAD", "OPTIONS"].includes(request.method)) return false;
+  const origin = request.headers.get("origin");
+  if (origin && origin !== request.nextUrl.origin) return true;
+  return request.headers.get("sec-fetch-site") === "cross-site";
 }
 
 export const config = {
