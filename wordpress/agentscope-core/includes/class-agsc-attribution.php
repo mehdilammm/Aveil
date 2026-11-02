@@ -109,7 +109,13 @@ final class AGSC_Attribution {
         if (!$match || WC()->session->get(self::SESSION_KEY)) {
             return;
         }
+        // A session (and its cookie) is started only for a visit that really comes from an AI site (referrer). A link
+        // with an AI utm_source alone, which anyone can post anywhere, is noted only when the visitor already has a
+        // WooCommerce session (cart, checkout), so links cannot make the store start sessions at will.
         if (!WC()->session->has_session()) {
+            if ($match['via'] !== 'referrer') {
+                return;
+            }
             WC()->session->set_customer_session_cookie(true);
         }
         $uri = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash($_SERVER['REQUEST_URI']) : '/';

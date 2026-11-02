@@ -8,6 +8,9 @@ $GLOBALS['agsc_posts'] = array();
 $GLOBALS['agsc_answer'] = 200;
 $GLOBALS['agsc_connected'] = true;
 function wp_unslash($v) { return $v; }
+$GLOBALS['agsc_tr'] = array();
+function get_transient($k) { return $GLOBALS['agsc_tr'][$k] ?? false; }
+function set_transient($k, $v, $t) { $GLOBALS['agsc_tr'][$k] = $v; return true; }
 function wp_generate_uuid4() { static $n = 0; $n++; return sprintf('00000000-0000-4000-8000-%012d', $n); }
 function wp_json_encode($v) { return json_encode($v); }
 function wp_parse_url($u, $c = -1) { return parse_url($u, $c); }
@@ -67,5 +70,18 @@ if ($case === 'match') {
     $ts = $p['args']['headers']['X-AgentScope-Timestamp'];
     $out['signature_ok'] = $p['args']['headers']['X-AgentScope-Signature'] === 'sha256=' . hash_hmac('sha256', $ts . '.' . $p['args']['body'], 'agsc_test');
     $out['body'] = json_decode($p['args']['body'], true);
+} elseif ($case === 'flood') {
+    // Audit run 2 (R2-1): many spoofed bot visits with long user agents and paths.
+    $_SERVER['REQUEST_URI'] = '/' . str_repeat('p', 600);
+    for ($i = 0; $i < 300; $i++) { AGSC_Bothits::record('GPTBot/1.1 ' . str_repeat('x', 600), 'GET', 200); }
+    $out['kept'] = count($db->rows); // capped per minute
+    $GLOBALS['agsc_tr'] = array(); // next minutes
+    for ($i = 0; $i < 400; $i++) { AGSC_Bothits::record('GPTBot/1.1 ' . str_repeat('x', 600), 'GET', 200); if ($i % 100 === 99) { $GLOBALS['agsc_tr'] = array(); } }
+    $out['queued'] = count($db->rows);
+    $out['result'] = AGSC_Bothits::flush();
+    $out['body_bytes'] = strlen($GLOBALS['agsc_posts'][0]['args']['body']);
+    $out['left'] = count($db->rows);
+    $out['second'] = AGSC_Bothits::flush();
+    $out['left_after_second'] = count($db->rows);
 }
 echo json_encode($out);

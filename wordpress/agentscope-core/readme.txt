@@ -4,7 +4,7 @@ Tags: woocommerce, ai, chatgpt, structured data, analytics
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.1
+Stable tag: 1.9.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -42,6 +42,9 @@ Only when traffic capture is on and the plugin is connected to the AgentScope ap
 * The IP is the one your web server sees (REMOTE_ADDR). Behind a CDN or proxy it is the proxy's address, so the request cannot be verified and is kept as "user agent only".
 
 = Limits =
+
+* Behind a CDN or reverse proxy (Cloudflare, a host's cache), WordPress sees the proxy's address, not the visitor's: AI bot identity then cannot verify bots by IP and keeps them as "user agent only". The plugin does not trust forwarded-for headers, since any visitor can set them.
+* Anyone can send AI bot user agents. At most 120 bot requests a minute are kept for identity checks, and a sender can trigger the burst heuristic on purpose so that some real crawler requests are counted apart as likely checker tools.
 
 * User agents and referrers are unverified and can be spoofed.
 * Requests served from a host or CDN cache never reach PHP and are not counted.
@@ -106,6 +109,15 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 
 == Changelog ==
 
+= 1.9.1 =
+* AI bot identity uploads stay under the app's size limit, so spoofed bot visits with long user agents can no longer block the uploads; at most 120 bot requests a minute are kept.
+* Signed fixes: each one-time code is claimed atomically, so a replayed request cannot slip through at the same moment.
+* AI-referred order notes: a WooCommerce session is started only for visits that really come from an AI site; a link with an AI utm_source alone is noted only for a visitor who already has a session.
+* Settings now say plainly that AI bot identity keeps IPs and user agents of AI bot requests for at most 7 days.
+
+= 1.9.0 =
+* Updates from AgentScope are installed only when they carry a valid Ed25519 signature from AgentScope's offline release key (the public key is built into the plugin), then the zip's SHA-256 is checked. A compromised server alone cannot ship code to your store.
+
 = 1.8.1 =
 * A fix you remove in AgentScope Core → Fixes applied by AgentScope is remembered (its id, kind and time only), so the app never puts it back. Applying it again from the app forgets the removal.
 
@@ -149,6 +161,12 @@ Privacy Policy: https://agentscope-peach.vercel.app/privacy
 * Clean rebuild: paginated scan, scan history, Emerald admin workspace.
 
 == Upgrade Notice ==
+
+= 1.9.1 =
+Security hardening of AI bot identity uploads, signed fixes and order notes.
+
+= 1.9.0 =
+Updates are now verified with AgentScope's release signature before they install.
 
 = 1.6.0 =
 Adds signed technical fixes from the app (off until you approve auto-fix there).

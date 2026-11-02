@@ -10,3 +10,10 @@ audit/before/
 audit/crops/
 audit/full-after/
 .vitest/
+
+# Security audit runs (Cloudflare security-audit skill): local only
+audit/security-run-*/
+# Third-party agent skills installed with npx skills (reviewed, not vendored)
+.agents/
+.claude/skills/
+skills-lock.json

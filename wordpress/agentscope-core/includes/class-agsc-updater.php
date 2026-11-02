@@ -21,7 +21,7 @@ final class AGSC_Updater {
     const SLUG        = 'agentscope-core';
     const CRON        = 'agsc_check_update';
     /** Base64 Ed25519 public key of AgentScope releases (32 bytes). Empty: no update is ever accepted. */
-    const PUBLIC_KEY  = '';
+    const PUBLIC_KEY  = 'we9hBU6m8j8hf5vwF77mMxb3Ipa9af8Z8FCQBfKkSTs=';
 
     /** The key releases are checked with (tests may define AGSC_TEST_RELEASE_KEY before loading this file). */
     public static function public_key() {
