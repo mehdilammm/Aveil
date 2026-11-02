@@ -1,7 +1,7 @@
 {
   "version": "1.9.1",
   "file": "agentscope-core-1.9.1.zip",
-  "sha256": "4774d2f3ab9c3d497c232ad6f018a1930475db1f5dff256d4ce2d6b238b55327",
+  "sha256": "b6d51a2924cdf8effc2ef2ddf2cbe156efe339f3bd352428881bfae53b78838d",
   "changelog": [
     "AI bot identity uploads stay under the app's size limit, so spoofed bot visits with long user agents can no longer block the uploads; at most 120 bot requests a minute are kept.",
     "Signed fixes: each one-time code is claimed atomically, so a replayed request cannot slip through at the same moment.",
