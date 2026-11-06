@@ -10,5 +10,6 @@
   ],
   "requires": "6.0",
   "requires_php": "7.4",
-  "tested": "7.1"
+  "tested": "7.1",
+  "signature": "dVitGsjVdXBP8p5+sO3IVEyLeSntzZocks/7cWoCymA6cq4YCAIc9979iAOrRZAMWj6rYbpvyZDEM1ScplgJDA=="
 }
