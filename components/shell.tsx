@@ -5,13 +5,14 @@ import { listStores } from "@/lib/data";
 import { getUser } from "@/lib/supabase/server";
 import { LanguageSwitch } from "./language-switch";
 import { MobileNav, Nav, StoreSwitch } from "./nav";
+import { SITE } from "@/lib/site";
 
 // App frame for signed-in pages. storeId: the store being viewed, if any. Desktop: a full-height sidebar.
 // Phone: a slim top bar (☰ opens the menu) and a bottom bar with the main pages.
 export async function Shell({ storeId, children }: { storeId?: string; children: React.ReactNode }) {
   const { supabase, user } = await getUser();
   if (!user) redirect("/login");
-  const [stores, t] = await Promise.all([listStores(supabase), getTranslations("nav")]);
+  const [stores, t, tf] = await Promise.all([listStores(supabase), getTranslations("nav"), getTranslations("footer")]);
   const current = storeId ?? stores[0]?.id ?? null;
   const currentName = stores.find((s) => s.id === current)?.name;
   const account = (
@@ -36,7 +37,14 @@ export async function Shell({ storeId, children }: { storeId?: string; children:
         <Nav storeId={current} />
         {account}
       </aside>
-      <main className="content">{children}</main>
+      <main className="content">
+        {children}
+        <footer className="app-footer muted small row">
+          <Link href="/contact">{tf("contact", { email: SITE.contactEmail })}</Link>
+          <Link href="/security">{tf("security")}</Link>
+          <Link href="/glossary">{tf("glossary")}</Link>
+        </footer>
+      </main>
     </div>
   );
 }

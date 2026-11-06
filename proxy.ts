@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { contentSecurityPolicy, cspHeaderName, SESSION_COOKIE, sessionCookie } from "./lib/security-headers";
 
-const PUBLIC_PATHS = ["/login", "/auth", "/check", "/bot", "/invite", "/r", "/downloads", "/pricing", "/terms", "/privacy", "/robots.txt", "/sitemap.xml", "/opengraph-image"];
+const PUBLIC_PATHS = ["/login", "/auth", "/check", "/bot", "/invite", "/r", "/downloads", "/pricing", "/terms", "/privacy", "/about", "/contact", "/security", "/refund", "/case-study", "/glossary", "/robots.txt", "/sitemap.xml", "/opengraph-image"];
 
 // Refreshes the Supabase session cookie, sends signed-out users to /login, and sets the Content-Security-Policy with
 // a fresh nonce (on the request too, so Next.js puts it on its scripts).

@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const POINTS = ["multi", "bots", "check", "noScore"] as const;
 const STEPS = ["see", "fix", "prove"] as const;
-const FAQ = ["change", "shopify", "need"] as const;
+const FAQ = ["orders", "change", "shopify", "need"] as const;
 
 export default async function Home() {
   const { user } = await getUser();
@@ -69,6 +69,7 @@ export default async function Home() {
             </div>
             <p>{t("loopText")}</p>
             <p className="muted small">{t("loopNote")}</p>
+            <p><Link href="/case-study">{t("loopCase")}</Link></p>
           </div>
         </section>
 

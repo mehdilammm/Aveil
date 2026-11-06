@@ -13,7 +13,7 @@ describe("SEO", () => {
 
   it("sitemap lists the public pages only", () => {
     const urls = sitemapEntries("https://x.test", "2026-10-22").map((e) => e.url);
-    expect(urls).toEqual(["https://x.test", "https://x.test/check", "https://x.test/pricing", "https://x.test/bot", "https://x.test/terms", "https://x.test/privacy"]);
+    expect(urls).toEqual(["", "/check", "/pricing", "/case-study", "/security", "/about", "/glossary", "/contact", "/refund", "/bot", "/terms", "/privacy"].map((p) => `https://x.test${p}`));
   });
 
   it("SoftwareApplication JSON-LD: real prices from the plans, no rating or reviews", () => {

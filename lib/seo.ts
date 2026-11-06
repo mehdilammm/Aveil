@@ -2,7 +2,7 @@
 import { PLAN_ORDER, PLANS } from "./plans";
 import { SITE } from "./site";
 
-export const PUBLIC_PAGES = ["/", "/check", "/pricing", "/bot", "/terms", "/privacy"] as const;
+export const PUBLIC_PAGES = ["/", "/check", "/pricing", "/case-study", "/security", "/about", "/glossary", "/contact", "/refund", "/bot", "/terms", "/privacy"] as const;
 // Signed-in app, API and one-time links: not for crawlers.
 export const PRIVATE_PREFIXES = ["/stores", "/settings", "/api/", "/invite/", "/auth/", "/login"];
 // AI crawlers and assistants are welcome on the public pages (named explicitly so their rules are clear).

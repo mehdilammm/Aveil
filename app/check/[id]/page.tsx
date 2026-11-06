@@ -5,6 +5,8 @@ import { getTranslations, getLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { BasisBadge, formatDate, SeverityBadge } from "@/components/badges";
 import { PublicHeader } from "@/components/public-header";
+import { SiteFooter } from "@/components/site-footer";
+import { Term } from "@/components/term";
 import { ACCESS_NOTE, GEMINI_DISCLAIMER, GEMINI_LABEL, type GeminiPart, type GeminiParts, type PublicReport } from "@/lib/public-scan";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ENGINE_LABEL, TASK_BY_LABEL } from "@/lib/visibility";
@@ -61,6 +63,19 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const gemini: GeminiParts = "visibility" in raw ? raw : { visibility: { status: "unavailable", reason: t("olderReport"), prompt: "" }, knowledge: raw };
   const findings = [...r.findings].sort((a, b) => SEV[a.severity] - SEV[b.severity]);
   const products = r.pages.filter((p) => p.kind === "product");
+  // Good news: only what this report observed (no finding means nothing, so each line needs its own evidence).
+  const critical = findings.filter((f) => f.severity === "high").length;
+  const good: string[] = [];
+  if (r.accessResults.length > 0 && !findings.some((f) => f.area === "access")) good.push(t("goodBots"));
+  if (r.robots.status === "ok" && r.robots.verdicts.length > 0 && r.robots.verdicts.every((v) => v.effective === "allowed")) good.push(t("goodRobots"));
+  if (products.some((p) => p.schema && p.schema.readable !== false && p.schema.price)) good.push(t("goodSchema"));
+  if (products.some((p) => p.priceCheck === "match") && !products.some((p) => p.priceCheck === "mismatch")) good.push(t("goodPrice"));
+  if (r.llmsTxt === "present") good.push(t("goodLlms"));
+  if (findings.length === 0) good.push(t("goodNone"));
+  else if (critical === 0 && findings.length <= 3) good.push(t("goodFew", { n: findings.length }));
+  // Your next step, always: the most important finding, or the full scan when nothing serious is left.
+  const top = findings.find((f) => f.severity !== "low");
+  const fullHref = r.platform?.shopify ? "#full" : `/check/${row.id}/continue`;
 
   return (
     <>
@@ -77,10 +92,32 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           <p className="muted small">{t("until", { date: formatDate(row.expires_at, locale) })}</p>
         </div>
 
+        {good.length > 0 && (
+          <section className="card good-news" aria-labelledby="good">
+            <h2 id="good">{t("goodTitle")}</h2>
+            <ul className="good-list">{good.map((g) => <li key={g}>{g}</li>)}</ul>
+          </section>
+        )}
+
+        <section className="card next-step" aria-labelledby="next">
+          <h2 id="next">{t("nextTitle")}</h2>
+          {top ? (
+            <>
+              <p><SeverityBadge severity={top.severity} /> {t("nextFix", { title: top.title })}</p>
+              <a className="button" href={`#f-${top.finding_key}`}>{t("nextFixCta")}</a>
+            </>
+          ) : (
+            <>
+              <p>{t("nextScan")}</p>
+              <a className="button" href={fullHref}>{t("nextScanCta")}</a>
+            </>
+          )}
+        </section>
+
         <h2>{t("findings", { n: findings.length })}</h2>
         {findings.length === 0 && <p className="notice">{t("nothing")}</p>}
         {findings.map((f) => (
-          <div key={f.finding_key} className="card finding">
+          <div key={f.finding_key} id={`f-${f.finding_key}`} className="card finding">
             <div className="row">
               <SeverityBadge severity={f.severity} />
               <BasisBadge basis={f.basis} />
@@ -92,7 +129,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           </div>
         ))}
 
-        <h2>robots.txt</h2>
+        <h2><Term k="robots_txt" /></h2>
         <div className="card table-wrap">
           <p className="muted small">{t("robotsFrom", { state: r.robots.status === "ok" ? t("found") : r.robots.detail })} {r.robots.sitemaps.length ? t("sitemap", { list: r.robots.sitemaps.join(", ") }) : t("noSitemap")}</p>
           {r.robots.verdicts.length > 0 && (
@@ -109,7 +146,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               </tbody>
             </table>
           )}
-          <p className="muted small">llms.txt: {r.llmsTxt}.</p>
+          <p className="muted small"><Term k="llms_txt" />: {r.llmsTxt}.</p>
           {r.agentic && <p className="small"><BasisBadge basis={r.agentic.basis} /> {r.agentic.title}. <span className="muted">{r.agentic.evidence}</span></p>}
         </div>
 
@@ -160,6 +197,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
 
         <h2>{t("productPages")}</h2>
         <div className="card">
+          <p className="muted small"><Term k="structured_data" /></p>
           {products.length === 0 ? (
             <p className="muted">{t("noProductPage")}</p>
           ) : (
@@ -286,6 +324,14 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           </>
         )}
 
+        <section id="full" className="card full-scan" aria-labelledby="full-title">
+          <h2 id="full-title">{t("fullTitle")}</h2>
+          <p className="muted">{t("fullSub")}</p>
+          <ul className="check-list">
+            {(["prices", "weight", "images", "gtin", "feed", "checkout", "sim"] as const).map((k) => <li key={k}>{t(`f_${k}`)}{k === "gtin" ? <Term k="gtin">{""}</Term> : k === "feed" ? <Term k="product_feed">{""}</Term> : null}</li>)}
+          </ul>
+        </section>
+
         <div className="cta">
           <p>{t("ctaNote")}</p>
           {r.platform?.shopify ? (
@@ -295,12 +341,13 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             </>
           ) : (
             <>
-              <p><strong>{t("fullTitle")}</strong> {t("fullText")}</p>
+              <p>{t("fullText")}</p>
               <a className="button" href={`/check/${row.id}/continue`}>{t("fullCta")}</a>
             </>
           )}
         </div>
       </main>
+      <SiteFooter />
     </>
   );
 }

@@ -406,3 +406,40 @@ body { overflow-wrap: break-word; }
 }
 details > summary { min-height: var(--tap); }
 .finding-actions a, .row > a.small { min-height: var(--tap); display: inline-flex; align-items: center; }
+
+/* Glossary terms: a small "?" opens a one-sentence definition (HTML popover, no script). */
+.term { white-space: normal; }
+.term-q { display: inline-grid; place-items: center; inline-size: 18px; block-size: 18px; margin-inline-start: 4px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; line-height: 1; cursor: pointer; vertical-align: middle; }
+.term-q:hover, .term-q:focus-visible { color: var(--strong); border-color: var(--strong); }
+.term-pop { position: fixed; inset: auto 16px 16px 16px; margin: 0 auto; max-inline-size: 420px; padding: var(--s-4); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); font-size: 15px; font-weight: 400; line-height: 1.5; text-align: start; }
+.term-pop::backdrop { background: rgb(0 0 0 / 0.15); }
+.term-pop a { display: inline-block; margin-inline-start: 4px; }
+.glossary { display: grid; gap: var(--s-3); margin: 0; }
+.glossary .card dt { font-weight: 700; color: var(--strong); margin-bottom: 4px; }
+.glossary .card dd { margin: 0; }
+.glossary .card { scroll-margin-top: 80px; }
+.info-page .card p:last-child { margin-bottom: 0; }
+/* Report: good news and next step. */
+.good-news { border-inline-start: 4px solid var(--emerald); }
+.good-list { margin: 0; padding-inline-start: 20px; display: grid; gap: 4px; }
+.next-step { border-inline-start: 4px solid var(--forest); }
+.next-step .button { margin-top: var(--s-2); }
+.check-list { margin: 0; padding-inline-start: 20px; display: grid; gap: 6px; }
+.finding { scroll-margin-top: 80px; }
+.app-footer { margin-top: var(--s-6); padding-top: var(--s-3); border-top: 1px solid var(--border); gap: var(--s-3); flex-wrap: wrap; }
+/* Case study. */
+.case-ba { display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap; margin-bottom: var(--s-3); }
+.case-num { display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 8px; padding: var(--s-3) var(--s-4); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.case-num > span:first-child { grid-column: 1 / -1; }
+.case-num strong { font-size: var(--t-2xl); color: var(--strong); line-height: 1.15; }
+.case-num.after { border-color: var(--emerald); }
+.case-arrow { font-size: var(--t-xl); color: var(--muted); }
+[dir="rtl"] .case-arrow, [dir="rtl"] .loop-arrow { transform: scaleX(-1); }
+.case-sims { display: grid; gap: var(--s-3); grid-template-columns: 1fr; }
+@media (min-width: 720px) { .case-sims { grid-template-columns: 1fr 1fr; } }
+.case-sim { border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s-3) var(--s-4); }
+.case-sim h3 { margin: 0 0 4px; font-size: 16px; }
+.case-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.case-steps .o-stop { color: var(--red); font-weight: 700; }
+.case-steps .o-warn { color: var(--orange); }
+.case-steps .o-skip { color: var(--muted); }

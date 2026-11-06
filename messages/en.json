@@ -11,7 +11,13 @@
     "terms": "Terms",
     "privacy": "Privacy",
     "note": "© {year} {name}. Read-only by default; changes only with your approval, and undo. No promise of AI visibility or sales.",
-    "navLabel": "Footer"
+    "navLabel": "Footer",
+    "about": "About",
+    "security": "Security",
+    "caseStudy": "Case study",
+    "glossary": "Glossary",
+    "refund": "Refunds",
+    "contact": "Contact: {email}"
   },
   "scan": {
     "run": "Run scan",
@@ -637,6 +643,10 @@
       "need": {
         "q": "What do you need from me?",
         "a": "A WooCommerce API key with Read permission. It is stored encrypted and never shown again. The plugin is optional, for AI bot visits and referrals."
+      },
+      "orders": {
+        "q": "Will this bring me orders?",
+        "a": "Not by itself, and we will not promise it. AgentScope finds and removes what stops AI assistants and shopping agents from reading and buying from your store, and then measures what happens: AI bot visits, mentions in AI answers and orders that came from AI. If AI does not send you shoppers, we show that too."
       }
     },
     "ctaTitle": "See what AI agents see on your store.",
@@ -647,7 +657,8 @@
       "pricing": "Pricing",
       "login": "Log in",
       "label": "Main"
-    }
+    },
+    "loopCase": "Read the case study: every scan and where the purchase test stopped"
   },
   "urlChange": {
     "title": "Change the store address",
@@ -1293,7 +1304,8 @@
     "free": "Free, no account. We load a few public pages, like a visitor would: at most 10 requests, spaced out.",
     "failed": "Something went wrong. Please try again.",
     "network": "Network error. Please try again.",
-    "metaDescription": "See whether AI assistants and shopping agents can read your store: robots.txt, bot access, product data and prices."
+    "metaDescription": "See whether AI assistants and shopping agents can read your store: robots.txt, bot access, product data and prices.",
+    "metaTitle": "Free AI agent readiness check for WooCommerce and Shopify stores"
   },
   "login": {
     "title": "Log in or sign up",
@@ -1423,7 +1435,7 @@
     "result": "Result",
     "ctaNote": "This public check sees only what any visitor sees.",
     "shopifySoon": "Full Shopify scan is coming. Join the waitlist.",
-    "fullTitle": "Full scan with a read-only key.",
+    "fullTitle": "What the full scan checks that we couldn't see here",
     "fullText": "Prices, stock, weights, feed readiness and weekly tracking for every product need a read-only WooCommerce key from the store owner.",
     "fullCta": "Run the full scan",
     "question": "Question:",
@@ -1432,7 +1444,28 @@
     "namesBy": "names read by {by}",
     "oneAnswer": "One answer from the API; the app and other runs can answer differently.",
     "notAvailable": "Not available: {reason}",
-    "olderReport": "Not part of this older report."
+    "olderReport": "Not part of this older report.",
+    "goodTitle": "Good news",
+    "goodBots": "AI bots can read your public pages.",
+    "goodRobots": "Your robots.txt lets AI assistants in.",
+    "goodSchema": "Your product pages have structured data that AI agents can read.",
+    "goodPrice": "The price on your product page matches what machines read.",
+    "goodLlms": "Your site has an llms.txt file.",
+    "goodFew": "Only {n, plural, one {# thing} other {# things}} to look at, and nothing critical.",
+    "goodNone": "Nothing critical was found on your public pages.",
+    "nextTitle": "Your next step",
+    "nextFix": "Fix this first: {title}",
+    "nextFixCta": "See how to fix it",
+    "nextScan": "Your public pages look ready. Now check what this quick check cannot see: your full catalog, checkout and delivery countries.",
+    "nextScanCta": "Run the full scan (free)",
+    "fullSub": "This free check only reads a few public pages. With read-only access to your WooCommerce store, the full scan also checks:",
+    "f_prices": "Prices of every product, and that the page, the data and the cart agree",
+    "f_weight": "Weight and dimensions, needed for shipping costs",
+    "f_images": "Product photos and their descriptions (alt text)",
+    "f_gtin": "Barcodes (GTIN) and brands",
+    "f_feed": "A product feed that AI shopping platforms can import",
+    "f_checkout": "Checkout by country: shipping methods and payments that work for each market",
+    "f_sim": "A purchase test: an agent goes from product to checkout, never places an order, and shows where it stops"
   },
   "formsUi": {
     "workspaces": "Workspaces",
@@ -1623,5 +1656,98 @@
       "error": "Server error",
       "other": "Other answer"
     }
+  },
+  "glossary": {
+    "title": "Glossary",
+    "sub": "The technical words in AgentScope, in plain words for store owners.",
+    "what": "What is {term}?",
+    "more": "All terms",
+    "gtin": {
+      "term": "GTIN (barcode)",
+      "def": "The product's barcode number (EAN or UPC). AI shopping agents and Google use it to know it is the same product sold elsewhere."
+    },
+    "llms_txt": {
+      "term": "llms.txt",
+      "def": "A short text file at the root of your site that tells AI assistants what your store sells and where the important pages are. Optional, but it helps them."
+    },
+    "robots_txt": {
+      "term": "robots.txt",
+      "def": "A file on your site that says which robots may visit which pages. One wrong line can block AI assistants from your whole store."
+    },
+    "structured_data": {
+      "term": "Structured data",
+      "def": "Hidden labels in your product pages (name, price, stock, image) that machines read directly. Without them an AI agent has to guess."
+    },
+    "oai_searchbot": {
+      "term": "OAI-SearchBot",
+      "def": "OpenAI's search robot. It reads your pages so your products can appear in ChatGPT search answers."
+    },
+    "chatgpt_user": {
+      "term": "ChatGPT-User",
+      "def": "The visit ChatGPT makes when a person asks it to open your page right now, for example to compare prices."
+    },
+    "order_attribution": {
+      "term": "Order attribution",
+      "def": "A WooCommerce feature that records where each order came from (Google, a newsletter, an AI assistant). We use it to count orders that came from AI."
+    },
+    "ucp_acp": {
+      "term": "UCP / ACP",
+      "def": "New open standards that let AI agents buy for a shopper: ACP (Agentic Commerce Protocol, OpenAI and Stripe) and UCP (Universal Commerce Protocol, Google). They describe your products and checkout in a way agents can use."
+    },
+    "product_feed": {
+      "term": "Product feed",
+      "def": "One file that lists all your products with price, stock and photos, so AI shopping platforms can import your catalog."
+    }
+  },
+  "trust": {
+    "aboutTitle": "About AgentScope",
+    "aboutSub": "Who builds it, and why.",
+    "aboutP1": "AgentScope helps WooCommerce store owners see why AI assistants and shopping agents skip their products, fix it without breaking the store, and measure what changes.",
+    "aboutP2": "We show what we measured and how sure we are (Observed, Heuristic, Unavailable). We never invent numbers and we do not promise sales.",
+    "aboutWho": "Company: {company}",
+    "aboutWhere": "Based in: {city}",
+    "aboutContact": "Contact: {email}",
+    "placeholderNote": "Company details will be added here soon.",
+    "secTitle": "Security",
+    "secSub": "How we treat your store and your data.",
+    "s_read": "Read-only by default",
+    "s_readD": "The scan needs only a WooCommerce read key. Nothing in your store changes unless you add a separate write key and approve each kind of fix.",
+    "s_vault": "Keys kept in a vault",
+    "s_vaultD": "Your WooCommerce keys and plugin tokens are encrypted in Supabase Vault. They are never shown again after you save them, and never sent to your browser.",
+    "s_undo": "Every change can be undone",
+    "s_undoD": "Each fix is logged with what it changed before and after, and one click puts it back.",
+    "s_signed": "Signed plugin",
+    "s_signedD": "Our WordPress plugin installs an update only when it carries our release signature, made with a key that never sits on our servers.",
+    "s_browser": "Isolated test browser",
+    "s_browserD": "The purchase test runs a browser in a separate service that holds no database key and no store keys. It never places an order and empties the cart.",
+    "s_customers": "No customer data",
+    "s_customersD": "We read order totals and their source (for example an AI assistant), never names, emails, addresses or payment details of your customers.",
+    "secReport": "Found a security problem? Write to {email}.",
+    "refTitle": "Refund policy",
+    "refSub": "For paid plans.",
+    "refPlaceholder": "Our refund rule is being decided and will be published here before paid plans open. Until then no payment is taken.",
+    "refContact": "Questions: {email}",
+    "contactTitle": "Contact",
+    "contactP": "Write to us at {email}. We answer store owners first."
+  },
+  "caseStudy": {
+    "title": "Case study: our own test store",
+    "sub": "A real WooCommerce store we run for testing (matha.site, mirrors), and the copy of its data shown in our demo. These are the scans as they happened, with their dates. No sales numbers: the store is a test.",
+    "label": "Test store run by the AgentScope team",
+    "before": "Before",
+    "after": "After",
+    "s1Title": "Open issues, scan after scan",
+    "s1Text": "On 21 October a full scan found {before} issues, {critical} of them critical. The same day, after the first fixes, the scan found {after}. From 23 October no critical issue was left.",
+    "s1Note": "Later scans added new checks (feed, markets, return policy), so the count went up again: a new check finds new things to fix. The market check added on 28 October found 2 new critical issues for the United States (no shipping method, the store does not sell there): the same stop the purchase test shows below. The chart shows every complete scan.",
+    "criticalLabel": "Critical issues",
+    "issuesLabel": "Open issues",
+    "s2Title": "Where the agent stopped",
+    "s2Text": "Our purchase test acts like a shopping agent: it finds a product, adds it to the cart, enters an address and reaches checkout, without ever placing an order. For a shopper in the United States it stopped at shipping: the store had no delivery method for that country. For Morocco it reached checkout and only warned that payment is offline.",
+    "s2Fix": "What to do: add a shipping method for the country in WooCommerce, or remove the country from the places you sell to. AgentScope now lists this per market in Fix Center.",
+    "marketUS": "United States",
+    "marketMA": "Morocco",
+    "s3Title": "What we do not claim",
+    "s3Text": "Fewer issues mean fewer things that stop AI agents. They do not guarantee AI visits, mentions or orders. AgentScope measures those separately and shows when nothing happens.",
+    "cta": "Check your store"
   }
 }
