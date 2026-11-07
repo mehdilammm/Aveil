@@ -8,7 +8,7 @@ export const STORE_TABLES = [
   "visibility_results", "ai_orders", "order_syncs", "store_verifications", "finding_verifications", "visibility_rechecks",
   "description_drafts", "fix_audit_log", "jobs",
 ] as const;
-const STORE_COLUMNS = "id, name, url, owner_id, workspace_id, connection_status, created_at, bot_hit_retention_days, auto_fix_enabled, auto_fix_approved_at, auto_fix_preview, target_markets";
+const STORE_COLUMNS = "id, name, url, owner_id, workspace_id, connection_status, created_at, bot_hit_retention_days, auto_fix_enabled, auto_fix_approved_at, auto_fix_preview";
 const MAX_ROWS = 100_000;
 
 async function all(admin: SupabaseClient, table: string, column: string, ids: string[]) {

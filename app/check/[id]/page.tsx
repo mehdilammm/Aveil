@@ -7,7 +7,9 @@ import { BasisBadge, formatDate, SeverityBadge } from "@/components/badges";
 import { PublicHeader } from "@/components/public-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Term } from "@/components/term";
-import { ACCESS_NOTE, GEMINI_DISCLAIMER, GEMINI_LABEL, type GeminiPart, type GeminiParts, type PublicReport } from "@/lib/public-scan";
+import { AutoTerms } from "@/components/auto-terms";
+import { GEMINI_LABEL, type GeminiPart, type GeminiParts, type PublicReport } from "@/lib/public-scan";
+import { findingCopy } from "@/lib/public-finding-copy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ENGINE_LABEL, TASK_BY_LABEL } from "@/lib/visibility";
 import { ShareLink } from "./share-link";
@@ -61,7 +63,13 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   // Reports from before v2 had one Gemini question (by domain): show it as the knowledge question.
   const raw = r.gemini as PublicReport["gemini"] | GeminiPart;
   const gemini: GeminiParts = "visibility" in raw ? raw : { visibility: { status: "unavailable", reason: t("olderReport"), prompt: "" }, knowledge: raw };
-  const findings = [...r.findings].sort((a, b) => SEV[a.severity] - SEV[b.severity]);
+  // Titles and fixes come from the catalog in the visitor's language, rebuilt from finding_key (saved reports too).
+  const tf = await getTranslations("checkFindings");
+  const findings = [...r.findings].sort((a, b) => SEV[a.severity] - SEV[b.severity]).map((f) => {
+    const c = findingCopy(f);
+    if (!c || !tf.has(`${c.id}.title`)) return f;
+    return { ...f, title: tf(`${c.id}.title` as "llms_txt_missing.title", c.values), guidance: tf(`${c.id}.fix` as "llms_txt_missing.fix", c.values) };
+  });
   const products = r.pages.filter((p) => p.kind === "product");
   // Good news: only what this report observed (no finding means nothing, so each line needs its own evidence).
   const critical = findings.filter((f) => f.severity === "high").length;
@@ -123,22 +131,22 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               <BasisBadge basis={f.basis} />
               <span className="badge area-tag">{AREAS.includes(f.area) ? t(`area_${f.area}`) : f.area}</span>
             </div>
-            <h3>{f.title}</h3>
-            <p className="evidence">{f.evidence}</p>
-            <p className="guidance"><strong>{t("howToFix")}</strong> {f.guidance}</p>
+            <h3><AutoTerms text={f.title} /></h3>
+            <p className="evidence"><span className="muted small">{t("evidenceLabel")}</span> <bdi dir="auto"><AutoTerms text={f.evidence} /></bdi></p>
+            <p className="guidance"><strong>{t("howToFix")}</strong> <AutoTerms text={f.guidance} /></p>
           </div>
         ))}
 
         <h2><Term k="robots_txt" /></h2>
         <div className="card table-wrap">
-          <p className="muted small">{t("robotsFrom", { state: r.robots.status === "ok" ? t("found") : r.robots.detail })} {r.robots.sitemaps.length ? t("sitemap", { list: r.robots.sitemaps.join(", ") }) : t("noSitemap")}</p>
+          <p className="muted small">{t("robotsFrom", { state: r.robots.status === "ok" ? t("found") : r.robots.detail })} <AutoTerms text={r.robots.sitemaps.length ? t("sitemap", { list: r.robots.sitemaps.join(", ") }) : t("noSitemap")} /></p>
           {r.robots.verdicts.length > 0 && (
             <table>
               <thead><tr><th>{t("bot")}</th><th>{t("rule")}</th><th>{t("homePage")}</th></tr></thead>
               <tbody>
                 {r.robots.verdicts.map((v) => (
                   <tr key={v.bot}>
-                    <td>{v.bot}</td>
+                    <td><AutoTerms text={v.bot} /></td>
                     <td>{t(`v_${v.verdict === "not mentioned" ? "not_mentioned" : v.verdict}`)}</td>
                     <td className={v.effective === "blocked" ? "error" : "status-connected"}>{t(`v_${v.effective}`)}</td>
                   </tr>
@@ -147,20 +155,20 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             </table>
           )}
           <p className="muted small"><Term k="llms_txt" />: {r.llmsTxt}.</p>
-          {r.agentic && <p className="small"><BasisBadge basis={r.agentic.basis} /> {r.agentic.title}. <span className="muted">{r.agentic.evidence}</span></p>}
+          {r.agentic && <p className="small"><BasisBadge basis={r.agentic.basis} /> <AutoTerms text={r.agentic.title} />. <span className="muted"><AutoTerms text={r.agentic.evidence} /></span></p>}
         </div>
 
         <h2>{t("access")}</h2>
         <div className="card">
           <BasisBadge basis="heuristic" />
-          <p className="muted small">{ACCESS_NOTE}</p>
+          <p className="muted small"><AutoTerms text={t("accessNote")} /></p>
           {r.accessResults.length ? (
             <div className="table-wrap">
               <table>
                 <thead><tr><th>{t("request")}</th><th>{t("homeAnswer")}</th></tr></thead>
                 <tbody>
                   {r.pages[0] && <tr><td>{t("normalRequest")}</td><td>{r.pages[0].seen}</td></tr>}
-                  {r.accessResults.map((a) => <tr key={a.bot}><td>{a.bot}</td><td>{a.seen}</td></tr>)}
+                  {r.accessResults.map((a) => <tr key={a.bot}><td><AutoTerms text={a.bot} /></td><td>{a.seen}</td></tr>)}
                 </tbody>
               </table>
             </div>
@@ -174,7 +182,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             <h2>{t("shopifyList")}</h2>
             <div className="card">
               {r.shopifyList.status === "ok" ? (
-                <p className="small">{r.shopifyList.note} {t("productsRead", { n: r.shopifyList.checked })}</p>
+                <p className="small">{t("shopifyListNote")} {t("productsRead", { n: r.shopifyList.checked })}</p>
               ) : (
                 <p className="muted small">{t("listOff", { reason: r.shopifyList.reason })}</p>
               )}
@@ -184,10 +192,10 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
 
         {r.wooStoreApi && (
           <>
-            <h2>{t("storeApi")}</h2>
+            <h2><AutoTerms text={t("storeApi")} /></h2>
             <div className="card">
               {r.wooStoreApi.status === "ok" ? (
-                <p className="small">{r.wooStoreApi.note} {t("productsRead", { n: r.wooStoreApi.checked })}</p>
+                <p className="small"><AutoTerms text={t("storeApiNote")} /> {t("productsRead", { n: r.wooStoreApi.checked })}</p>
               ) : (
                 <p className="muted small">{t("listOff", { reason: r.wooStoreApi.reason })}</p>
               )}
@@ -228,7 +236,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               </div>
             ))
           )}
-          <p className="muted small">{t("foundFrom", { source: r.productSource })}</p>
+          <p className="muted small"><AutoTerms text={t("foundFrom", { source: r.productSource })} /></p>
         </div>
 
         <h2>{t("aiVisibility")}</h2>
@@ -314,7 +322,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                 <tbody>
                   {r.requestLog.map((e, i) => (
                     <tr key={i}>
-                      <td>{e.step}</td>
+                      <td><AutoTerms text={e.step} /></td>
                       <td className={e.outcome.startsWith("not checked") ? "muted" : undefined}>{e.outcome}</td>
                     </tr>
                   ))}
@@ -376,7 +384,7 @@ function GeminiBlock({ part, empty, note, verdict, namesLabel }: { part: GeminiP
             </blockquote>
           </details>
           {part.note && <p className="muted small">{part.note}</p>}
-          <p className="muted small"><strong>{GEMINI_DISCLAIMER}</strong> {t("oneAnswer")}</p>
+          <p className="muted small"><strong>{t("geminiDisclaimer")}</strong> {t("oneAnswer")}</p>
         </>
       ) : (
         part.prompt && <p className="muted">{t("notAvailable", { reason: part.reason })}{part.note ? ` ${part.note}` : ""}</p>

@@ -1465,7 +1465,12 @@
     "f_gtin": "Barcodes (GTIN) and brands",
     "f_feed": "A product feed that AI shopping platforms can import",
     "f_checkout": "Checkout by country: shipping methods and payments that work for each market",
-    "f_sim": "A purchase test: an agent goes from product to checkout, never places an order, and shows where it stops"
+    "f_sim": "A purchase test: an agent goes from product to checkout, never places an order, and shows where it stops",
+    "evidenceLabel": "What we measured:",
+    "accessNote": "This test only changes the User-Agent. Real AI bots can be treated differently, for example when a firewall verifies their IP addresses.",
+    "geminiDisclaimer": "This is what the AI model says. Facts like prices, warranties or history were not verified by AgentScope.",
+    "storeApiNote": "Checked the first 10 products from the public WooCommerce Store API.",
+    "shopifyListNote": "Checked the first 10 products from the public Shopify product list."
   },
   "formsUi": {
     "workspaces": "Workspaces",
@@ -1698,6 +1703,30 @@
     "product_feed": {
       "term": "Product feed",
       "def": "One file that lists all your products with price, stock and photos, so AI shopping platforms can import your catalog."
+    },
+    "json_ld": {
+      "term": "JSON-LD",
+      "def": "The format product pages use to write structured data: a small block of code with the name, price, stock and image that machines read."
+    },
+    "store_api": {
+      "term": "Store API",
+      "def": "WooCommerce's public product and cart interface. Shopping agents can use it to read prices and fill a cart, the way a shopper would."
+    },
+    "user_agent": {
+      "term": "User agent",
+      "def": "The name a browser or bot gives itself when it asks for a page (for example GPTBot). Firewalls often allow or block by this name."
+    },
+    "sitemap": {
+      "term": "Sitemap",
+      "def": "A list of your store's pages (usually /wp-sitemap.xml) that helps search engines and AI bots find every product."
+    },
+    "ai_crawler": {
+      "term": "AI crawler",
+      "def": "A bot that reads public pages for an AI company: GPTBot (OpenAI), ClaudeBot (Anthropic), PerplexityBot, Google-Extended (Gemini). Blocking it keeps your pages out of that AI."
+    },
+    "bot_protection": {
+      "term": "Bot protection",
+      "def": "A firewall setting (Cloudflare, Wordfence, your host) that blocks or challenges automated visitors. It can also block the AI agents you want."
     }
   },
   "trust": {
@@ -1774,5 +1803,167 @@
     "src_owner": "your choice in Settings",
     "src_woocommerce": "from WooCommerce Selling location(s)",
     "change": "Change in Settings"
+  },
+  "checkFindings": {
+    "robots_unavailable": {
+      "title": "Could not read robots.txt",
+      "fix": "Open robots.txt in a browser to check it. WordPress serves one by default."
+    },
+    "robots_server_error": {
+      "title": "robots.txt returns a server error",
+      "fix": "Fix the error so robots.txt loads (check your host, cache or security plugin), then check again."
+    },
+    "robots_blocks_bot": {
+      "title": "robots.txt blocks {bot}",
+      "fix": "If this is not on purpose: in WordPress, open your SEO plugin's robots.txt editor (Yoast: Tools → File editor; Rank Math: General Settings → Edit robots.txt) or the robots.txt file on your host, and remove the Disallow rule for {bot} (or for *)."
+    },
+    "robots_no_sitemap": {
+      "title": "robots.txt does not list a sitemap",
+      "fix": "Add a line like \"Sitemap: https://your-store/wp-sitemap.xml\". WordPress and SEO plugins (Yoast, Rank Math) can add it for you."
+    },
+    "llms_txt_missing": {
+      "title": "No llms.txt (information only)",
+      "fix": "Optional. llms.txt is an informal proposal for a short text guide to your site; no major AI shopping agent requires it today."
+    },
+    "agentscope_blocked": {
+      "title": "robots.txt asks AgentScopeBot not to crawl, so pages were not checked",
+      "fix": "This is your choice and is respected. To allow this check, add \"User-agent: AgentScopeBot\" with \"Allow: /\" to robots.txt."
+    },
+    "bot_protection_blocked": {
+      "title": "Bot protection blocked our automated check ({vendor})",
+      "fix": "AI shopping agents may be blocked the same way. Check your bot protection settings (for example Cloudflare Bot Fight Mode, Verified Bots) and allow the AI agents you want."
+    },
+    "protection_unavailable": {
+      "title": "Platform, product pages, structured data and bot access could not be checked",
+      "fix": "Allow AgentScopeBot (or verified bots) in your bot protection to get the full public check."
+    },
+    "store_maintenance_mode": {
+      "title": "Store is in maintenance mode",
+      "fix": "Turn off maintenance mode when the store is ready, then check again."
+    },
+    "store_coming_soon": {
+      "title": "Store is in Coming soon mode",
+      "fix": "When the store is ready: WooCommerce → Settings → Site visibility → Live, then check again."
+    },
+    "platform_shopify": {
+      "title": "Shopify store detected",
+      "fix": "The checks below apply to Shopify too. The full scan with a store key is for WooCommerce for now."
+    },
+    "shopify_not_checked": {
+      "title": "Shopify product list not checked (request limit)",
+      "fix": "Nothing to fix. It was not read this time."
+    },
+    "shopify_list_unavailable": {
+      "title": "Shopify product list not available (not a problem)",
+      "fix": "Nothing to do. The product pages below were still checked."
+    },
+    "access_not_checked": {
+      "title": "Bot access not checked (request limit)",
+      "fix": "Nothing to fix. These bots were not tested this time."
+    },
+    "access_check_unavailable": {
+      "title": "Could not test AI access on the home page",
+      "fix": "Check that the page loads for visitors. The next check will try again."
+    },
+    "access_blocked": {
+      "title": "AI agents are blocked: {bot}",
+      "fix": "Allow {bot} in your firewall, security plugin or CDN bot settings (for example Cloudflare → Security → Bots, Wordfence, or your host's bot protection). Then check again."
+    },
+    "access_rate_limited": {
+      "title": "Rate-limited for this bot: {bot}",
+      "fix": "Our test requests were spaced out and retried once. If {bot} keeps getting 429, raise its rate limit in your security plugin or CDN."
+    },
+    "access_degraded": {
+      "title": "{bot} gets a different page",
+      "fix": "Check your caching, security or CDN rules for {bot}, then check again."
+    },
+    "schema_no_product_pages": {
+      "title": "Could not find product pages to check",
+      "fix": "Link a few products from the home page, or make sure the product sitemap is public (WordPress: /wp-sitemap.xml, Shopify: /sitemap.xml)."
+    },
+    "schema_unavailable": {
+      "title": "Could not check a product page",
+      "fix": "Check that the product page loads for visitors."
+    },
+    "schema_unavailable_protected": {
+      "title": "Could not check a product page",
+      "fix": "Allow AgentScopeBot or verified bots in your bot protection."
+    },
+    "schema_product_missing": {
+      "title": "No Product structured data",
+      "fix": "WooCommerce and Shopify themes add Product structured data by default. Check that your theme, SEO app or plugin, or cache does not remove it, then check again."
+    },
+    "schema_unparsed": {
+      "title": "Product structured data found but could not be read",
+      "fix": "Nothing to fix for now: this is a limit of the check, not necessarily of your page."
+    },
+    "schema_fields_missing": {
+      "title": "Product structured data is incomplete",
+      "fix": "Set the product's price, stock and image in WooCommerce or Shopify admin; if they are set, the theme or SEO app or plugin writing the structured data is dropping them."
+    },
+    "price_mismatch_store": {
+      "title": "Price in structured data differs from the store's product price",
+      "fix": "AI agents may quote the wrong price. Clear your page cache, check sale price dates in the product, and check the theme or plugin that writes structured data (taxes shown on the page and in the data can also differ). Then check again."
+    },
+    "price_mismatch_page": {
+      "title": "Price in structured data differs from the price on the page",
+      "fix": "AI agents may quote the wrong price. Clear your page cache, check sale price dates in the product, and check the theme or plugin that writes structured data (taxes shown on the page and in the data can also differ). Then check again."
+    },
+    "mistral_not_named": {
+      "title": "Mistral did not name this store for its category",
+      "fix": "Same as for Gemini: readable product pages, complete product data, and being listed where your category is reviewed."
+    },
+    "gemini_unavailable": {
+      "title": "Gemini visibility check not run",
+      "fix": "Try again tomorrow."
+    },
+    "gemini_not_named": {
+      "title": "Gemini did not name this store for its category",
+      "fix": "AI answers draw on what is published about your store. Make sure product pages are readable by AI bots (see above), complete product data in WooCommerce (descriptions, brand, GTIN), and get listed on sites that review or list shops in your category."
+    },
+    "wcstore_price_zero": {
+      "title": "\"{product}\": price missing or 0, may be intentional",
+      "fix": "If it is not free on purpose, set the regular price in WooCommerce → Products → \"{product}\" → General (or on each variation)."
+    },
+    "wcstore_sale_not_lower": {
+      "title": "\"{product}\": sale price is not lower than the regular price",
+      "fix": "Make the sale price lower than the regular price, or clear it, in WooCommerce → Products → \"{product}\" → General."
+    },
+    "wcstore_no_images": {
+      "title": "\"{product}\": no images",
+      "fix": "Set a product image in WooCommerce → Products → \"{product}\" (Product image, in the sidebar)."
+    },
+    "wcstore_short_description": {
+      "title": "\"{product}\": short description",
+      "fix": "Describe what it is, materials, sizes and use in WooCommerce → Products → \"{product}\" → Product short description."
+    },
+    "shopify_price_zero": {
+      "title": "\"{product}\": price missing or 0, may be intentional",
+      "fix": "If it is not free on purpose, set the price in Shopify admin → Products → \"{product}\" → Pricing (or per variant under Variants)."
+    },
+    "shopify_compare_at_not_higher": {
+      "title": "\"{product}\": \"compare at\" price is not higher than the price",
+      "fix": "A discount needs \"Compare-at price\" above \"Price\". Fix or clear it in Shopify admin → Products → \"{product}\" → Pricing."
+    },
+    "shopify_no_images": {
+      "title": "\"{product}\": no images",
+      "fix": "Add product photos in Shopify admin → Products → \"{product}\" → Media."
+    },
+    "shopify_short_description": {
+      "title": "\"{product}\": short description",
+      "fix": "Describe what it is, materials, sizes and use in Shopify admin → Products → \"{product}\" → Description. AI agents rely on it to match questions."
+    },
+    "shopify_no_vendor": {
+      "title": "\"{product}\": vendor (brand) is empty",
+      "fix": "Set Vendor in Shopify admin → Products → \"{product}\" → Product organization. Product feeds such as ChatGPT's require a brand."
+    },
+    "shopify_unavailable": {
+      "title": "\"{product}\": no variant can be bought (information)",
+      "fix": "Nothing to do if it is sold out on purpose. Otherwise check inventory in Shopify admin."
+    },
+    "shopify_no_weight": {
+      "title": "\"{product}\": shipped product with weight 0",
+      "fix": "Set the weight in Shopify admin → Products → \"{product}\" → Shipping so shipping cost can be calculated."
+    }
   }
 }

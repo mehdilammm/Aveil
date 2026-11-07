@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 
-export const GLOSSARY = ["gtin", "llms_txt", "robots_txt", "structured_data", "product_feed", "oai_searchbot", "chatgpt_user", "order_attribution", "ucp_acp"] as const;
+export const GLOSSARY = ["gtin", "llms_txt", "robots_txt", "structured_data", "json_ld", "product_feed", "store_api", "sitemap", "oai_searchbot", "chatgpt_user", "ai_crawler", "user_agent", "bot_protection", "order_attribution", "ucp_acp"] as const;
 export type GlossaryKey = (typeof GLOSSARY)[number];
 
 // A technical word with a small "?" that opens its plain definition (HTML popover: no JavaScript, works on phones).
