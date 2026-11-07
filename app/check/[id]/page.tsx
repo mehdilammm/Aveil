@@ -154,7 +154,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               </tbody>
             </table>
           )}
-          <p className="muted small"><Term k="llms_txt" />: {r.llmsTxt}.</p>
+          <p className="muted small"><Term k="llms_txt" />: {t(`llms_${r.llmsTxt}`)}.</p>
           {r.agentic && <p className="small"><BasisBadge basis={r.agentic.basis} /> <AutoTerms text={r.agentic.title} />. <span className="muted"><AutoTerms text={r.agentic.evidence} /></span></p>}
         </div>
 

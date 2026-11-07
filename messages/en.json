@@ -1470,7 +1470,10 @@
     "accessNote": "This test only changes the User-Agent. Real AI bots can be treated differently, for example when a firewall verifies their IP addresses.",
     "geminiDisclaimer": "This is what the AI model says. Facts like prices, warranties or history were not verified by AgentScope.",
     "storeApiNote": "Checked the first 10 products from the public WooCommerce Store API.",
-    "shopifyListNote": "Checked the first 10 products from the public Shopify product list."
+    "shopifyListNote": "Checked the first 10 products from the public Shopify product list.",
+    "llms_present": "present",
+    "llms_missing": "missing",
+    "llms_unavailable": "could not be read"
   },
   "formsUi": {
     "workspaces": "Workspaces",

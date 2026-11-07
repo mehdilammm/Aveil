@@ -443,3 +443,4 @@ details > summary { min-height: var(--tap); }
 .case-steps .o-stop { color: var(--red); font-weight: 700; }
 .case-steps .o-warn { color: var(--orange); }
 .case-steps .o-skip { color: var(--muted); }
+td .term { white-space: nowrap; }
