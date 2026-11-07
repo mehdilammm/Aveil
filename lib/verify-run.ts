@@ -51,9 +51,9 @@ export async function recheck(admin: SupabaseClient, store: Store, creds: WooCre
         return [...checkStructuredData([page], currency), ...duplicateSchemaFindings([page])];
       }
       case "markets": {
-        const rows = await marketRowsFor(admin, store, creds);
-        if (!rows) return { unavailable: "The store's WooCommerce settings could not be read, so the market cannot be checked." };
-        return marketFindings(store.url, rows);
+        const read = await marketRowsFor(admin, store, creds);
+        if (!read) return { unavailable: "The store's WooCommerce settings could not be read, so the market cannot be checked." };
+        return marketFindings(store.url, read.rows, {}, read.targets);
       }
       case "alt": {
         // G4: the product's images and its variations' images again, with which products show each image.

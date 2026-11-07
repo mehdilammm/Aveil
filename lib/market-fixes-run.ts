@@ -8,19 +8,22 @@ import { marketFindings, type LastTest } from "./market-fixes";
 import { defaultMarket, marketOf, type MarketId } from "./markets";
 import { wooCommerceAdapter } from "./platform/woocommerce";
 import type { Finding } from "./rules";
+import { resolveTargets, savedTargets } from "./target-markets";
 import { fetchCountryStates, type WooCredentials } from "./woo";
 
 type Store = { id: string; owner_id: string; url: string };
 export const MARKET_STEP = "markets";
 
-// The markets the store's AI Visibility questions target, else the store's own country (as the page shows them).
-export async function marketRowsFor(admin: SupabaseClient, store: Store, creds: WooCredentials, knownNeedsShipping?: boolean): Promise<MarketRow[] | null> {
+// The markets the store's AI Visibility questions target, else the store's own country (as the page shows them),
+// and the store's target markets (owner's choice, else WooCommerce's selling locations).
+export async function marketRowsFor(admin: SupabaseClient, store: Store, creds: WooCredentials, knownNeedsShipping?: boolean): Promise<{ rows: MarketRow[]; targets: MarketId[] } | null> {
   const adapter = wooCommerceAdapter(store.url, creds);
-  const [{ data: prompts }, { settings }, { zones, gateways }, page1] = await Promise.all([
+  const [{ data: prompts }, { settings }, { zones, gateways }, page1, saved] = await Promise.all([
     admin.from("visibility_prompts").select("market").eq("store_id", store.id),
     adapter.fetchPolicies(),
     adapter.fetchCheckoutSetup(),
     knownNeedsShipping === undefined ? adapter.fetchProductsPage(1).catch(() => null) : null,
+    savedTargets(admin, store.id),
   ]);
   if (!settings.ok) return null;
   const used = [...new Set((prompts ?? []).map((p) => p.market).filter((m): m is MarketId => Boolean(marketOf(m))))];
@@ -28,7 +31,8 @@ export async function marketRowsFor(admin: SupabaseClient, store: Store, creds: 
   const states: Record<string, number | null> = {};
   for (const m of markets) states[COUNTRY[m]] = await fetchCountryStates(store.url, creds, COUNTRY[m]);
   const needsShipping = knownNeedsShipping ?? (page1 ? page1.items.some((p) => !p.virtual) : true);
-  return marketCheckout({ markets, settings: settings.data, zones: zones.ok ? zones.data : null, gateways: gateways.ok ? gateways.data : null, states, needsShipping });
+  const rows = marketCheckout({ markets, settings: settings.data, zones: zones.ok ? zones.data : null, gateways: gateways.ok ? gateways.data : null, states, needsShipping });
+  return { rows, targets: resolveTargets(saved, settings.data).markets };
 }
 
 // The last finished purchase test of each market (Store API test).
@@ -52,9 +56,9 @@ export async function refreshMarketFindings(admin: SupabaseClient, store: Store,
     id = (data?.id as string | undefined) ?? null;
   }
   if (!id) return { scanId: null, findings: 0 };
-  const rows = await marketRowsFor(admin, store, creds, needsShipping);
-  if (!rows) return { scanId: id, findings: 0 };
-  const findings: Finding[] = marketFindings(store.url, rows, await lastTests(admin, store.id));
+  const read = await marketRowsFor(admin, store, creds, needsShipping);
+  if (!read) return { scanId: id, findings: 0 };
+  const findings: Finding[] = marketFindings(store.url, read.rows, await lastTests(admin, store.id), read.targets);
   // A re-check keeps each item's state (new / still open) as the scan set it.
   const { data: before } = await admin.from("findings").select("finding_key, state").eq("scan_id", id).eq("job_step", MARKET_STEP);
   const state = new Map((before ?? []).map((f) => [String(f.finding_key), (f.state as string | null) ?? null]));

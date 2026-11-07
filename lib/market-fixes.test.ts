@@ -35,6 +35,20 @@ describe("Checkout by market → Fix Center items", () => {
     expect(marketFindings(URL, rows(["MA"])).map((x) => x.finding_key)).toEqual(["market:MA:statesAsked"]);
   });
 
+  it("a market that is not a target: one low information item, no critical, no notes; a target keeps its critical blockers", () => {
+    const off = marketFindings(URL, rows(["US", "MA"]), {}, ["MA"]);
+    expect(off.map((x) => [x.finding_key, x.type, x.severity, x.basis])).toEqual([
+      ["market:US:notTarget", "market_not_target", "low", "observed"],
+      ["market:MA:statesAsked", "market_states_asked", "low", "heuristic"],
+    ]);
+    expect(off[0].evidence).toMatch(/^You don't sell to United States\. If you want to, add shipping and selling location\./);
+    expect(off.some((x) => x.severity === "high")).toBe(false);
+    // The owner adds the US to the targets: the blockers are critical again.
+    expect(marketFindings(URL, rows(["US"]), {}, ["US", "MA"]).filter((x) => x.severity === "high").map((x) => x.finding_key)).toEqual(["market:US:notSold", "market:US:noMethods"]);
+    // A market that is not a target and has no blocker gives nothing.
+    expect(marketFindings(URL, rows(["MA"]), {}, ["US"])).toEqual([]);
+  });
+
   it("the last purchase test is named, and Fix Center links to the market row and the test", () => {
     const test = { jobId: "j1", at: "2026-10-27T21:11:47Z", result: { market: "US" as const, country: "US", stoppedAt: "shipping" as const, requests: 9, steps: [{ step: "shipping" as const, outcome: "stop" as const, basis: "observed" as const, code: "noRates", values: {} }] } };
     expect(marketFindings(URL, rows(["US"]), { US: test })[1].evidence).toContain('Last purchase test (2026-10-27): stopped at "shipping" (noRates).');
@@ -55,7 +69,7 @@ vi.mock("./woo", async (orig) => ({ ...(await orig<typeof import("./woo")>()), f
 const { refreshMarketFindings } = await import("./market-fixes-run");
 
 describe("refreshMarketFindings", () => {
-  it('US "No shipping method" stays one Fix Center item after 3 purchase tests', async () => {
+  it("matha.site sells only to Morocco: the US is not a target, so one low item and no critical, after 3 checks", async () => {
     const { client, tables } = fakeSupabase({
       scans: [{ id: "scan1", store_id: "s1", status: "complete", created_at: "2026-10-28" }],
       visibility_prompts: [{ store_id: "s1", market: "US" }, { store_id: "s1", market: "US" }],
@@ -64,8 +78,22 @@ describe("refreshMarketFindings", () => {
     });
     const store = { id: "s1", owner_id: "u1", url: URL };
     for (let i = 0; i < 3; i++) await refreshMarketFindings(client, store, { consumerKey: "ck", consumerSecret: "cs" });
+    expect(tables.findings.filter((f) => f.job_step === "markets").map((f) => [f.finding_key, f.severity])).toEqual([["market:US:notTarget", "low"]]);
+    expect(tables.findings.find((f) => f.finding_key === "jsonld:returns")).toBeTruthy();
+  });
+
+  it("the owner made the US a target: its blockers are critical, one item each after 3 checks", async () => {
+    const { client, tables } = fakeSupabase({
+      stores: [{ id: "s1", target_markets: ["MA", "US"] }],
+      scans: [{ id: "scan1", store_id: "s1", status: "complete", created_at: "2026-10-28" }],
+      visibility_prompts: [{ store_id: "s1", market: "US" }],
+      findings: [],
+      jobs: [],
+    });
+    const store = { id: "s1", owner_id: "u1", url: URL };
+    for (let i = 0; i < 3; i++) await refreshMarketFindings(client, store, { consumerKey: "ck", consumerSecret: "cs" });
     expect(tables.findings.filter((f) => f.finding_key === "market:US:noMethods")).toHaveLength(1);
     expect(tables.findings.filter((f) => f.job_step === "markets")).toHaveLength(4);
-    expect(tables.findings.find((f) => f.finding_key === "jsonld:returns")).toBeTruthy();
+    expect(tables.findings.filter((f) => f.severity === "high")).toHaveLength(2);
   });
 });

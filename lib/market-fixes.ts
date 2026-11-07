@@ -3,7 +3,7 @@
 // of adding another. The row's basis is kept; the WooCommerce setting that changes it is named. Pure.
 import type { SimResult } from "./agent-sim";
 import type { MarketRow, Reason, ReasonCode } from "./market-checkout";
-import { marketOf } from "./markets";
+import { marketOf, type MarketId } from "./markets";
 import type { Finding } from "./rules";
 
 // Information-only notes that still change what an agent must send: shown, at low severity.
@@ -46,15 +46,34 @@ const SETTING: Partial<Record<ReasonCode, { path: string; tab: string | null }>>
 };
 
 const snake = (code: string) => code.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
-export const marketFindingKey = (market: string, code: ReasonCode) => `market:${market}:${code}`;
+export const marketFindingKey = (market: string, code: ReasonCode | "notTarget") => `market:${market}:${code}`;
 
 // The last purchase test of a market and where it stopped (Store API test, F7).
 export type LastTest = { jobId: string; at: string; result: SimResult } | null;
 
-export function marketFindings(storeUrl: string, rows: MarketRow[], tests: Record<string, LastTest> = {}): Finding[] {
+// targets: the store's target markets (lib/target-markets.ts); omitted = every market is a target. A market that is
+// not a target gives one information item (low) when an agent could not buy there, instead of critical blockers:
+// it never counts as critical or becomes the next step. Its notes (states, currency) are left out.
+export function marketFindings(storeUrl: string, rows: MarketRow[], tests: Record<string, LastTest> = {}, targets?: MarketId[]): Finding[] {
   const out: Finding[] = [];
   for (const row of rows) {
     const country = marketOf(row.market)?.country ?? row.market;
+    if (targets && !targets.includes(row.market)) {
+      const blockers = row.reasons.filter((r) => r.blocker);
+      if (!blockers.length) continue;
+      out.push({
+        finding_key: marketFindingKey(row.market, "notTarget"),
+        type: "market_not_target",
+        product_id: null,
+        title: `${country}: not one of your target markets`,
+        severity: "low",
+        basis: blockers.every((b) => b.basis === "observed") ? "observed" : "heuristic",
+        evidence: `You don't sell to ${country}. If you want to, add shipping and selling location. (${blockers.map((b) => EVIDENCE[b.code]?.(b.values) ?? b.code).join(" ")}) Information only: ${country} is not in your target markets.`,
+        guidance: `Nothing to do if you do not sell to ${country}. To sell there: WooCommerce → Settings → General → Selling location(s), add the country, then add a shipping zone with a method; and add it to your target markets in AgentScope Settings.`,
+        fix_url: `${storeUrl}/wp-admin/admin.php?page=wc-settings&tab=general`,
+      });
+      continue;
+    }
     const test = tests[row.market];
     const testNote = test
       ? test.result.stoppedAt

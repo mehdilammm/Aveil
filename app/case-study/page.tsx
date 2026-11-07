@@ -36,6 +36,7 @@ export default async function CaseStudyPage() {
       <section className="card">
         <h2>{t("s2Title")}</h2>
         <p>{t("s2Text")}</p>
+        <p className="muted small">{t("targetNote")}</p>
         <div className="case-sims">
           {CASE_SIM.map((sim) => (
             <div key={sim.market} className="case-sim">

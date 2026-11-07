@@ -21,7 +21,10 @@ export const CASE_SCANS: { at: string; issues: number; critical: number }[] = [
   { at: "2026-10-24T08:16:59Z", issues: 21, critical: 0 },
   { at: "2026-10-27T20:51:02Z", issues: 22, critical: 0 },
   { at: "2026-10-28T19:10:06Z", issues: 27, critical: 0 },
-  { at: "2026-10-28T22:17:05Z", issues: 23, critical: 2 },
+  // The market check of 28 Oct added 4 items for the United States (2 critical: not sold there, no shipping method;
+  // 2 notes). The store sells only to Morocco by choice, so with target markets (2026-11-07) the US is one
+  // information item: 23 + 1 = 24 issues, 0 critical (before the rule: 23 + 4 = 27 rows, 2 critical).
+  { at: "2026-10-28T22:17:05Z", issues: 24, critical: 0 },
 ];
 // The before/after the text quotes: the scan of 21 Oct 19:10 (43, 14 critical), 23:12 the same night (19), 23 Oct 19:25 (0 critical).
 export const CASE_BEFORE = { issues: 43, critical: 14 };

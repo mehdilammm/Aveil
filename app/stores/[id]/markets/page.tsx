@@ -16,6 +16,7 @@ import { wooCommerceAdapter } from "@/lib/platform/woocommerce";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
 import { fetchCountryStates } from "@/lib/woo";
+import { resolveTargets, savedTargets } from "@/lib/target-markets";
 import { canEdit, storeAccess } from "@/lib/workspace";
 import { SimButton } from "./sim-button";
 
@@ -61,17 +62,23 @@ export default async function MarketsPage({ params }: { params: Promise<{ id: st
   for (const m of markets) states[COUNTRY[m]] = await fetchCountryStates(store.url, creds, COUNTRY[m]);
   const needsShipping = page1 ? page1.items.some((p) => !p.virtual) : true;
   const rows = marketCheckout({ markets, settings: settings.data, zones: zones.ok ? zones.data : null, gateways: gateways.ok ? gateways.data : null, states, needsShipping });
+  const targets = resolveTargets(await savedTargets(admin, store.id), settings.data);
+  const tt = await getTranslations("targetMarkets");
 
   return (
     <>
       {head}
       <p className="muted small">{t("note")}</p>
       {!used.length && <p className="muted small">{t("defaultMarket", { market: markets[0] })}</p>}
+      <p className="small">
+        {tt("targetsLine", { list: targets.markets.map((m) => tt(`c_${m}`)).join(", ") || "—", source: tt(`src_${targets.source}`) })}{" "}
+        {canEdit(access.role) && <a href={`/settings#targets-${store.id}`}>{tt("change")}</a>}
+      </p>
       <div className="card table-wrap">
         <table className="rtable">
           <thead><tr><th>{t("market")}</th><th>{t("can")}</th><th>{t("why")}</th><th>{t("fix")}</th></tr></thead>
           <tbody>
-            {rows.map((r) => <Row key={r.market} r={r} t={t} storeUrl={store.url} />)}
+            {rows.map((r) => <Row key={r.market} r={r} t={t} storeUrl={store.url} target={targets.markets.includes(r.market)} targetLabel={tt(targets.markets.includes(r.market) ? "isTarget" : "notTarget")} />)}
           </tbody>
         </table>
       </div>
@@ -82,11 +89,11 @@ export default async function MarketsPage({ params }: { params: Promise<{ id: st
 
 type T = Awaited<ReturnType<typeof getTranslations<"markets">>>;
 
-function Row({ r, t, storeUrl }: { r: MarketRow; t: T; storeUrl: string }) {
+function Row({ r, t, storeUrl, target, targetLabel }: { r: MarketRow; t: T; storeUrl: string; target: boolean; targetLabel: string }) {
   const basis = r.verdict === "unknown" ? "unavailable" : r.verdict === "probably" ? "heuristic" : "observed";
   return (
     <tr id={`market-${r.market}`}>
-      <td data-label=""><strong>{marketOf(r.market)?.country ?? r.market}</strong></td>
+      <td data-label=""><strong>{marketOf(r.market)?.country ?? r.market}</strong> <span className={`badge${target ? "" : " basis-unavailable"} small`}>{targetLabel}</span></td>
       <td data-label={t("can")}><BasisBadge basis={basis} /> {t(`verdict.${r.verdict}`)}</td>
       <td className="small" data-label={t("why")}>
         {r.reasons.length === 0 ? <span className="muted">{t("noBarrier")}</span> : (

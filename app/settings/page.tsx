@@ -9,6 +9,8 @@ import { canEdit, ensurePersonalWorkspace, listWorkspaces } from "@/lib/workspac
 import { AddStoreForm } from "./add-store-form";
 import { ChangeUrlForm } from "./change-url-form";
 import { DeleteStoreForm } from "./delete-store-form";
+import { TargetMarketsForm } from "./target-markets-form";
+import { savedTargets } from "@/lib/target-markets";
 import { TrafficConnect } from "./traffic-connect";
 import { PluginOnboarding } from "@/components/plugin-onboarding";
 import { EmptyState, PageHead } from "@/components/ui";
@@ -22,6 +24,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const tu = await getTranslations("urlChange");
   const t = await getTranslations("settingsPage");
   const to = await getTranslations("overview");
+  const tm = await getTranslations("targetMarkets");
   if (user) await ensurePersonalWorkspace(createAdminClient(), user.id).catch(() => null);
   const workspaces = user ? await listWorkspaces(supabase, user.id) : [];
   const roleOf = new Map(workspaces.map((w) => [w.id, w]));
@@ -41,6 +44,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       // Shown as not connected.
     }
   }
+  const targets = new Map(await Promise.all(stores.map(async (s) => [s.id, await savedTargets(createAdminClient(), s.id)] as const)));
 
   return (
     <>
@@ -63,6 +67,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 <PluginOnboarding connected={connectors.get(s.id) ?? null} codeHere>
                   <TrafficConnect storeId={s.id} connected={connectors.get(s.id) ?? null} endpoint={endpoint} />
                 </PluginOnboarding>
+              </details>
+              <details className="fold" id={`targets-${s.id}`}>
+                <summary>{tm("title")}</summary>
+                <TargetMarketsForm storeId={s.id} saved={targets.get(s.id) ?? null} />
               </details>
               {roleOf.get(s.workspace_id)?.role === "owner" && (
                 <details className="fold">

@@ -1623,7 +1623,8 @@
     "jsonld_returns_missing": "Agents cannot read your return policy. Confirm it in one click.",
     "hosting_detected": "Your host and protection were detected (information).",
     "agentic_checkout_support": "No agent checkout protocol found (information only).",
-    "visibility_not_mentioned": "Your store was not named in any AI answer. See Brand profile and Share of voice for the stores named instead."
+    "visibility_not_mentioned": "Your store was not named in any AI answer. See Brand profile and Share of voice for the stores named instead.",
+    "market_not_target": "{n, plural, one {# country you do not sell to (not a target market). If you want to, add shipping and a selling location.} other {# countries you do not sell to (not target markets). If you want to, add shipping and selling locations.}}"
   },
   "trafficLabels": {
     "cat": {
@@ -1738,16 +1739,40 @@
     "after": "After",
     "s1Title": "Open issues, scan after scan",
     "s1Text": "On 21 October a full scan found {before} issues, {critical} of them critical. The same day, after the first fixes, the scan found {after}. From 23 October no critical issue was left.",
-    "s1Note": "Later scans added new checks (feed, markets, return policy), so the count went up again: a new check finds new things to fix. The market check added on 28 October found 2 new critical issues for the United States (no shipping method, the store does not sell there): the same stop the purchase test shows below. The chart shows every complete scan.",
+    "s1Note": "Later scans added new checks (feed, markets, return policy), so the count went up again: a new check finds new things to fix. On 28 October a market check looked at the United States. The store sells only to Morocco, by choice, so the United States is not a target market: it is one information item (\"You don't sell to United States\"), not 2 critical issues. Before this rule that scan showed 27 issues and 2 critical; with it, 24 and 0. The chart shows every complete scan, counted with the rule.",
     "criticalLabel": "Critical issues",
     "issuesLabel": "Open issues",
     "s2Title": "Where the agent stopped",
     "s2Text": "Our purchase test acts like a shopping agent: it finds a product, adds it to the cart, enters an address and reaches checkout, without ever placing an order. For a shopper in the United States it stopped at shipping: the store had no delivery method for that country. For Morocco it reached checkout and only warned that payment is offline.",
-    "s2Fix": "What to do: add a shipping method for the country in WooCommerce, or remove the country from the places you sell to. AgentScope now lists this per market in Fix Center.",
+    "s2Fix": "The store sells only to Morocco, so the United States stop is information, not a problem: it shows exactly what an agent would hit if you started selling there (add the country to Selling location(s) and a shipping method). In a target market the same stop is critical.",
     "marketUS": "United States",
     "marketMA": "Morocco",
     "s3Title": "What we do not claim",
     "s3Text": "Fewer issues mean fewer things that stop AI agents. They do not guarantee AI visits, mentions or orders. AgentScope measures those separately and shows when nothing happens.",
-    "cta": "Check your store"
+    "cta": "Check your store",
+    "targetNote": "Target markets: Morocco (from WooCommerce Selling location(s)). Checkout problems in other countries are information only."
+  },
+  "targetMarkets": {
+    "title": "Target markets",
+    "note": "The countries you want to sell to. A checkout problem in a country that is not a target is shown as information, not as a critical issue.",
+    "follow": "When nothing is ticked, AgentScope follows your WooCommerce Selling location(s).",
+    "current_owner": "Your choice: {list}.",
+    "current_woo": "Now: your WooCommerce Selling location(s).",
+    "save": "Save target markets",
+    "saving": "Saving…",
+    "saved": "Saved. The next check uses these markets.",
+    "failed": "Could not save.",
+    "c_US": "United States",
+    "c_UK": "United Kingdom",
+    "c_FR": "France",
+    "c_SA": "Saudi Arabia",
+    "c_AE": "United Arab Emirates",
+    "c_MA": "Morocco",
+    "notTarget": "Not a target market",
+    "isTarget": "Target market",
+    "targetsLine": "Target markets: {list} ({source}).",
+    "src_owner": "your choice in Settings",
+    "src_woocommerce": "from WooCommerce Selling location(s)",
+    "change": "Change in Settings"
   }
 }

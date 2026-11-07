@@ -63,8 +63,9 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
   // Open issues after each finished scan, oldest first (scans.findings_count), for the sparkline and the change.
   const history = scans.filter((s) => s.status === "complete" && s.findings_count !== null).map((s) => Number(s.findings_count)).reverse();
   // Identical findings are one fix ("Brand missing on 15 products"); ones that could not be checked are not a next step.
+  // A country the store does not sell to by choice (not a target market) is information, never the next step.
   const groups = groupByType(findings.filter((f) => f.basis !== "unavailable"));
-  const next = groups[0];
+  const next = groups.find((g) => g.type !== "market_not_target");
   const status = ["connected", "error", "not-connected"].includes(store.connection_status) ? store.connection_status : "not-connected";
 
   return (
